@@ -10,13 +10,15 @@ En **Profes** podés entrar como admin, como profe o como profe pendiente de apr
 1. Creá un proyecto **nuevo** en [supabase.com](https://supabase.com) (no uses el de Suptrain).
 2. En **SQL Editor**, pegá y ejecutá `supabase/setup.sql`.
 3. En **Project Settings → API**, copiá la *Project URL* y la *anon/publishable key* en `CONFIG` al principio del `<script>` de `index.html`. Completá también el `WHATSAPP` de la escuela y el `LOCATION`.
-4. En **Authentication → URL Configuration**, poné como *Site URL* la dirección donde vas a publicar la página.
+4. En **Authentication → URL Configuration**, poné como *Site URL* la dirección donde vas a publicar la página. En *Redirect URLs* agregá `https://tu-sitio/?staff=1`, que es a donde vuelven los mails de invitación y de recuperar contraseña.
 5. Publicá en Netlify con un sitio conectado a este repo y *Base directory* `nativo` (así se publican también las funciones de Mercado Pago).
-6. Entrá a la página → **Profes → Creá tu cuenta**, confirmá el email y después corré en el SQL Editor:
+6. Entrá a la página → **Profes → pedí acceso acá**, confirmá el email y después corré en el SQL Editor:
    ```sql
    update public.profiles set role = 'admin', approved = true where email = 'tu-email@ejemplo.com';
    ```
-7. Cada profe se crea su cuenta de la misma forma. Vos lo aprobás desde **Profes** y le asignás su %.
+7. Para sumar profes: **Profes → Agregar profe** (nombre, email, WhatsApp, %). Al profe le llega un mail, elige su contraseña y ya entra a su agenda.
+   Para esto, en Netlify tienen que estar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (ver tabla de Mercado Pago). La función `invite-profe` verifica que quien lo pide sea admin.
+   Si un profe pide acceso por su cuenta, aparece en "Pidieron acceso" para aprobarlo con un toque.
 
 ## Pago online con Mercado Pago (opcional)
 El alumno reserva y en la misma pantalla puede tocar **Pagar ahora con Mercado Pago**. También puede pagar después desde **Pagar mi reserva**, con su código.

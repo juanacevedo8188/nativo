@@ -143,10 +143,11 @@ textarea.input{min-height:70px;resize:vertical}
 .err{background:var(--bad-soft);color:var(--bad);padding:9px 12px;border-radius:8px;font-size:14px;margin-bottom:12px}
 
 /* ── Staff ── */
-.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line2);margin:16px 0;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{flex:none;padding:10px 14px;cursor:pointer;border:0;background:none;font-weight:600;color:var(--ink2);border-bottom:2px solid transparent;margin-bottom:-1px}
-.tab.on{color:var(--sea);border-color:var(--sea)}
+/* Pestañas como botones que bajan de renglón: en el celu se ven todas sin deslizar. */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line2)}
+.tab{padding:8px 14px;cursor:pointer;border:1px solid var(--line2);border-radius:999px;background:var(--card);font-weight:600;font-size:14px;color:var(--ink2)}
+.tab:hover{border-color:var(--sea2);color:var(--sea)}
+.tab.on{background:var(--sea);border-color:var(--sea);color:#fff}
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
 .kpi small{display:block;font-size:12px;color:var(--ink2)}
@@ -283,6 +284,7 @@ function supabaseApi() {
   const q = async p => { const { data, error } = await p; if (error) throw error; return data; };
   return {
     // Solo login/logout: ignora refrescos de token para no re-dibujar mientras alguien edita.
+    ready: () => c.auth.getSession(),
     onAuth: cb => c.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' || (ev === 'SIGNED_IN' && !st.me)) cb(); }),
     async signIn(email, password) { await q(c.auth.signInWithPassword({ email, password })); },
     async signUp(name, email, password) {
@@ -317,6 +319,19 @@ function supabaseApi() {
     },
     cancelSlotBookings: slotId => q(c.from('bookings').update({ status: 'cancelled' }).eq('slot_id', slotId).neq('status', 'cancelled')),
     profiles: () => q(c.from('profiles').select('*').order('approved', { ascending: true }).order('name')),
+    // Crear la cuenta de otro usuario necesita la clave secreta → lo hace una función del servidor que verifica que seas admin.
+    async inviteProfe(p) {
+      const { data: { session } } = await c.auth.getSession();
+      const r = await fetch('/.netlify/functions/invite-profe', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` }, body: JSON.stringify(p) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'No se pudo agregar al profe');
+      return j;
+    },
+    async resetPassword(email) {
+      await q(c.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname + '?staff=1' }));
+    },
+    async setPassword(password) { await q(c.auth.updateUser({ password })); },
     updateProfile: (id, patch) => q(c.from('profiles').update(patch).eq('id', id)),
     saveClassType: ct => ct.id ? q(c.from('class_types').update(ct).eq('id', ct.id)) : q(c.from('class_types').insert(ct)),
     deleteClassType: id => q(c.from('class_types').delete().eq('id', id)),
@@ -412,6 +427,11 @@ function demoApi() {
     mpApprove(code) { const b = db.bookings.find(x => x.code === code); Object.assign(b, { paid: true, payment_method: 'mercadopago' }); save(); },
     cancelSlotBookings(sid) { db.bookings.forEach(b => { if (b.slot_id === sid) b.status = 'cancelled'; }); save(); return wait(null); },
     profiles: () => wait(isAdmin() ? db.profiles : [meP()]),
+    inviteProfe(p) {
+      if (db.profiles.some(x => x.email === p.email)) return fail('Ya hay un profe con ese email');
+      db.profiles.push({ id: uid(), name: p.name, email: p.email, phone: p.phone, bio: '', role: 'profe', approved: true, commission_pct: p.pct });
+      save(); return wait(null);
+    },
     updateProfile(id, patch) {
       if (!isAdmin()) { delete patch.role; delete patch.approved; delete patch.commission_pct; }
       Object.assign(db.profiles.find(p => p.id === id), patch); save(); return wait(null);
@@ -472,10 +492,13 @@ function demoSeed() {
 }
 
 /* ════════════════════════════ ESTADO + RUTEO ════════════════════════════ */
+// Links de los mails de Supabase (invitación a un profe / recuperar contraseña) traen #...&type=invite|recovery.
+// Se lee antes de crear el cliente, que limpia la URL al procesar el link.
+const AUTH_LINK = new URLSearchParams(location.hash.slice(1)).get('type');
 const api = DEMO ? demoApi() : supabaseApi();
 const st = {
   types: [], profes: [], pub: [], fType: '', fProfe: '', day: null,
-  me: null, tab: null, agendaPast: false, agendaProfe: '', month: dayKey(new Date()).slice(0, 7),
+  me: null, tab: null, needPassword: AUTH_LINK === 'invite' || AUTH_LINK === 'recovery', agendaPast: false, agendaProfe: '', month: dayKey(new Date()).slice(0, 7),
   staffSlots: [], allProfiles: [],
 };
 
@@ -666,10 +689,11 @@ async function renderStaff() {
   try { st.me = await api.me(); } catch (e) { st.me = null; }
   if (!$('staff')) return;                       // el usuario se fue a la vista pública mientras cargaba
   if (!st.me) return drawLogin();
+  if (st.needPassword) return drawSetPassword();
   if (!st.me.approved) return drawPending();
   const tabs = st.me.role === 'admin'
-    ? [['resumen', 'Resumen'], ['agenda', 'Agenda'], ['cargar', 'Cargar horarios'], ['profes', 'Profes'], ['clases', 'Clases'], ['perfil', 'Mi perfil']]
-    : [['agenda', 'Mi agenda'], ['cargar', 'Cargar horarios'], ['numeros', 'Mis números'], ['perfil', 'Mi perfil']];
+    ? [['agenda', 'Agenda'], ['cargar', '+ Crear clase'], ['resumen', 'Resumen'], ['profes', 'Profes'], ['clases', 'Precio y cupo'], ['perfil', 'Mi perfil']]
+    : [['agenda', 'Mi agenda'], ['cargar', '+ Crear clase'], ['numeros', 'Mis números'], ['perfil', 'Mi perfil']];
   if (!tabs.some(t => t[0] === st.tab)) st.tab = tabs[0][0];
   $('staff').innerHTML = `
     <div class="row between" style="margin-top:18px"><div><div class="small muted">${st.me.role === 'admin' ? 'Admin' : 'Profe'}</div><b style="font-size:18px">Hola, ${esc(st.me.name)}</b></div>
@@ -701,7 +725,8 @@ function drawLogin(mode = 'in') {
       <div class="field"><label>Contraseña</label><input class="input" name="pw" type="password" required minlength="6" autocomplete="${up ? 'new-password' : 'current-password'}"></div>
       <button class="btn block" id="lg-btn">${up ? 'Crear cuenta' : 'Entrar'}</button>
     </form>
-    <p class="small muted" style="margin-top:12px;text-align:center">${up ? '¿Ya tenés cuenta? <a href="#staff" onclick="drawLogin(\'in\');return false">Entrar</a>' : '¿Sos profe nuevo? <a href="#staff" onclick="drawLogin(\'up\');return false">Creá tu cuenta</a>'}</p></div>`;
+    ${up ? '' : '<p class="small" style="margin-top:10px;text-align:center"><a href="#staff" onclick="forgotPassword();return false">Me olvidé la contraseña</a></p>'}
+    <p class="small muted" style="margin-top:12px;text-align:center">${up ? '¿Ya tenés cuenta? <a href="#staff" onclick="drawLogin(\'in\');return false">Entrar</a>' : '¿Sos profe nuevo? Pedile a la escuela que te agregue, o <a href="#staff" onclick="drawLogin(\'up\');return false">pedí acceso acá</a>'}</p></div>`;
 }
 async function doAuth(ev, mode) {
   ev.preventDefault();
@@ -716,6 +741,29 @@ async function doAuth(ev, mode) {
     } else await api.signIn(f.email.value.trim(), f.pw.value);
     renderStaff();
   } catch (e) { $('lg-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+function drawSetPassword() {
+  $('staff').innerHTML = `<div class="card" style="max-width:420px;margin:24px auto">
+    <h2>${AUTH_LINK === 'invite' ? `¡Bienvenido/a a Nativo, ${esc(st.me.name)}!` : 'Nueva contraseña'}</h2>
+    <p class="small muted" style="margin-bottom:12px">Elegí una contraseña para entrar de ahora en más con tu email (${esc(st.me.email)}).</p>
+    <div id="sp-err"></div>
+    <form onsubmit="doSetPassword(event)">
+      <div class="field"><label for="sp-pw">Contraseña</label><input class="input" id="sp-pw" name="pw" type="password" required minlength="6" autocomplete="new-password"></div>
+      <div class="field"><label for="sp-pw2">Repetila</label><input class="input" id="sp-pw2" name="pw2" type="password" required minlength="6" autocomplete="new-password"></div>
+      <button class="btn block" id="sp-btn">Guardar y entrar</button></form></div>`;
+}
+async function doSetPassword(ev) {
+  ev.preventDefault(); const f = ev.target;
+  if (f.pw.value !== f.pw2.value) { $('sp-err').innerHTML = '<div class="err">Las contraseñas no coinciden</div>'; return; }
+  $('sp-btn').disabled = true;
+  try { await api.setPassword(f.pw.value); st.needPassword = false; toast('Contraseña guardada ✓'); renderStaff(); }
+  catch (e) { $('sp-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; $('sp-btn').disabled = false; }
+}
+async function forgotPassword() {
+  const email = document.querySelector('#staff [name=email]')?.value.trim();
+  if (!email) { $('lg-err').innerHTML = '<div class="err">Escribí tu email arriba y volvé a tocar "Me olvidé la contraseña"</div>'; return; }
+  try { await api.resetPassword(email); $('lg-err').innerHTML = `<div class="sum">Te mandamos un mail a ${esc(email)} para elegir una contraseña nueva.</div>`; }
+  catch (e) { $('lg-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; }
 }
 function drawPending() {
   $('staff').innerHTML = `<div class="card" style="max-width:440px;margin:24px auto;text-align:center">
@@ -743,9 +791,10 @@ async function paneAgenda() {
         <button class="chip ${st.agendaPast ? 'on' : ''}" onclick="st.agendaPast=true;paneAgenda()">Últimos 30 días</button></div>
       ${isAdmin ? `<select class="input sm" onchange="st.agendaProfe=this.value;paneAgenda()"><option value="">Todos los profes</option>
         ${st.allProfiles.filter(p => p.approved).map(p => `<option value="${p.id}" ${st.agendaProfe === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
+      <button class="btn coral sm" onclick="setTab('cargar')">+ Nueva clase</button>
     </div>
     ${Object.keys(groups).length ? Object.entries(groups).map(([k, ss]) => `<div class="dayhead">${esc(fmtDayLong(k + 'T12:00'))}</div>${ss.map(slotCard).join('')}`).join('')
-      : `<div class="card empty" style="margin-top:14px">${st.agendaPast ? 'No hubo clases en los últimos 30 días.' : 'No tenés horarios cargados. Andá a <a href="#staff" onclick="setTab(\'cargar\');return false">Cargar horarios</a>.'}</div>`}`;
+      : `<div class="card empty" style="margin-top:14px">${st.agendaPast ? 'No hubo clases en los últimos 30 días.' : `No tenés clases creadas todavía.<div style="margin-top:12px"><button class="btn coral" onclick="setTab('cargar')">+ Crear mi primera clase</button></div>`}</div>`}`;
 }
 
 function slotCard(s) {
@@ -843,29 +892,46 @@ async function paneCreate() {
     if (isAdmin) st.allProfiles = await api.profiles();
   } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const types = st.types.filter(t => t.active), t0 = types[0] || {};
-  const today = dayKey(new Date()), until = dayKey(addDays(new Date(), 27));
-  paneEl().innerHTML = `<div class="card"><h2>Cargar horarios</h2>
-    <p class="small muted" style="margin-bottom:14px">Elegí días de la semana y horas: se crea un horario por cada combinación dentro del rango de fechas. Los que ya existen se saltean.</p>
+  const today = dayKey(new Date()), tomorrow = dayKey(addDays(new Date(), 1)), until = dayKey(addDays(new Date(), 27));
+  const profes = isAdmin ? st.allProfiles.filter(p => p.approved) : [];
+  paneEl().innerHTML = `<div class="card" style="max-width:560px"><h2>Crear clase</h2>
     <form id="cf" oninput="previewCreate()" onsubmit="doCreate(event)">
-      ${isAdmin ? `<div class="field"><label>Profe</label><select class="input" name="profe">${st.allProfiles.filter(p => p.approved).map(p => `<option value="${p.id}" ${p.id === st.me.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : ''}
-      ${types.length > 1 ? `<div class="field"><label>Tipo de clase</label><select class="input" name="type" onchange="fillType(this.value)">
+      ${isAdmin ? `<div class="field"><label for="cf-profe">Profe</label><select class="input" id="cf-profe" name="profe">${profes.map(p => `<option value="${p.id}" ${p.role === 'profe' && !profes.some(x => x.role === 'profe' && x.name < p.name) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : ''}
+      <div class="field"><div class="seg">
+        <label><input type="radio" name="mode" value="one" checked onchange="setCreateMode()">Una clase</label>
+        <label><input type="radio" name="mode" value="rep" onchange="setCreateMode()">Todas las semanas</label></div></div>
+
+      <div id="cf-one" class="grid2">
+        <div class="field"><label for="cf-date">Día</label><input class="input" id="cf-date" name="date" type="date" value="${tomorrow}" min="${today}"></div>
+        <div class="field"><label for="cf-time">Hora</label><input class="input" id="cf-time" name="time" type="time" value="10:00" step="900"></div>
+      </div>
+      <div id="cf-rep" class="hidden">
+        <div class="field"><label>Días</label><div class="wd">${[1, 2, 3, 4, 5, 6, 0].map(d => `<label><input type="checkbox" name="wd" value="${d}"><span>${WD[d]}</span></label>`).join('')}</div></div>
+        <div class="field"><label for="cf-times">Hora <span class="muted">(si son varias, separalas con coma)</span></label><input class="input" id="cf-times" name="times" placeholder="10:00, 17:30"></div>
+        <div class="grid2"><div class="field"><label for="cf-from">Desde</label><input class="input" id="cf-from" name="from" type="date" value="${today}" min="${today}"></div>
+          <div class="field"><label for="cf-to">Hasta</label><input class="input" id="cf-to" name="to" type="date" value="${until}" min="${today}"></div></div>
+      </div>
+
+      ${types.length > 1 ? `<div class="field"><label for="cf-type">Tipo de clase</label><select class="input" id="cf-type" name="type" onchange="fillType(this.value)">
         ${types.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}<option value="">Otra (personalizada)</option></select></div>
-      <div class="field"><label>Título que ve el alumno</label><input class="input" name="title" required value="${esc(t0.name || '')}"></div>`
+      <div class="field"><label for="cf-title">Título que ve el alumno</label><input class="input" id="cf-title" name="title" required value="${esc(t0.name || '')}"></div>`
       : `<input type="hidden" name="type" value="${t0.id || ''}"><input type="hidden" name="title" value="${esc(t0.name || 'Clase de iniciación')}">`}
-      <details ${types.length > 1 ? 'open' : ''} style="margin-bottom:12px"><summary class="small" style="cursor:pointer;margin-bottom:10px">${types.length > 1 ? 'Duración, cupo y precio' : `<b>${esc(t0.name || 'Clase')}</b> · ${t0.duration_min || 60} min · cupo ${t0.capacity || 1} · ${money(t0.price)} <span class="muted">(tocá para ajustar)</span>`}</summary>
-      <div class="grid2" style="grid-template-columns:repeat(3,1fr)">
-        <div class="field"><label>Duración (min)</label><input class="input" name="dur" type="number" min="15" step="15" required value="${t0.duration_min || 60}"></div>
-        <div class="field"><label>Cupo</label><input class="input" name="cap" type="number" min="1" max="50" required value="${t0.capacity || 1}"></div>
-        <div class="field"><label>Precio / pers.</label><input class="input" name="price" type="number" min="0" step="500" required value="${t0.price || 0}"></div>
-      </div></details>
-      <div class="grid2"><div class="field"><label>Desde</label><input class="input" name="from" type="date" required value="${today}" min="${today}"></div>
-        <div class="field"><label>Hasta</label><input class="input" name="to" type="date" required value="${until}" min="${today}"></div></div>
-      <div class="field"><label>Días</label><div class="wd">${[1, 2, 3, 4, 5, 6, 0].map(d => `<label><input type="checkbox" name="wd" value="${d}"><span>${WD[d]}</span></label>`).join('')}</div></div>
-      <div class="field"><label>Horas de inicio <span class="muted">(separadas por coma)</span></label><input class="input" name="times" placeholder="09:00, 11:00, 18:30" required></div>
-      <div class="field"><label>Lugar</label><input class="input" name="loc" value="${esc(CONFIG.LOCATION)}"></div>
-      <div class="field"><label>Nota para el alumno <span class="muted">(opcional)</span></label><input class="input" name="notes" placeholder="Traer protector solar y ropa que se pueda mojar"></div>
-      <div class="row between wrapf"><span id="cf-prev" class="small muted"></span><button class="btn" id="cf-btn">Crear horarios</button></div>
+      <details style="margin-bottom:12px"><summary class="small" style="cursor:pointer;margin-bottom:10px"><b>${esc(t0.name || 'Clase')}</b> · ${t0.duration_min || 60} min · cupo ${t0.capacity || 1} · ${money(t0.price)} · ${esc(CONFIG.LOCATION)} <span class="muted">(cambiar)</span></summary>
+        <div class="grid2" style="grid-template-columns:repeat(3,1fr)">
+          <div class="field"><label for="cf-dur">Minutos</label><input class="input" id="cf-dur" name="dur" type="number" min="15" step="15" required value="${t0.duration_min || 60}"></div>
+          <div class="field"><label for="cf-cap">Cupo</label><input class="input" id="cf-cap" name="cap" type="number" min="1" max="50" required value="${t0.capacity || 1}"></div>
+          <div class="field"><label for="cf-price">Precio</label><input class="input" id="cf-price" name="price" type="number" min="0" step="500" required value="${t0.price || 0}"></div>
+        </div>
+        <div class="field"><label for="cf-loc">Lugar</label><input class="input" id="cf-loc" name="loc" value="${esc(CONFIG.LOCATION)}"></div>
+        <div class="field"><label for="cf-notes">Nota para el alumno <span class="muted">(opcional)</span></label><input class="input" id="cf-notes" name="notes" placeholder="Traer protector solar y ropa que se pueda mojar"></div>
+      </details>
+      <div class="row between wrapf"><span id="cf-prev" class="small muted"></span><button class="btn coral" id="cf-btn">Crear clase</button></div>
     </form></div>`;
+  if ($('cf')) previewCreate();                 // si cambió de pestaña mientras cargaba, no hay formulario
+}
+function setCreateMode() {
+  const rep = $('cf').mode.value === 'rep';
+  $('cf-one').classList.toggle('hidden', rep); $('cf-rep').classList.toggle('hidden', !rep);
   previewCreate();
 }
 function fillType(id) {
@@ -873,12 +939,19 @@ function fillType(id) {
   f.title.value = t.name; f.dur.value = t.duration_min; f.cap.value = t.capacity; f.price.value = t.price; previewCreate();
 }
 function buildSlots() {
-  const f = $('cf');
+  const f = $('cf'), now = new Date();
+  if (f.mode.value === 'one') {
+    if (!f.date.value || !f.time.value) return { rows: [] };
+    const start = new Date(`${f.date.value}T${f.time.value}`);
+    if (isNaN(start)) return { rows: [] };
+    if (start <= now) return { error: 'Ese día y hora ya pasaron' };
+    return { rows: [start] };
+  }
   const wds = [...f.querySelectorAll('[name=wd]:checked')].map(x => +x.value);
   const times = f.times.value.split(/[,\s]+/).map(x => x.trim()).filter(Boolean);
   const bad = times.filter(t => !/^([01]?\d|2[0-3])[:.]\d{2}$/.test(t));
-  if (bad.length) return { error: `Hora inválida: ${bad.join(', ')} (usá formato 09:30)` };
-  const out = [], now = new Date();
+  if (bad.length) return { error: `Hora inválida: ${bad.join(', ')} (escribila así: 09:30)` };
+  const out = [];
   if (!f.from.value || !f.to.value) return { rows: out };
   for (let d = new Date(f.from.value + 'T00:00'); d <= new Date(f.to.value + 'T00:00') && out.length <= 400; d = addDays(d, 1)) {
     if (!wds.includes(d.getDay())) continue;
@@ -890,9 +963,12 @@ function buildSlots() {
   return { rows: out };
 }
 function previewCreate() {
-  const r = buildSlots();
-  $('cf-prev').innerHTML = r.error ? `<span style="color:var(--bad)">${esc(r.error)}</span>` : `Se van a crear hasta <b>${r.rows.length}</b> horarios`;
-  $('cf-btn').disabled = !!r.error || !r.rows.length;
+  const r = buildSlots(), f = $('cf'), n = r.rows?.length || 0;
+  $('cf-prev').innerHTML = r.error ? `<span style="color:var(--bad)">${esc(r.error)}</span>`
+    : f.mode.value === 'one' ? (n ? `<span style="text-transform:capitalize">${esc(fmtDayLong(r.rows[0]))}</span> · ${hhmm(r.rows[0])} hs` : '')
+    : n ? `Se van a crear <b>${n}</b> clases` : 'Elegí al menos un día y una hora';
+  $('cf-btn').textContent = f.mode.value === 'one' || n <= 1 ? 'Crear clase' : `Crear ${n} clases`;
+  $('cf-btn').disabled = !!r.error || !n;
 }
 async function doCreate(ev) {
   ev.preventDefault();
@@ -908,7 +984,7 @@ async function doCreate(ev) {
       duration_min: +f.dur.value, capacity: +f.cap.value, price: +f.price.value, location: f.loc.value.trim() || null, notes: f.notes.value.trim() || null,
     }));
     if (rows.length) await api.createSlots(rows);
-    toast(`${rows.length} horarios creados${r.rows.length - rows.length ? ` · ${r.rows.length - rows.length} ya existían` : ''}`);
+    toast(rows.length ? `${rows.length === 1 ? 'Clase creada' : rows.length + ' clases creadas'}${r.rows.length - rows.length ? ` · ${r.rows.length - rows.length} ya existían` : ''} ✓` : 'Esa clase ya existía');
     st.agendaPast = false; setTab('agenda');
   } catch (e) { toast(errMsg(e)); $('cf-btn').disabled = false; }
 }
@@ -1031,17 +1107,44 @@ function exportCsv() {
 /* ── Profes (admin) ── */
 async function paneProfes() {
   try { st.allProfiles = await api.profiles(); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
-  paneEl().innerHTML = `<div class="card"><h2>Profes</h2>
-    <p class="small muted" style="margin-bottom:12px">Cada profe se crea la cuenta desde "Profes → Creá tu cuenta" y aparece acá como pendiente. El % es la parte de lo cobrado que le toca; se aplica a los horarios que se carguen desde ahora.</p>
+  const pending = st.allProfiles.filter(p => !p.approved);
+  paneEl().innerHTML = `
+    <div class="card" style="max-width:560px"><h2>Agregar profe</h2>
+      <p class="small muted" style="margin-bottom:12px">${api.demo ? 'En la versión real le llega un mail para que elija su contraseña. En la demo aparece directo en la lista de "Entrar".' : 'Le llega un mail para que elija su contraseña. Después entra en "Profes" con su email.'}</p>
+      <div id="ap-err"></div>
+      <form onsubmit="addProfe(event)">
+        <div class="grid2"><div class="field"><label for="ap-name">Nombre</label><input class="input" id="ap-name" name="name" required maxlength="60" placeholder="Ej: Tomi"></div>
+          <div class="field"><label for="ap-email">Email</label><input class="input" id="ap-email" name="email" type="email" required placeholder="tomi@gmail.com"></div></div>
+        <div class="grid2"><div class="field"><label for="ap-phone">WhatsApp <span class="muted">(opcional)</span></label><input class="input" id="ap-phone" name="phone" type="tel" placeholder="341 555 1234"></div>
+          <div class="field"><label for="ap-pct">Se lleva (% de cada alumno)</label><input class="input" id="ap-pct" name="pct" type="number" min="0" max="100" value="50"></div></div>
+        <button class="btn coral" id="ap-btn">Agregar profe</button>
+      </form></div>
+    ${pending.length ? `<div class="card"><h3>Pidieron acceso <span class="pill warn">${pending.length}</span></h3>
+      ${pending.map(p => `<div class="row between wrapf" style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(p.name)}</b><div class="tiny muted">${esc(p.email)}</div></div>
+        <div class="row"><button class="btn sm" onclick="approveProfe('${p.id}')">Aprobar</button></div></div>`).join('')}</div>` : ''}
+    <div class="card"><h2>Equipo</h2>
+    <p class="small muted" style="margin-bottom:12px">El % es la parte de cada alumno cobrado que se lleva el profe. Si lo cambiás, aplica a las clases que se creen desde ahora.</p>
     <div class="tbl-wrap"><table>
-    <tr><th>Nombre</th><th>Email</th><th>Rol</th><th class="r">% profe</th><th>Aprobado</th><th></th></tr>
-    ${st.allProfiles.map(p => `<tr id="pr-${p.id}">
+    <tr><th>Nombre</th><th>Email</th><th>Rol</th><th class="r">% profe</th><th>Activo</th><th></th></tr>
+    ${st.allProfiles.filter(p => p.approved || !pending.includes(p)).map(p => `<tr id="pr-${p.id}">
       <td><b>${esc(p.name)}</b>${p.phone ? `<div class="tiny muted">${esc(p.phone)}</div>` : ''}</td><td class="small">${esc(p.email)}</td>
       <td><select class="input sm" data-k="role"><option value="profe" ${p.role === 'profe' ? 'selected' : ''}>profe</option><option value="admin" ${p.role === 'admin' ? 'selected' : ''}>admin</option></select></td>
       <td class="r"><input class="input sm" style="width:70px" data-k="commission_pct" type="number" min="0" max="100" value="${+p.commission_pct}"></td>
-      <td><label class="check"><input type="checkbox" data-k="approved" ${p.approved ? 'checked' : ''}> ${p.approved ? '' : '<span class="pill warn">pendiente</span>'}</label></td>
-      <td><button class="btn sm" onclick="saveProfe('${p.id}')">Guardar</button></td></tr>`).join('')}
+      <td><label class="check"><input type="checkbox" data-k="approved" ${p.approved ? 'checked' : ''}></label></td>
+      <td><button class="btn sm ghost" onclick="saveProfe('${p.id}')">Guardar</button></td></tr>`).join('')}
     </table></div></div>`;
+}
+async function addProfe(ev) {
+  ev.preventDefault();
+  const f = ev.target, btn = $('ap-btn'); btn.disabled = true; $('ap-err').innerHTML = '';
+  try {
+    const r = await api.inviteProfe({ name: f.name.value.trim(), email: f.email.value.trim().toLowerCase(), phone: f.phone.value.trim() || null, pct: Math.min(100, Math.max(0, +f.pct.value || 0)) });
+    toast(api.demo ? `${f.name.value.trim()} agregado ✓` : r?.alreadyExisted ? `${f.name.value.trim()} ya tenía cuenta: quedó aprobado ✓` : `Invitación enviada a ${f.email.value.trim()} ✓`);
+    paneProfes();
+  } catch (e) { $('ap-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+async function approveProfe(id) {
+  try { await api.updateProfile(id, { approved: true }); toast('Profe aprobado ✓'); paneProfes(); } catch (e) { toast(errMsg(e)); }
 }
 async function saveProfe(id) {
   const tr = $('pr-' + id), g = k => tr.querySelector(`[data-k=${k}]`);
@@ -1063,7 +1166,7 @@ async function paneTypes() {
     <td><input class="input sm" style="width:100px" data-k="price" type="number" min="0" step="500" value="${+t.price || 0}"></td>
     <td><input type="checkbox" data-k="active" ${t.active !== false ? 'checked' : ''}></td>
     <td><button class="btn sm" onclick="saveType(this)">Guardar</button></td></tr>`;
-  paneEl().innerHTML = `<div class="card"><h2>Tipos de clase</h2>
+  paneEl().innerHTML = `<div class="card"><h2>Precio y cupo de la clase</h2>
     <p class="small muted" style="margin-bottom:12px">Son los valores sugeridos al cargar horarios. Cambiar un precio acá no modifica horarios ya cargados.</p>
     <div class="tbl-wrap"><table id="tt"><tr><th>Nombre</th><th>Descripción</th><th>Min</th><th>Cupo</th><th>Precio</th><th>Activa</th><th></th></tr>
     ${st.types.map(row).join('')}${row({ sort: st.types.length + 1 })}</table></div></div>`;
@@ -1098,7 +1201,13 @@ async function saveProfile(ev) {
 if (DEMO) $('demo-bar').classList.remove('hidden');
 api.onAuth(() => { if (location.hash.startsWith('#staff')) renderStaff(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-route();
+// Vuelta desde un mail de invitación / recuperar contraseña → ir directo al área de profes.
+// Primero dejamos que Supabase lea el token del link; recién después limpiamos la URL.
+if (AUTH_LINK || new URLSearchParams(location.search).has('staff')) {
+  (AUTH_LINK && api.ready ? api.ready() : Promise.resolve()).finally(() => {
+    history.replaceState(null, '', location.pathname + '#staff'); route();
+  });
+} else route();
 (() => {                                                    // vuelta desde Mercado Pago
   const u = new URLSearchParams(location.search), r = u.get('pago');
   if (!r) return;
