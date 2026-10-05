@@ -1,0 +1,4 @@
+# Sitio de Netlify para Nativo: en "Base directory" poné  nativo
+[build]
+  publish = "."
+  functions = "netlify/functions"
