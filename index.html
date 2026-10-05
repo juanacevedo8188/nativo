@@ -139,6 +139,7 @@ textarea.input{min-height:70px;resize:vertical}
 .class-info>div:first-child{min-width:0;flex:1 1 240px}
 .facts{display:flex;gap:6px;flex-wrap:wrap}
 .facts span{background:var(--sea-soft);color:var(--sea);border-radius:999px;padding:4px 10px;font-size:13px}
+.unpaid{border-color:#ecd3a6}
 .err{background:var(--bad-soft);color:var(--bad);padding:9px 12px;border-radius:8px;font-size:14px;margin-bottom:12px}
 
 /* ── Staff ── */
@@ -751,15 +752,17 @@ function slotCard(s) {
   const act = s.bookings.filter(b => b.status !== 'cancelled');
   const people = act.reduce((a, b) => a + b.people, 0);
   const cancelled = s.status === 'cancelled';
-  // Parte del profe en esta clase: % del profe × monto de los alumnos que vienen (no cuenta ausentes ni cancelados).
-  const share = act.filter(b => b.status !== 'no_show').reduce((a, b) => a + +b.amount, 0) * (+s.profe_pct || 0) / 100;
+  // Parte del profe = % × lo marcado como pagado. Lo no marcado se muestra aparte como "falta cobrar".
+  const pp = (+s.profe_pct || 0) / 100;
+  const share = act.filter(b => b.paid).reduce((a, b) => a + +b.amount, 0) * pp;
+  const pend = act.filter(b => !b.paid && b.status !== 'no_show').reduce((a, b) => a + +b.amount, 0) * pp;
   const bks = s.bookings.slice().sort((a, b) => (a.status === 'cancelled') - (b.status === 'cancelled'));
   return `<div class="card sslot ${cancelled ? 'cancelled' : ''}" style="margin-bottom:10px">
     <div class="hd">
       <div><b class="num">${hhmm(s.starts_at)}–${hhmm(addMin(s.starts_at, s.duration_min))}</b> · ${esc(s.title)}
         ${st.me.role === 'admin' ? `<span class="muted"> · ${esc(s.profe?.name)}</span>` : ''}
         <div class="small muted">${s.location ? esc(s.location) + ' · ' : ''}${money(s.price)}/pers.${s.notes ? ' · ' + esc(s.notes) : ''}</div></div>
-      <div class="row" style="flex-direction:column;align-items:flex-end;gap:4px">${cancelled ? '<span class="pill bad">Cancelado</span>' : `<span class="pill ${people >= s.capacity ? 'warn' : 'ok'} num">${people}/${s.capacity}</span>${share > 0 ? `<span class="tiny muted num">${st.me.role === 'admin' ? 'profe' : 'para vos'}: <b style="color:var(--ink)">${money(share)}</b></span>` : ''}`}</div>
+      <div class="row" style="flex-direction:column;align-items:flex-end;gap:4px">${cancelled ? '<span class="pill bad">Cancelado</span>' : `<span class="pill ${people >= s.capacity ? 'warn' : 'ok'} num">${people}/${s.capacity}</span>${share > 0 ? `<span class="tiny muted num">${st.me.role === 'admin' ? 'profe' : 'para vos'}: <b style="color:var(--ink)">${money(share)}</b></span>` : ''}${pend > 0 ? `<span class="tiny num" style="color:var(--warn)">${isPast(s) ? 'falta marcar pago' : 'falta cobrar'}: ${money(pend)}</span>` : ''}`}</div>
     </div>
     ${bks.map(b => `<div class="bk ${b.status === 'cancelled' ? 'x' : ''}">
       <div><b>${esc(b.customer_name)}</b>${b.people > 1 ? ` <span class="pill gray">×${b.people}</span>` : ''}<div class="tiny muted">#${esc(b.code)}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</div></div>
@@ -783,6 +786,7 @@ async function updBooking(id, patch) {
     await api.updateBooking(id, patch);
     const b = st.staffSlots.flatMap(s => s.bookings).find(x => x.id === id); if (b) Object.assign(b, patch);
     toast('Guardado ✓');
+    if ('paid' in patch || 'status' in patch) st.tab === 'agenda' ? paneAgenda() : paneStats();
   } catch (e) { toast(errMsg(e)); paneAgenda(); }
 }
 async function cancelSlot(id) {
@@ -942,8 +946,17 @@ async function paneStats() {
   const isAdmin = st.me.role === 'admin';
   const [y, m] = st.month.split('-').map(Number);
   const from = new Date(y, m - 1, 1), to = new Date(y, m, 1);
-  try { st.staffSlots = await api.staffSlots(from, to); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  let past = [];
+  try { [st.staffSlots, past] = await Promise.all([api.staffSlots(from, to), api.staffSlots(addDays(new Date(), -120), new Date())]); }
+  catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const { tot, by, byType, bySrc } = computeStats(st.staffSlots);
+  // No cobrados: clases que ya pasaron, alumno que vino (o no se marcó), sin pago marcado.
+  const unpaid = past.filter(s => s.status !== 'cancelled')
+    .flatMap(s => s.bookings.filter(b => !b.paid && (b.status === 'confirmed' || b.status === 'attended')).map(b => ({ s, b })))
+    .sort((a, b) => a.s.starts_at.localeCompare(b.s.starts_at));
+  st.unpaidSlots = past;
+  const unpaidTot = unpaid.reduce((a, { b }) => a + +b.amount, 0);
+  const unpaidProfe = unpaid.reduce((a, { s, b }) => a + b.amount * (+s.profe_pct || 0) / 100, 0);
   const maxC = Math.max(1, ...by.map(p => p.cobrado));
   const pcts = [...new Set(st.staffSlots.map(s => +s.profe_pct))], myPct = pcts.length === 1 ? pcts[0] + '%' : pcts.length ? 'según clase' : +st.me.commission_pct + '%';
   const k = (l, v, hl) => `<div class="kpi ${hl ? 'hl' : ''}"><small>${l}</small><b>${v}</b></div>`;
@@ -981,7 +994,26 @@ async function paneStats() {
         <td>${esc(b.customer_name)}</td><td class="r num">${b.people}</td><td class="r num">${money(b.amount)}</td>
         <td><span class="pill ${{ confirmed: '', attended: 'ok', no_show: 'warn', cancelled: 'bad' }[b.status]}">${STATUS[b.status]}</span></td>
         <td>${b.paid ? `<span class="pill ok">${esc(b.payment_method || 'sí')}</span>` : '<span class="pill gray">pendiente</span>'}</td></tr>`).join('') || `<tr><td colspan="8" class="muted">Sin reservas este mes</td></tr>`}
-    </table></div></div>`;
+    </table></div></div>
+    <div class="card unpaid" id="no-cobrados">
+      <div class="row between wrapf"><h3 style="margin:0">No cobrados <span class="pill ${unpaid.length ? 'warn' : 'ok'} num">${unpaid.length}</span></h3>
+        ${unpaid.length ? `<span class="small num">Total <b>${money(unpaidTot)}</b> · ${isAdmin ? 'parte profes' : 'tu parte'} <b>${money(unpaidProfe)}</b></span>` : ''}</div>
+      <p class="tiny muted" style="margin:4px 0 6px">Clases ya dadas (últimos 4 meses) con alumnos sin pago marcado. ${isAdmin ? 'No suman en lo que hay que pagarle al profe' : 'No suman en tu parte'} hasta que se marquen como cobrados.</p>
+      ${unpaid.length ? unpaid.map(({ s, b }) => `<div class="bk">
+        <div><b>${esc(b.customer_name)}</b>${b.people > 1 ? ` <span class="pill gray">×${b.people}</span>` : ''}
+          <div class="tiny muted">${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)}${isAdmin ? ` · ${esc(s.profe?.name)}` : ''}${b.status === 'confirmed' ? ' · asistencia sin marcar' : ''}</div></div>
+        <div class="small">${contactLink(b.customer_phone, `Hola ${b.customer_name.split(' ')[0]}! Te escribo de Nativo por el pago de la clase del ${fmtDayShort(s.starts_at)}: ${money(b.amount)}.`)}</div>
+        <div class="num" style="text-align:right">${money(b.amount)}<div class="tiny muted">profe ${money(b.amount * (+s.profe_pct || 0) / 100)}</div></div>
+        <div class="ctl"><select class="input sm" id="m-${b.id}">${METHODS.map(m => `<option>${m}</option>`).join('')}</select>
+          <button class="btn sm" onclick="markPaid('${b.id}')">Cobrado</button></div>
+      </div>`).join('') : '<p class="small" style="color:var(--ok)">Todo cobrado ✓</p>'}
+    </div>`;
+}
+async function markPaid(id) {
+  const method = $('m-' + id)?.value || 'efectivo';
+  try { await api.updateBooking(id, { paid: true, payment_method: method, status: 'attended' }); toast('Marcado como cobrado ✓'); }
+  catch (e) { return toast(errMsg(e)); }
+  const y = window.scrollY; await paneStats(); window.scrollTo(0, y);
 }
 function shiftMonth(n) { const [y, m] = st.month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); st.month = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; paneStats(); }
 function exportCsv() {

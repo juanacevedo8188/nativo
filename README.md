@@ -49,6 +49,7 @@ Comisión: Mercado Pago cobra su comisión sobre cada cobro con Checkout Pro. Lo
 - A pagar al profe = Σ cobrado × % del profe. Se usa el % que tenía el profe cuando se cargó cada horario.
 - Neto escuela = Cobrado − A pagar a profes
 - Por cobrar = Σ monto de las reservas sin pagar (confirmadas o con asistencia)
+- **No cobrados** (al final del resumen): clases ya dadas en los últimos 4 meses con alumnos sin pago marcado. No suman en la parte del profe hasta que alguien toca **Cobrado**. Así a los profes les conviene mantener la agenda al día.
 - Ocupación = Σ personas que vinieron o están confirmadas ÷ Σ cupo
 
 El cupo se valida dentro de la base (`book_slot`, con el horario bloqueado), así que dos personas no pueden quedarse con el último lugar.
