@@ -79,6 +79,11 @@ create table if not exists public.bookings (
 create index if not exists bookings_slot_idx on public.bookings (slot_id);
 -- Pago online: id del pago de Mercado Pago (lo completa el webhook, nunca el navegador).
 alter table public.bookings add column if not exists mp_payment_id text;
+-- Canal por el que llegó la reserva: la web, o cargada a mano por el profe.
+alter table public.bookings add column if not exists source text not null default 'web';
+alter table public.bookings drop constraint if exists bookings_source_check;
+alter table public.bookings add constraint bookings_source_check
+  check (source in ('web', 'whatsapp', 'instagram', 'presencial', 'otro'));
 
 -- ───────────────────────────── 2) Helpers ─────────────────────────────
 -- security definer: leen profiles/slots sin pasar por RLS (evita recursión).

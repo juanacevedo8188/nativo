@@ -129,6 +129,12 @@ textarea.input{min-height:70px;resize:vertical}
 .btn.mp{background:#009ee3} .btn.mp:hover{background:#0087c2}
 .mp-head{font-family:var(--f-display);font-weight:800;color:#009ee3;font-size:20px;display:flex;justify-content:space-between;align-items:center}
 .mp-head span{font-family:var(--f-body);font-size:11px;font-weight:600;color:var(--warn);background:var(--warn-soft);padding:2px 8px;border-radius:999px}
+.src{font-weight:600;color:var(--sea2)} .src-instagram{color:#c13584} .src-whatsapp{color:#1f8a5b}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg label{border:1px solid var(--line2);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:14px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:checked){background:var(--sea);border-color:var(--sea);color:#fff}
+.seg label:has(input:focus-visible){outline:2px solid var(--sea2);outline-offset:2px}
 .err{background:var(--bad-soft);color:var(--bad);padding:9px 12px;border-radius:8px;font-size:14px;margin-bottom:12px}
 
 /* ── Staff ── */
@@ -225,6 +231,15 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().
 const isPast = s => new Date(s.starts_at) < new Date();
 const STATUS = {confirmed:'Confirmada', attended:'Vino', no_show:'No vino', cancelled:'Cancelada'};
 const METHODS = ['efectivo', 'transferencia', 'mercadopago'];
+const SOURCES = { web: 'Web', whatsapp: 'WhatsApp', instagram: 'Instagram', presencial: 'Presencial', otro: 'Otro' };
+// El contacto puede ser un WhatsApp o un usuario de Instagram (@usuario).
+const isIg = c => /^@?[a-z0-9._]{2,30}$/i.test(String(c || '').trim()) && String(c).replace(/\D/g, '').length < 8;
+function contactLink(c, text) {
+  c = String(c || '').trim();
+  if (!c) return '<span class="muted">sin contacto</span>';
+  if (isIg(c)) return `<a href="https://instagram.com/${encodeURIComponent(c.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(c.replace(/^@/, ''))}</a>`;
+  return `<a href="${waLink(c, text)}" target="_blank" rel="noopener">${esc(c)}</a>`;
+}
 
 function waLink(phone, text) {
   let d = String(phone || '').replace(/\D/g, '');
@@ -307,7 +322,7 @@ function supabaseApi() {
    Imita las mismas reglas que la base real (cupos, roles, % del profe) para poder
    mostrar la app sin configurar nada.                                               */
 function demoApi() {
-  const KEY = 'nativo_demo_v1', UKEY = 'nativo_demo_user';
+  const KEY = 'nativo_demo_v2', UKEY = 'nativo_demo_user';
   let db = store.get(KEY, null);
   if (!db) { db = demoSeed(); store.set(KEY, db); }
   const save = () => store.set(KEY, db);
@@ -348,7 +363,7 @@ function demoApi() {
         return fail('Ya hay una reserva con ese WhatsApp en este horario');
       const code = Math.random().toString(16).slice(2, 8).toUpperCase();
       db.bookings.push({ id: uid(), code, slot_id: s.id, customer_name: name, customer_phone: b.phone.trim(), customer_email: b.email || null,
-        people: b.people, amount: s.price * b.people, status: 'confirmed', paid: false, payment_method: null, notes: null, created_at: new Date().toISOString() });
+        people: b.people, amount: s.price * b.people, status: 'confirmed', paid: false, payment_method: null, notes: null, source: 'web', created_at: new Date().toISOString() });
       save();
       return wait({ code, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: s.price * b.people });
     },
@@ -445,7 +460,8 @@ function demoSeed() {
         const paid = status === 'attended' ? rnd() < 0.92 : status === 'confirmed' ? rnd() < 0.3 : false;
         bookings.push({ id: uid(), code: Math.floor(rnd() * 0xffffff).toString(16).toUpperCase().padStart(6, '0'), slot_id: s.id,
           customer_name: nm, customer_phone: '341' + (5500000 + Math.floor(rnd() * 99999)), customer_email: null, people, amount: t.price * people,
-          status, paid, payment_method: paid ? METHODS[Math.floor(rnd() * 3)] : null, notes: null, created_at: start.toISOString() });
+          status, paid, payment_method: paid ? METHODS[Math.floor(rnd() * 3)] : null, notes: null, created_at: start.toISOString(),
+          source: ['web', 'web', 'web', 'whatsapp', 'whatsapp', 'instagram', 'presencial'][Math.floor(rnd() * 7)] });
       }
     });
   }
@@ -659,7 +675,7 @@ async function logout() { await api.signOut(); st.me = null; st.tab = null; rend
 
 function drawLogin(mode = 'in') {
   if (api.demo) {
-    const db = store.get('nativo_demo_v1', { profiles: [] });
+    const db = store.get('nativo_demo_v2', { profiles: [] });
     $('staff').innerHTML = `<div class="card" style="max-width:440px;margin:24px auto">
       <h2>Entrar (demo)</h2><p class="small muted" style="margin-bottom:12px">En la versión real cada profe entra con su email y contraseña. Acá elegí con quién probar:</p>
       <div style="display:grid;gap:8px">${db.profiles.map(p => `<button class="btn ghost" style="justify-content:space-between" onclick="api.loginAs('${p.id}')">
@@ -737,8 +753,8 @@ function slotCard(s) {
       <div class="row">${cancelled ? '<span class="pill bad">Cancelado</span>' : `<span class="pill ${people >= s.capacity ? 'warn' : 'ok'} num">${people}/${s.capacity}</span>`}</div>
     </div>
     ${bks.map(b => `<div class="bk ${b.status === 'cancelled' ? 'x' : ''}">
-      <div><b>${esc(b.customer_name)}</b>${b.people > 1 ? ` <span class="pill gray">×${b.people}</span>` : ''}<div class="tiny muted">#${esc(b.code)}</div></div>
-      <div class="small"><a href="${waLink(b.customer_phone, `Hola ${b.customer_name.split(' ')[0]}! Te escribo de Nativo por tu clase del ${fmtDayShort(s.starts_at)} ${hhmm(s.starts_at)}.`)}" target="_blank" rel="noopener">${esc(b.customer_phone)}</a></div>
+      <div><b>${esc(b.customer_name)}</b>${b.people > 1 ? ` <span class="pill gray">×${b.people}</span>` : ''}<div class="tiny muted">#${esc(b.code)}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</div></div>
+      <div class="small">${contactLink(b.customer_phone, `Hola ${b.customer_name.split(' ')[0]}! Te escribo de Nativo por tu clase del ${fmtDayShort(s.starts_at)} ${hhmm(s.starts_at)}.`)}</div>
       <div class="num" style="text-align:right">${money(b.amount)}</div>
       <div class="ctl">
         <select class="input sm" onchange="updBooking('${b.id}',{status:this.value})">${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${b.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -778,12 +794,16 @@ function manualBooking(id) {
     <div class="sum">${esc(s.title)} · ${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)} · quedan ${Math.max(left, 0)} lugares</div>
     <div id="mb-err"></div>
     <form onsubmit="saveManual(event,'${id}')">
-      <div class="field"><label>Nombre</label><input class="input" name="name" required minlength="2"></div>
-      <div class="field"><label>WhatsApp</label><input class="input" name="phone" required type="tel"></div>
+      <div class="field"><label>¿Por dónde reservó?</label><div class="seg">
+        ${['whatsapp', 'instagram', 'presencial', 'otro'].map((k, i) => `<label><input type="radio" name="source" value="${k}" ${i ? '' : 'checked'} onchange="$('mb-contact-l').textContent=this.value==='instagram'?'Usuario de Instagram':'WhatsApp';this.form.phone.placeholder=this.value==='instagram'?'@usuario':'341 555 1234'">${SOURCES[k]}</label>`).join('')}</div></div>
+      <div class="field"><label for="mb-name">Nombre y apellido</label><input class="input" id="mb-name" name="name" required minlength="2" maxlength="80"></div>
+      <div class="field"><label for="mb-phone" id="mb-contact-l">WhatsApp</label><input class="input" id="mb-phone" name="phone" placeholder="341 555 1234" maxlength="40">
+        <div class="tiny muted" style="margin-top:4px">Opcional, pero sirve para avisarle si se suspende la clase.</div></div>
       <div class="grid2"><div class="field"><label>Personas</label><input class="input" name="people" type="number" min="1" max="20" value="1" oninput="this.form.amount.value=${s.price}*this.value"></div>
         <div class="field"><label>Monto total</label><input class="input" name="amount" type="number" min="0" step="1" value="${s.price}"></div></div>
       <div class="row" style="margin-bottom:14px"><label class="check"><input type="checkbox" name="paid"> Ya pagó</label>
         <select class="input sm" name="method"><option value="">medio…</option>${METHODS.map(m => `<option>${m}</option>`).join('')}</select></div>
+      <div class="field"><label for="mb-notes">Nota <span class="muted">(opcional)</span></label><input class="input" id="mb-notes" name="notes" maxlength="120" placeholder="Ej: primera vez, viene con un amigo"></div>
       <div class="row"><button type="button" class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn block">Guardar</button></div>
     </form>`);
 }
@@ -793,10 +813,12 @@ async function saveManual(ev, id) {
   const left = s.capacity - s.bookings.filter(b => b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
   if (+f.people.value > left && !await askConfirm(`Supera el cupo (quedan ${Math.max(left, 0)}). ¿Guardar igual?`, 'Guardar igual')) return;
   try {
-    await api.createBooking({ slot_id: id, customer_name: f.name.value.trim(), customer_phone: f.phone.value.trim(), people: +f.people.value,
+    const source = f.source.value, contact = f.phone.value.trim();
+    await api.createBooking({ slot_id: id, customer_name: f.name.value.trim(), people: +f.people.value, source, notes: f.notes.value.trim() || null,
+      customer_phone: source === 'instagram' && contact && !contact.startsWith('@') && isIg(contact) ? '@' + contact : contact,
       amount: +f.amount.value, paid: f.paid.checked, payment_method: f.paid.checked ? (f.method.value || 'efectivo') : null,
       status: isPast(s) ? 'attended' : 'confirmed' });
-    closeModal(); toast('Reserva agregada'); paneAgenda();
+    closeModal(); toast(`Reserva de ${f.name.value.trim().split(' ')[0]} agregada`); paneAgenda();
   } catch (e) { $('mb-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; }
 }
 
@@ -885,7 +907,7 @@ async function doCreate(ev) {
      ocupación     = Σ personas / Σ cupo                                            */
 function computeStats(slots) {
   const tot = { cobrado: 0, profe: 0, porCobrar: 0, clases: 0, alumnos: 0, cupo: 0, noShow: 0 };
-  const by = {}, byType = {};
+  const by = {}, byType = {}, bySrc = {};
   const add = (map, key, label) => (map[key] ||= { label, cobrado: 0, profe: 0, porCobrar: 0, clases: 0, alumnos: 0, cupo: 0 });
   slots.filter(s => s.status !== 'cancelled').forEach(s => {
     const P = add(by, s.profe_id, s.profe?.name || '—'), T = add(byType, s.title, s.title);
@@ -897,8 +919,12 @@ function computeStats(slots) {
     const dada = isPast(s) && people > 0 ? 1 : 0;
     for (const o of [tot, P, T]) { o.cobrado += cobrado; o.profe += profe; o.porCobrar += porCobrar; o.clases += dada; o.alumnos += people; o.cupo += s.capacity; }
     tot.noShow += act.filter(b => b.status === 'no_show').reduce((a, b) => a + b.people, 0);
+    act.filter(b => b.status !== 'no_show').forEach(b => {
+      const k = b.source || 'web', C = (bySrc[k] ||= { label: SOURCES[k] || k, reservas: 0, alumnos: 0, cobrado: 0 });
+      C.reservas++; C.alumnos += b.people; if (b.paid) C.cobrado += +b.amount;
+    });
   });
-  return { tot, by: Object.values(by).sort((a, b) => b.cobrado - a.cobrado), byType: Object.values(byType).sort((a, b) => b.cobrado - a.cobrado) };
+  return { tot, by: Object.values(by).sort((a, b) => b.cobrado - a.cobrado), byType: Object.values(byType).sort((a, b) => b.cobrado - a.cobrado), bySrc: Object.values(bySrc).sort((a, b) => b.alumnos - a.alumnos) };
 }
 
 async function paneStats() {
@@ -906,7 +932,7 @@ async function paneStats() {
   const [y, m] = st.month.split('-').map(Number);
   const from = new Date(y, m - 1, 1), to = new Date(y, m, 1);
   try { st.staffSlots = await api.staffSlots(from, to); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
-  const { tot, by, byType } = computeStats(st.staffSlots);
+  const { tot, by, byType, bySrc } = computeStats(st.staffSlots);
   const maxC = Math.max(1, ...by.map(p => p.cobrado));
   const pcts = [...new Set(st.staffSlots.map(s => +s.profe_pct))], myPct = pcts.length === 1 ? pcts[0] + '%' : pcts.length ? 'según clase' : +st.me.commission_pct + '%';
   const k = (l, v, hl) => `<div class="kpi ${hl ? 'hl' : ''}"><small>${l}</small><b>${v}</b></div>`;
@@ -934,6 +960,10 @@ async function paneStats() {
       <tr><th>Clase</th><th class="r">Dadas</th><th class="r">Alumnos</th><th class="r">Ocup.</th><th class="r">Cobrado</th></tr>
       ${byType.map(p => `<tr><td>${esc(p.label)}</td><td class="r num">${p.clases}</td><td class="r num">${p.alumnos}</td><td class="r num">${pct(p.alumnos / p.cupo)}</td><td class="r num">${money(p.cobrado)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sin datos este mes</td></tr>'}
     </table></div></div>
+    <div class="card"><h3>Por dónde reservan</h3><div class="tbl-wrap"><table>
+      <tr><th>Canal</th><th class="r">Reservas</th><th class="r">Alumnos</th><th class="r">% alumnos</th><th class="r">Cobrado</th></tr>
+      ${bySrc.map(c => `<tr><td>${esc(c.label)}</td><td class="r num">${c.reservas}</td><td class="r num">${c.alumnos}</td><td class="r num">${pct(c.alumnos / tot.alumnos)}</td><td class="r num">${money(c.cobrado)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sin datos este mes</td></tr>'}
+    </table></div></div>
     <div class="card"><h3>Reservas del mes (${rows.length})</h3><div class="tbl-wrap"><table>
       <tr><th>Fecha</th><th>Clase</th>${isAdmin ? '<th>Profe</th>' : ''}<th>Alumno</th><th class="r">Pers.</th><th class="r">Monto</th><th>Estado</th><th>Pago</th></tr>
       ${rows.map(({ s, b }) => `<tr><td class="num" style="white-space:nowrap">${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)}</td><td>${esc(s.title)}</td>${isAdmin ? `<td>${esc(s.profe?.name)}</td>` : ''}
@@ -946,10 +976,10 @@ function shiftMonth(n) { const [y, m] = st.month.split('-').map(Number); const d
 function exportCsv() {
   const cell = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
   const num = n => String(+n || 0).replace('.', ',');                      // Excel en español
-  const head = ['Fecha', 'Hora', 'Clase', 'Profe', '% profe', 'Alumno', 'WhatsApp', 'Email', 'Personas', 'Monto', 'Estado', 'Pagado', 'Medio', 'Parte profe', 'Código'];
+  const head = ['Fecha', 'Hora', 'Clase', 'Profe', '% profe', 'Alumno', 'WhatsApp', 'Email', 'Personas', 'Monto', 'Estado', 'Pagado', 'Medio', 'Parte profe', 'Canal', 'Nota', 'Código'];
   const lines = st.staffSlots.flatMap(s => s.bookings.map(b => [dayKey(s.starts_at), hhmm(s.starts_at), s.title, s.profe?.name, num(s.profe_pct),
     b.customer_name, b.customer_phone, b.customer_email, b.people, num(b.amount), STATUS[b.status] + (s.status === 'cancelled' ? ' (clase suspendida)' : ''),
-    b.paid ? 'sí' : 'no', b.payment_method, num(b.paid && b.status !== 'cancelled' && s.status !== 'cancelled' ? b.amount * s.profe_pct / 100 : 0), b.code].map(cell).join(';')));
+    b.paid ? 'sí' : 'no', b.payment_method, num(b.paid && b.status !== 'cancelled' && s.status !== 'cancelled' ? b.amount * s.profe_pct / 100 : 0), SOURCES[b.source] || b.source || 'Web', b.notes, b.code].map(cell).join(';')));
   const blob = new Blob(['﻿' + [head.join(';'), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `nativo-reservas-${st.month}.csv`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
