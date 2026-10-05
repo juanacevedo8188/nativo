@@ -3,13 +3,13 @@
 //   approved                → paid = true, payment_method = 'mercadopago'
 //   refunded / charged_back → paid = false (si era ese mismo pago)
 const crypto = require('crypto');
-const { json, sb, mp, configured } = require('../lib/common');
+const { send, readBody, sb, mp, configured } = require('../lib/common');
 
 // Firma x-signature: "ts=...,v1=..." = HMAC-SHA256(secret, "id:<data.id>;request-id:<x-request-id>;ts:<ts>;")
-function validSignature(event, dataId) {
+function validSignature(req, dataId) {
   const secret = process.env.MP_WEBHOOK_SECRET;
   if (!secret) return true;                                // opcional: si no está configurada, no se valida
-  const h = Object.fromEntries(Object.entries(event.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
+  const h = req.headers || {};                             // Node ya los da en minúscula
   const parts = Object.fromEntries(String(h['x-signature'] || '').split(',').map(p => p.trim().split('=')));
   if (!parts.ts || !parts.v1) return false;
   const id = /^[a-z0-9]+$/i.test(dataId) ? String(dataId).toLowerCase() : dataId;
@@ -18,15 +18,15 @@ function validSignature(event, dataId) {
   return expected.length === parts.v1.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1));
 }
 
-exports.handler = async (event) => {
+module.exports = async (req, res) => {
+  const json = (status, body) => send(res, status, body);
   if (!configured()) return json(500, { error: 'not configured' });
-  const q = event.queryStringParameters || {};
-  let body = {};
-  try { body = JSON.parse(event.body || '{}'); } catch { /* aviso sin JSON */ }
+  const q = req.query || {};
+  const body = readBody(req);
   const type = body.type || q.type || q.topic;
   const id = String(q['data.id'] || body?.data?.id || q.id || '');
   if (type !== 'payment' || !id) return json(200, { ignored: true });
-  if (!validSignature(event, id)) return json(401, { error: 'firma inválida' });
+  if (!validSignature(req, id)) return json(401, { error: 'firma inválida' });
 
   try {
     const pay = await mp(`/v1/payments/${encodeURIComponent(id)}`);

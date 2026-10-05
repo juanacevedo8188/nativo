@@ -1,13 +1,13 @@
 // POST { code } → crea una preferencia de Checkout Pro para esa reserva y devuelve { url }.
 // El monto sale de la base (bookings.amount), nunca del navegador.
-const { json, sb, mp, configured } = require('../lib/common');
+const { send, readBody, siteUrl, sb, mp, configured } = require('../lib/common');
 
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') return json(405, { error: 'Método no permitido' });
+module.exports = async (req, res) => {
+  const json = (status, body) => send(res, status, body);
+  if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
   if (!configured()) return json(500, { error: 'El pago online no está configurado todavía' });
 
-  let code = '';
-  try { code = String(JSON.parse(event.body || '{}').code || '').trim().toUpperCase(); } catch { /* body inválido */ }
+  const code = String(readBody(req).code || '').trim().toUpperCase();
   if (!/^[0-9A-F]{6}$/.test(code)) return json(400, { error: 'El código tiene 6 caracteres (letras A-F y números)' });
 
   try {
@@ -18,7 +18,7 @@ exports.handler = async (event) => {
     if (new Date(b.slot.starts_at) < new Date()) return json(409, { error: 'La clase ya pasó' });
     if (!(Number(b.amount) > 0)) return json(409, { error: 'Esta reserva no tiene monto a pagar' });
 
-    const site = (process.env.SITE_URL || process.env.URL || `https://${event.headers.host}`).replace(/\/$/, '');
+    const site = siteUrl(req);
     const back = (r) => `${site}/?pago=${r}&code=${code}`;
     const fecha = new Date(b.slot.starts_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -30,7 +30,7 @@ exports.handler = async (event) => {
         external_reference: b.id,                         // así el webhook sabe qué reserva marcar
         back_urls: { success: back('ok'), pending: back('pendiente'), failure: back('error') },
         auto_return: 'approved',
-        notification_url: `${site}/.netlify/functions/mp-webhook`,
+        notification_url: `${site}/api/mp-webhook`,
         statement_descriptor: 'NATIVO SUP',
         // La preferencia vence cuando empieza la clase.
         expires: true,

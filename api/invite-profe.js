@@ -2,9 +2,9 @@
 // Crea la cuenta del profe en Supabase Auth y le manda el mail de invitación para que
 // elija su contraseña. Su perfil queda aprobado, con su WhatsApp y su %.
 // Necesita la service role key: por eso vive en el servidor y nunca en el HTML.
+const { send, readBody, siteUrl } = require('../lib/common');
 const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const json = (statusCode, body) => ({ statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 async function call(path, opts = {}) {
   const r = await fetch(`${SB_URL}${path}`, {
@@ -14,12 +14,13 @@ async function call(path, opts = {}) {
   return { ok: r.ok, status: r.status, data: await r.json().catch(() => null) };
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') return json(405, { error: 'Método no permitido' });
-  if (!SB_URL || !SB_KEY) return json(500, { error: 'Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en Netlify' });
+module.exports = async (req, res) => {
+  const json = (status, body) => send(res, status, body);
+  if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
+  if (!SB_URL || !SB_KEY) return json(500, { error: 'Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en Vercel' });
 
   // 1) ¿Quién llama? Validamos su token con Supabase y que sea admin aprobado.
-  const token = String(event.headers.authorization || event.headers.Authorization || '').replace(/^Bearer\s+/i, '');
+  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) return json(401, { error: 'Iniciá sesión de nuevo' });
   const who = await call('/auth/v1/user', { headers: { Authorization: `Bearer ${token}` } });
   if (!who.ok || !who.data?.id) return json(401, { error: 'Tu sesión venció. Salí y volvé a entrar.' });
@@ -27,8 +28,7 @@ exports.handler = async (event) => {
   if (!me.data?.[0] || me.data[0].role !== 'admin' || !me.data[0].approved) return json(403, { error: 'Solo un admin puede agregar profes' });
 
   // 2) Datos del profe nuevo.
-  let b = {};
-  try { b = JSON.parse(event.body || '{}'); } catch { /* body inválido */ }
+  const b = readBody(req);
   const name = String(b.name || '').trim().slice(0, 60);
   const email = String(b.email || '').trim().toLowerCase();
   const phone = b.phone ? String(b.phone).trim().slice(0, 30) : null;
@@ -37,7 +37,7 @@ exports.handler = async (event) => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: 'El email no es válido' });
 
   // 3) Invitación (crea el usuario y manda el mail). Si ya tenía cuenta, solo lo aprobamos.
-  const site = (process.env.SITE_URL || process.env.URL || `https://${event.headers.host}`).replace(/\/$/, '');
+  const site = siteUrl(req);
   const inv = await call(`/auth/v1/invite?redirect_to=${encodeURIComponent(site + '/?staff=1')}`, {
     method: 'POST', body: JSON.stringify({ email, data: { name } }),
   });

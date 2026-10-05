@@ -11,29 +11,32 @@ En **Profes** podés entrar como admin, como profe o como profe pendiente de apr
 2. En **SQL Editor**, pegá y ejecutá `supabase/setup.sql`.
 3. En **Project Settings → API**, copiá la *Project URL* y la *anon/publishable key* en `CONFIG` al principio del `<script>` de `index.html`. Completá también el `WHATSAPP` de la escuela y el `LOCATION`.
 4. En **Authentication → URL Configuration**, poné como *Site URL* la dirección donde vas a publicar la página. En *Redirect URLs* agregá `https://tu-sitio/?staff=1`, que es a donde vuelven los mails de invitación y de recuperar contraseña.
-5. Publicá en Netlify: *Add new site → Import from GitHub →* este repo, rama `main`, sin build command ni base directory (las funciones de `netlify/functions` se publican solas).
+5. Publicá en [Vercel](https://vercel.com): *Add New → Project →* importá este repo. *Framework Preset*: **Other**. No hace falta build command ni output directory: la página se sirve tal cual y los archivos de `api/` quedan como funciones del servidor.
+   En *Settings → Environment Variables* cargá (y después *Redeploy*):
+   | Variable | Valor |
+   |---|---|
+   | `SUPABASE_URL` | la Project URL |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → *Legacy API keys* → **service_role** (`eyJ…`). **Secreta**: va solo acá, nunca en el HTML ni en el chat |
+   | `SITE_URL` | la dirección de producción, ej. `https://nativo.vercel.app` (sin barra al final) |
 6. Entrá a la página → **Profes → pedí acceso acá**, confirmá el email y después corré en el SQL Editor:
    ```sql
    update public.profiles set role = 'admin', approved = true where email = 'tu-email@ejemplo.com';
    ```
 7. Para sumar profes: **Profes → Agregar profe** (nombre, email, WhatsApp, %). Al profe le llega un mail, elige su contraseña y ya entra a su agenda.
-   Para esto, en Netlify tienen que estar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (ver tabla de Mercado Pago). La función `invite-profe` verifica que quien lo pide sea admin.
+   Para esto, en Vercel tienen que estar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (paso 5). La función `api/invite-profe` verifica que quien lo pide sea admin.
    Si un profe pide acceso por su cuenta, aparece en "Pidieron acceso" para aprobarlo con un toque.
 
 ## Pago online con Mercado Pago (opcional)
 El alumno reserva y en la misma pantalla puede tocar **Pagar ahora con Mercado Pago**. También puede pagar después desde **Pagar mi reserva**, con su código.
-Cuando Mercado Pago aprueba el pago, avisa al servidor (`mp-webhook`) y la reserva queda marcada como **pagó · mercadopago** sin que nadie toque nada.
+Cuando Mercado Pago aprueba el pago, avisa al servidor (`api/mp-webhook`) y la reserva queda marcada como **pagó · mercadopago** sin que nadie toque nada.
 
 1. En [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/panel/app) creá una aplicación de tipo *Checkout Pro*. Copiá el **Access Token**: primero el de prueba (`TEST-…`), y el de producción cuando esté todo probado.
-2. En Netlify → *Site configuration → Environment variables*, cargá:
+2. En Vercel → *Settings → Environment Variables*, sumá (además de las del paso 5) y hacé *Redeploy*:
    | Variable | Valor |
    |---|---|
    | `MP_ACCESS_TOKEN` | Access Token de Mercado Pago |
-   | `SUPABASE_URL` | la misma URL del proyecto |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → *service_role* (**secreta**: va solo acá, nunca en el HTML) |
    | `MP_WEBHOOK_SECRET` | opcional pero recomendado: la "clave secreta" de *Webhooks* en tu app de MP |
-   | `SITE_URL` | opcional: `https://tu-sitio.netlify.app` (si no, usa la URL de Netlify) |
-3. En la app de Mercado Pago → *Webhooks*, poné como URL `https://tu-sitio/.netlify/functions/mp-webhook` y marcá el evento **Pagos**.
+3. En la app de Mercado Pago → *Webhooks*, poné como URL `https://tu-sitio/api/mp-webhook` y marcá el evento **Pagos**.
 4. En `index.html`, poné `MERCADOPAGO: true` en `CONFIG`.
 
 Seguridad: el navegador solo manda el código de reserva. El monto se lee de la base, y el webhook vuelve a consultar el pago a la API de Mercado Pago antes de marcar nada. Si el monto pagado es menor al de la reserva, no la marca como paga. Si hay devolución o contracargo, la desmarca.

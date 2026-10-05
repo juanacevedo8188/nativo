@@ -226,8 +226,8 @@ const CONFIG = {
   WHATSAPP: '5493410000000',        // WhatsApp de la escuela: 549 + característica + número, sin 15
   LOCATION: 'Base Nativo',          // lugar por defecto de las clases
   DAYS_AHEAD: 21,                   // cuántos días hacia adelante se pueden reservar
-  // Pago online con Mercado Pago (Checkout Pro). Requiere las funciones de Netlify
-  // de netlify/functions y sus variables de entorno (ver README). En modo demo se simula.
+  // Pago online con Mercado Pago (Checkout Pro). Requiere las funciones de /api (Vercel)
+  // y sus variables de entorno (ver README). En modo demo se simula.
   MERCADOPAGO: false,
 };
 const DEMO = !CONFIG.SUPABASE_URL;
@@ -329,7 +329,7 @@ function supabaseApi() {
     updateBooking: (id, patch) => q(c.from('bookings').update(patch).eq('id', id)),
     // El monto lo calcula el servidor a partir de la reserva: el navegador solo manda el código.
     async checkout(code) {
-      const r = await fetch('/.netlify/functions/mp-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+      const r = await fetch('/api/mp-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'No se pudo iniciar el pago');
       location.href = j.url;                                   // → Mercado Pago
@@ -339,7 +339,7 @@ function supabaseApi() {
     // Crear la cuenta de otro usuario necesita la clave secreta → lo hace una función del servidor que verifica que seas admin.
     async inviteProfe(p) {
       const { data: { session } } = await c.auth.getSession();
-      const r = await fetch('/.netlify/functions/invite-profe', { method: 'POST',
+      const r = await fetch('/api/invite-profe', { method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` }, body: JSON.stringify(p) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'No se pudo agregar al profe');
