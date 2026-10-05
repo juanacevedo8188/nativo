@@ -25,7 +25,7 @@ create table if not exists public.profiles (
   approved       boolean not null default false,
   -- % de lo cobrado que le corresponde al profe. Se copia a cada horario al
   -- crearlo (slots.profe_pct), así cambiarlo no altera clases ya cargadas.
-  commission_pct numeric(5,2) not null default 60 check (commission_pct between 0 and 100),
+  commission_pct numeric(5,2) not null default 50 check (commission_pct between 0 and 100),
   created_at     timestamptz not null default now()
 );
 
@@ -330,7 +330,7 @@ create policy "bookings delete" on public.bookings for delete to authenticated
 -- (con un solo tipo activo, la página no muestra filtros ni selectores de clase).
 insert into public.class_types (name, description, duration_min, price, capacity, sort)
 select * from (values
-  ('Clase de iniciación', 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', 60, 25000, 4, 1)
+  ('Clase de iniciación', 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', 60, 30000, 4, 1)
 ) v(name, description, duration_min, price, capacity, sort)
 where not exists (select 1 from public.class_types);
 

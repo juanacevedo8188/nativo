@@ -326,7 +326,7 @@ function supabaseApi() {
    Imita las mismas reglas que la base real (cupos, roles, % del profe) para poder
    mostrar la app sin configurar nada.                                               */
 function demoApi() {
-  const KEY = 'nativo_demo_v3', UKEY = 'nativo_demo_user';
+  const KEY = 'nativo_demo_v4', UKEY = 'nativo_demo_user';
   let db = store.get(KEY, null);
   if (!db) { db = demoSeed(); store.set(KEY, db); }
   const save = () => store.set(KEY, db);
@@ -428,13 +428,13 @@ function demoSeed() {
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const profiles = [
     { id: 'u-admin', name: 'Dueños Nativo', email: 'admin@nativo.demo', role: 'admin', approved: true, commission_pct: 0, phone: '', bio: '' },
-    { id: 'u-tomi', name: 'Tomi', email: 'tomi@nativo.demo', role: 'profe', approved: true, commission_pct: 60, phone: '3415550101', bio: 'Instructor certificado. 8 años remando en el Paraná.' },
-    { id: 'u-flor', name: 'Flor', email: 'flor@nativo.demo', role: 'profe', approved: true, commission_pct: 60, phone: '3415550102', bio: 'Paciencia infinita para la primera remada.' },
+    { id: 'u-tomi', name: 'Tomi', email: 'tomi@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550101', bio: 'Instructor certificado. 8 años remando en el Paraná.' },
+    { id: 'u-flor', name: 'Flor', email: 'flor@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550102', bio: 'Paciencia infinita para la primera remada.' },
     { id: 'u-lucas', name: 'Lucas', email: 'lucas@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550103', bio: 'Guardavidas. Te para arriba de la tabla en 10 minutos.' },
-    { id: 'u-marti', name: 'Martina', email: 'marti@nativo.demo', role: 'profe', approved: false, commission_pct: 60, phone: '', bio: '' },
+    { id: 'u-marti', name: 'Martina', email: 'marti@nativo.demo', role: 'profe', approved: false, commission_pct: 50, phone: '', bio: '' },
   ];
   const class_types = [
-    { id: 'ct-ini', name: 'Clase de iniciación', description: 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', duration_min: 60, price: 25000, capacity: 4, active: true, sort: 1 },
+    { id: 'ct-ini', name: 'Clase de iniciación', description: 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', duration_min: 60, price: 30000, capacity: 4, active: true, sort: 1 },
   ];
   // [profe, día de semana, hora, tipo]
   const plan = [
@@ -682,7 +682,7 @@ async function logout() { await api.signOut(); st.me = null; st.tab = null; rend
 
 function drawLogin(mode = 'in') {
   if (api.demo) {
-    const db = store.get('nativo_demo_v3', { profiles: [] });
+    const db = store.get('nativo_demo_v4', { profiles: [] });
     $('staff').innerHTML = `<div class="card" style="max-width:440px;margin:24px auto">
       <h2>Entrar (demo)</h2><p class="small muted" style="margin-bottom:12px">En la versión real cada profe entra con su email y contraseña. Acá elegí con quién probar:</p>
       <div style="display:grid;gap:8px">${db.profiles.map(p => `<button class="btn ghost" style="justify-content:space-between" onclick="api.loginAs('${p.id}')">
@@ -751,13 +751,15 @@ function slotCard(s) {
   const act = s.bookings.filter(b => b.status !== 'cancelled');
   const people = act.reduce((a, b) => a + b.people, 0);
   const cancelled = s.status === 'cancelled';
+  // Parte del profe en esta clase: % del profe × monto de los alumnos que vienen (no cuenta ausentes ni cancelados).
+  const share = act.filter(b => b.status !== 'no_show').reduce((a, b) => a + +b.amount, 0) * (+s.profe_pct || 0) / 100;
   const bks = s.bookings.slice().sort((a, b) => (a.status === 'cancelled') - (b.status === 'cancelled'));
   return `<div class="card sslot ${cancelled ? 'cancelled' : ''}" style="margin-bottom:10px">
     <div class="hd">
       <div><b class="num">${hhmm(s.starts_at)}–${hhmm(addMin(s.starts_at, s.duration_min))}</b> · ${esc(s.title)}
         ${st.me.role === 'admin' ? `<span class="muted"> · ${esc(s.profe?.name)}</span>` : ''}
         <div class="small muted">${s.location ? esc(s.location) + ' · ' : ''}${money(s.price)}/pers.${s.notes ? ' · ' + esc(s.notes) : ''}</div></div>
-      <div class="row">${cancelled ? '<span class="pill bad">Cancelado</span>' : `<span class="pill ${people >= s.capacity ? 'warn' : 'ok'} num">${people}/${s.capacity}</span>`}</div>
+      <div class="row" style="flex-direction:column;align-items:flex-end;gap:4px">${cancelled ? '<span class="pill bad">Cancelado</span>' : `<span class="pill ${people >= s.capacity ? 'warn' : 'ok'} num">${people}/${s.capacity}</span>${share > 0 ? `<span class="tiny muted num">${st.me.role === 'admin' ? 'profe' : 'para vos'}: <b style="color:var(--ink)">${money(share)}</b></span>` : ''}`}</div>
     </div>
     ${bks.map(b => `<div class="bk ${b.status === 'cancelled' ? 'x' : ''}">
       <div><b>${esc(b.customer_name)}</b>${b.people > 1 ? ` <span class="pill gray">×${b.people}</span>` : ''}<div class="tiny muted">#${esc(b.code)}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</div></div>
