@@ -89,32 +89,32 @@ alter table public.bookings add constraint bookings_source_check
 -- security definer: leen profiles/slots sin pasar por RLS (evita recursión).
 
 create or replace function public.is_admin() returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public as $fn$
   select exists (select 1 from profiles where id = auth.uid() and role = 'admin' and approved);
-$$;
+$fn$;
 
 create or replace function public.is_staff() returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public as $fn$
   select exists (select 1 from profiles where id = auth.uid() and approved);
-$$;
+$fn$;
 
 create or replace function public.owns_slot(p_slot uuid) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public as $fn$
   select exists (select 1 from slots where id = p_slot and profe_id = auth.uid());
-$$;
+$fn$;
 
 -- ───────────────────────────── 3) Triggers ─────────────────────────────
 
 -- Cada usuario nuevo de Auth (un profe que se registra) → perfil pendiente de aprobación.
 create or replace function public.handle_new_user() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public as $fn$
 begin
   insert into profiles (id, email, name)
   values (new.id, new.email,
           coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), split_part(new.email, '@', 1)))
   on conflict (id) do nothing;
   return new;
-end $$;
+end $fn$;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
@@ -124,7 +124,7 @@ create trigger on_auth_user_created
 -- Un profe puede editar su nombre/teléfono/bio, pero no su rol, aprobación ni %.
 -- (auth.uid() es null cuando corrés SQL desde el dashboard → ahí no se restringe.)
 create or replace function public.profiles_guard() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public as $fn$
 begin
   if auth.uid() is not null and not is_admin() then
     new.role := old.role;
@@ -133,7 +133,7 @@ begin
     new.email := old.email;
   end if;
   return new;
-end $$;
+end $fn$;
 
 drop trigger if exists profiles_guard on public.profiles;
 create trigger profiles_guard
@@ -143,7 +143,7 @@ create trigger profiles_guard
 -- Horarios: un profe solo carga a su nombre; el % del profe se toma del perfil
 -- al crear el horario y solo un admin lo puede cambiar después.
 create or replace function public.slots_guard() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public as $fn$
 begin
   if tg_op = 'INSERT' then
     if auth.uid() is not null and not is_admin() then
@@ -155,7 +155,7 @@ begin
     new.profe_pct := old.profe_pct;
   end if;
   return new;
-end $$;
+end $fn$;
 
 drop trigger if exists slots_guard on public.slots;
 create trigger slots_guard
@@ -171,7 +171,7 @@ returns table (
   capacity int, price numeric, location text, notes text,
   profe_id uuid, profe_name text, booked int
 )
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public as $fn$
   select s.id, s.title, s.class_type_id, s.starts_at, s.duration_min,
          s.capacity, s.price, s.location, s.notes,
          s.profe_id, p.name,
@@ -185,26 +185,26 @@ language sql stable security definer set search_path = public as $$
     and s.starts_at < p_to
     and p_to - p_from <= interval '93 days'
   order by s.starts_at;
-$$;
+$fn$;
 
 -- Profes para mostrar en la página pública.
 create or replace function public.public_profes()
 returns table (id uuid, name text, bio text)
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public as $fn$
   select p.id, p.name, p.bio
   from profiles p
   where p.approved
     and (p.role = 'profe'
          or exists (select 1 from slots s where s.profe_id = p.id and s.starts_at > now() and s.status = 'open'))
   order by p.name;
-$$;
+$fn$;
 
 -- Reserva: valida datos y cupo con el horario bloqueado (FOR UPDATE).
 create or replace function public.book_slot(
   p_slot uuid, p_name text, p_phone text, p_email text default null, p_people int default 1
 )
 returns table (code text, starts_at timestamptz, title text, profe_name text, people int, amount numeric)
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public as $fn$
 #variable_conflict use_column
 declare
   s        slots;
@@ -258,7 +258,7 @@ begin
     select v_code, s.starts_at, s.title,
            (select pr.name from profiles pr where pr.id = s.profe_id),
            p_people, s.price * p_people;
-end $$;
+end $fn$;
 
 revoke all on function public.public_slots(timestamptz, timestamptz) from public;
 revoke all on function public.public_profes() from public;
