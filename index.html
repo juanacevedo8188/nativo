@@ -135,6 +135,10 @@ textarea.input{min-height:70px;resize:vertical}
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label:has(input:checked){background:var(--sea);border-color:var(--sea);color:#fff}
 .seg label:has(input:focus-visible){outline:2px solid var(--sea2);outline-offset:2px}
+.class-info{display:flex;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;align-items:flex-end}
+.class-info>div:first-child{min-width:0;flex:1 1 240px}
+.facts{display:flex;gap:6px;flex-wrap:wrap}
+.facts span{background:var(--sea-soft);color:var(--sea);border-radius:999px;padding:4px 10px;font-size:13px}
 .err{background:var(--bad-soft);color:var(--bad);padding:9px 12px;border-radius:8px;font-size:14px;margin-bottom:12px}
 
 /* ── Staff ── */
@@ -322,7 +326,7 @@ function supabaseApi() {
    Imita las mismas reglas que la base real (cupos, roles, % del profe) para poder
    mostrar la app sin configurar nada.                                               */
 function demoApi() {
-  const KEY = 'nativo_demo_v2', UKEY = 'nativo_demo_user';
+  const KEY = 'nativo_demo_v3', UKEY = 'nativo_demo_user';
   let db = store.get(KEY, null);
   if (!db) { db = demoSeed(); store.set(KEY, db); }
   const save = () => store.set(KEY, db);
@@ -425,20 +429,18 @@ function demoSeed() {
   const profiles = [
     { id: 'u-admin', name: 'Dueños Nativo', email: 'admin@nativo.demo', role: 'admin', approved: true, commission_pct: 0, phone: '', bio: '' },
     { id: 'u-tomi', name: 'Tomi', email: 'tomi@nativo.demo', role: 'profe', approved: true, commission_pct: 60, phone: '3415550101', bio: 'Instructor certificado. 8 años remando en el Paraná.' },
-    { id: 'u-flor', name: 'Flor', email: 'flor@nativo.demo', role: 'profe', approved: true, commission_pct: 60, phone: '3415550102', bio: 'Iniciación y SUP yoga. Paciencia infinita.' },
-    { id: 'u-lucas', name: 'Lucas', email: 'lucas@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550103', bio: 'Travesías y remada de distancia.' },
+    { id: 'u-flor', name: 'Flor', email: 'flor@nativo.demo', role: 'profe', approved: true, commission_pct: 60, phone: '3415550102', bio: 'Paciencia infinita para la primera remada.' },
+    { id: 'u-lucas', name: 'Lucas', email: 'lucas@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550103', bio: 'Guardavidas. Te para arriba de la tabla en 10 minutos.' },
     { id: 'u-marti', name: 'Martina', email: 'marti@nativo.demo', role: 'profe', approved: false, commission_pct: 60, phone: '', bio: '' },
   ];
   const class_types = [
     { id: 'ct-ini', name: 'Clase de iniciación', description: 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', duration_min: 60, price: 25000, capacity: 4, active: true, sort: 1 },
-    { id: 'ct-pri', name: 'Clase privada', description: 'Uno a uno con el profe, a tu ritmo.', duration_min: 60, price: 40000, capacity: 1, active: true, sort: 2 },
-    { id: 'ct-tra', name: 'Travesía', description: 'Remada guiada para quienes ya se paran en la tabla.', duration_min: 120, price: 35000, capacity: 8, active: true, sort: 3 },
   ];
   // [profe, día de semana, hora, tipo]
   const plan = [
-    ['u-tomi', 2, '09:00', 'ct-ini'], ['u-tomi', 4, '09:00', 'ct-ini'], ['u-tomi', 6, '10:00', 'ct-ini'], ['u-tomi', 6, '18:00', 'ct-tra'],
-    ['u-flor', 1, '10:00', 'ct-ini'], ['u-flor', 3, '10:00', 'ct-ini'], ['u-flor', 5, '17:30', 'ct-ini'], ['u-flor', 0, '10:00', 'ct-pri'],
-    ['u-lucas', 6, '08:00', 'ct-tra'], ['u-lucas', 0, '08:00', 'ct-tra'], ['u-lucas', 3, '18:00', 'ct-pri'],
+    ['u-tomi', 2, '09:00', 'ct-ini'], ['u-tomi', 4, '09:00', 'ct-ini'], ['u-tomi', 6, '10:00', 'ct-ini'], ['u-tomi', 6, '17:00', 'ct-ini'],
+    ['u-flor', 1, '10:00', 'ct-ini'], ['u-flor', 3, '10:00', 'ct-ini'], ['u-flor', 5, '17:30', 'ct-ini'], ['u-flor', 0, '10:00', 'ct-ini'],
+    ['u-lucas', 6, '08:30', 'ct-ini'], ['u-lucas', 0, '08:30', 'ct-ini'], ['u-lucas', 3, '18:00', 'ct-ini'],
   ];
   const names = ['Sofía Gómez', 'Mateo Díaz', 'Valentina Ruiz', 'Benjamín López', 'Catalina Sosa', 'Joaquín Romero', 'Martina Álvarez', 'Lautaro Torres', 'Julieta Benítez', 'Facundo Medina', 'Agustina Herrera', 'Nicolás Castro', 'Camila Suárez', 'Tomás Rojas', 'Lucía Molina'];
   const slots = [], bookings = [], today = startOfDay(new Date());
@@ -491,7 +493,7 @@ async function renderPublic() {
   $('app').innerHTML = `
     <section class="hero"><div class="wrap">
       <h1>Reservá tu clase de SUP</h1>
-      <p>Elegí el tipo de clase, el profe y el horario que te quede cómodo. Te confirmamos por WhatsApp.</p>
+      <p>Clases de iniciación: nunca te subiste a una tabla y querés probar. Elegí el profe y el horario que te quede cómodo.</p>
     </div>
     <svg viewBox="0 0 1200 40" preserveAspectRatio="none"><path d="M0 22 C150 4 300 4 450 20 S750 38 900 20 1100 6 1200 16 V40 H0Z" fill="#f6f1e8"/></svg>
     </section>
@@ -519,16 +521,21 @@ function drawPublic() {
   const days = Array.from({ length: CONFIG.DAYS_AHEAD }, (_, i) => addDays(today, i));
   const daySlots = list.filter(s => dayKey(s.starts_at) === st.day);
   const typeById = Object.fromEntries(st.types.map(t => [t.id, t]));
+  const activeTypes = st.types.filter(t => t.active);
 
   $('pub').innerHTML = `
-    <div class="card">
+    ${activeTypes.length <= 1 ? (activeTypes[0] ? `<div class="card class-info">
+      <div><div class="label">La clase</div><h3 style="margin:0">${esc(activeTypes[0].name)}</h3>
+        ${activeTypes[0].description ? `<p class="small muted" style="margin-top:4px">${esc(activeTypes[0].description)}</p>` : ''}</div>
+      <div class="facts"><span><b class="num">${activeTypes[0].duration_min}</b> min</span><span>hasta <b class="num">${activeTypes[0].capacity}</b> por clase</span><span><b class="num">${money(activeTypes[0].price)}</b> por persona</span></div>
+    </div>` : '') : `<div class="card">
       <div class="label">Tipo de clase</div>
       <div class="chips">
         <button class="chip ${!st.fType ? 'on' : ''}" onclick="setPub('fType','')">Todas</button>
         ${st.types.filter(t => t.active).map(t => `<button class="chip ${st.fType === t.id ? 'on' : ''}" onclick="setPub('fType','${t.id}')">${esc(t.name)}</button>`).join('')}
       </div>
       ${st.fType && typeById[st.fType]?.description ? `<p class="small muted" style="margin-top:8px">${esc(typeById[st.fType].description)} · ${typeById[st.fType].duration_min} min</p>` : ''}
-    </div>
+    </div>`}
 
     ${st.profes.length ? `<div style="margin-top:12px">
       <div class="label" style="margin-left:2px">Profe</div>
@@ -675,7 +682,7 @@ async function logout() { await api.signOut(); st.me = null; st.tab = null; rend
 
 function drawLogin(mode = 'in') {
   if (api.demo) {
-    const db = store.get('nativo_demo_v2', { profiles: [] });
+    const db = store.get('nativo_demo_v3', { profiles: [] });
     $('staff').innerHTML = `<div class="card" style="max-width:440px;margin:24px auto">
       <h2>Entrar (demo)</h2><p class="small muted" style="margin-bottom:12px">En la versión real cada profe entra con su email y contraseña. Acá elegí con quién probar:</p>
       <div style="display:grid;gap:8px">${db.profiles.map(p => `<button class="btn ghost" style="justify-content:space-between" onclick="api.loginAs('${p.id}')">
@@ -835,14 +842,16 @@ async function paneCreate() {
     <p class="small muted" style="margin-bottom:14px">Elegí días de la semana y horas: se crea un horario por cada combinación dentro del rango de fechas. Los que ya existen se saltean.</p>
     <form id="cf" oninput="previewCreate()" onsubmit="doCreate(event)">
       ${isAdmin ? `<div class="field"><label>Profe</label><select class="input" name="profe">${st.allProfiles.filter(p => p.approved).map(p => `<option value="${p.id}" ${p.id === st.me.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : ''}
-      <div class="field"><label>Tipo de clase</label><select class="input" name="type" onchange="fillType(this.value)">
+      ${types.length > 1 ? `<div class="field"><label>Tipo de clase</label><select class="input" name="type" onchange="fillType(this.value)">
         ${types.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}<option value="">Otra (personalizada)</option></select></div>
-      <div class="field"><label>Título que ve el alumno</label><input class="input" name="title" required value="${esc(t0.name || '')}"></div>
+      <div class="field"><label>Título que ve el alumno</label><input class="input" name="title" required value="${esc(t0.name || '')}"></div>`
+      : `<input type="hidden" name="type" value="${t0.id || ''}"><input type="hidden" name="title" value="${esc(t0.name || 'Clase de iniciación')}">`}
+      <details ${types.length > 1 ? 'open' : ''} style="margin-bottom:12px"><summary class="small" style="cursor:pointer;margin-bottom:10px">${types.length > 1 ? 'Duración, cupo y precio' : `<b>${esc(t0.name || 'Clase')}</b> · ${t0.duration_min || 60} min · cupo ${t0.capacity || 1} · ${money(t0.price)} <span class="muted">(tocá para ajustar)</span>`}</summary>
       <div class="grid2" style="grid-template-columns:repeat(3,1fr)">
         <div class="field"><label>Duración (min)</label><input class="input" name="dur" type="number" min="15" step="15" required value="${t0.duration_min || 60}"></div>
         <div class="field"><label>Cupo</label><input class="input" name="cap" type="number" min="1" max="50" required value="${t0.capacity || 1}"></div>
         <div class="field"><label>Precio / pers.</label><input class="input" name="price" type="number" min="0" step="500" required value="${t0.price || 0}"></div>
-      </div>
+      </div></details>
       <div class="grid2"><div class="field"><label>Desde</label><input class="input" name="from" type="date" required value="${today}" min="${today}"></div>
         <div class="field"><label>Hasta</label><input class="input" name="to" type="date" required value="${until}" min="${today}"></div></div>
       <div class="field"><label>Días</label><div class="wd">${[1, 2, 3, 4, 5, 6, 0].map(d => `<label><input type="checkbox" name="wd" value="${d}"><span>${WD[d]}</span></label>`).join('')}</div></div>
@@ -956,10 +965,10 @@ async function paneStats() {
         <td class="r num">${money(p.cobrado)}</td><td class="r num">${money(p.profe)}</td><td class="r num">${money(p.cobrado - p.profe)}</td>
         <td style="width:20%"><div class="bar"><i style="width:${p.cobrado / maxC * 100}%"></i></div></td></tr>`).join('') || '<tr><td colspan="8" class="muted">Sin datos este mes</td></tr>'}
     </table></div><p class="tiny muted" style="margin-top:8px">A pagar profe = cobrado × % del profe (el % que tenía cuando se cargó cada horario). Solo cuenta lo marcado como pagado.</p></div>` : ''}
-    <div class="card"><h3>Por tipo de clase</h3><div class="tbl-wrap"><table>
+    ${byType.length > 1 ? `<div class="card"><h3>Por tipo de clase</h3><div class="tbl-wrap"><table>
       <tr><th>Clase</th><th class="r">Dadas</th><th class="r">Alumnos</th><th class="r">Ocup.</th><th class="r">Cobrado</th></tr>
-      ${byType.map(p => `<tr><td>${esc(p.label)}</td><td class="r num">${p.clases}</td><td class="r num">${p.alumnos}</td><td class="r num">${pct(p.alumnos / p.cupo)}</td><td class="r num">${money(p.cobrado)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sin datos este mes</td></tr>'}
-    </table></div></div>
+      ${byType.map(p => `<tr><td>${esc(p.label)}</td><td class="r num">${p.clases}</td><td class="r num">${p.alumnos}</td><td class="r num">${pct(p.alumnos / p.cupo)}</td><td class="r num">${money(p.cobrado)}</td></tr>`).join('')}
+    </table></div></div>` : ''}
     <div class="card"><h3>Por dónde reservan</h3><div class="tbl-wrap"><table>
       <tr><th>Canal</th><th class="r">Reservas</th><th class="r">Alumnos</th><th class="r">% alumnos</th><th class="r">Cobrado</th></tr>
       ${bySrc.map(c => `<tr><td>${esc(c.label)}</td><td class="r num">${c.reservas}</td><td class="r num">${c.alumnos}</td><td class="r num">${pct(c.alumnos / tot.alumnos)}</td><td class="r num">${money(c.cobrado)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sin datos este mes</td></tr>'}

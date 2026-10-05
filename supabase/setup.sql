@@ -325,12 +325,12 @@ create policy "bookings delete" on public.bookings for delete to authenticated
   using (is_admin());
 
 -- ───────────────────────────── 6) Datos iniciales ─────────────────────────────
--- Tipos de clase de ejemplo (editables desde el panel admin → Clases).
+-- Arrancamos solo con clases de iniciación. Precio, cupo y duración se editan desde
+-- el panel admin → Clases; ahí también se pueden sumar otros tipos más adelante
+-- (con un solo tipo activo, la página no muestra filtros ni selectores de clase).
 insert into public.class_types (name, description, duration_min, price, capacity, sort)
 select * from (values
-  ('Clase de iniciación', 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', 60, 25000, 4, 1),
-  ('Clase privada',       'Uno a uno con el profe, a tu ritmo.',                            60, 40000, 1, 2),
-  ('Travesía',            'Remada guiada para quienes ya se paran en la tabla.',            120, 35000, 8, 3)
+  ('Clase de iniciación', 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', 60, 25000, 4, 1)
 ) v(name, description, duration_min, price, capacity, sort)
 where not exists (select 1 from public.class_types);
 
