@@ -1,4 +1,4 @@
-# Sitio de Netlify para Nativo: en "Base directory" poné  nativo
+# Sitio de Netlify para Nativo: Base directory vacío, sin build command.
 [build]
   publish = "."
   functions = "netlify/functions"

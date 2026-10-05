@@ -7,11 +7,11 @@ Abrí `index.html` en el navegador. Sin configurar Supabase arranca en **modo de
 En **Profes** podés entrar como admin, como profe o como profe pendiente de aprobación.
 
 ## Ponerla en producción (unos 15 minutos)
-1. Creá un proyecto **nuevo** en [supabase.com](https://supabase.com) (no uses el de Suptrain).
+1. Creá un proyecto **nuevo** en [supabase.com](https://supabase.com) (exclusivo para Nativo).
 2. En **SQL Editor**, pegá y ejecutá `supabase/setup.sql`.
 3. En **Project Settings → API**, copiá la *Project URL* y la *anon/publishable key* en `CONFIG` al principio del `<script>` de `index.html`. Completá también el `WHATSAPP` de la escuela y el `LOCATION`.
 4. En **Authentication → URL Configuration**, poné como *Site URL* la dirección donde vas a publicar la página. En *Redirect URLs* agregá `https://tu-sitio/?staff=1`, que es a donde vuelven los mails de invitación y de recuperar contraseña.
-5. Publicá en Netlify con un sitio conectado a este repo y *Base directory* `nativo` (así se publican también las funciones de Mercado Pago).
+5. Publicá en Netlify: *Add new site → Import from GitHub →* este repo, rama `main`, sin build command ni base directory (las funciones de `netlify/functions` se publican solas).
 6. Entrá a la página → **Profes → pedí acceso acá**, confirmá el email y después corré en el SQL Editor:
    ```sql
    update public.profiles set role = 'admin', approved = true where email = 'tu-email@ejemplo.com';
