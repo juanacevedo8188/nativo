@@ -24,6 +24,7 @@ En **Profes** podés entrar como admin, como profe o como profe pendiente de apr
    ```
 7. Para sumar profes: **Equipo → Agregar profe** (nombre, email, WhatsApp, %). Se le crea la cuenta con una **contraseña provisoria** y aparece el mensaje listo para mandárselo **por WhatsApp**: no se usan mails, así que no hay límite de envíos. El profe la cambia en *Perfil → Cambiar mi contraseña*.
    Si alguien se olvida la contraseña: *Equipo →* tocarlo *→ "Se olvidó la contraseña: generar una nueva"*.
+   Para sacar a alguien: *Equipo →* tocarlo *→ "Sacar del equipo"*. Si nunca dio clases se borra la cuenta; si tiene historial queda **de baja** (no entra ni aparece, pero sus números siguen en el Resumen) y se puede reactivar. No borres profes a mano desde las tablas de Supabase.
    Necesita `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel (paso 5). La función `api/invite-profe` verifica que quien lo pide sea admin.
    Recomendado: en Supabase → *Authentication → Sign In / Providers* desactivá **"Allow new users to sign up"**, así solo el admin crea cuentas.
 8. Roles (Equipo → Rol): **Profe** da clases; **Admin** maneja la escuela y no aparece como profe; **Admin y profe** hace las dos cosas (crea clases a su nombre, ve "Mis clases" en la agenda y "Tu parte como profe" en el Resumen).

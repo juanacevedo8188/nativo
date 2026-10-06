@@ -32,6 +32,8 @@ create table if not exists public.profiles (
 -- Un admin puede ser solo admin (no da clases) o admin y profe a la vez.
 -- teaches = da clases: aparece en la página de reservas y en la lista de profes.
 alter table public.profiles add column if not exists teaches boolean not null default true;
+-- Dado de baja: ya no entra ni aparece, pero sus clases y números quedan en el historial.
+alter table public.profiles add column if not exists archived boolean not null default false;
 -- Foto del profe (link público al archivo en Storage → bucket "avatars").
 alter table public.profiles add column if not exists avatar_url text;
 -- Cada profe elige si su WhatsApp se muestra a los alumnos (botón "Escribile").
@@ -207,6 +209,7 @@ begin
     new.commission_pct := old.commission_pct;
     new.teaches := old.teaches;
     new.email := old.email;
+    new.archived := old.archived;
   end if;
   return new;
 end $fn$;
@@ -554,6 +557,27 @@ revoke all on function public.book_slot(uuid, text, text, text, int, boolean) fr
 grant execute on function public.public_slots(timestamptz, timestamptz) to anon, authenticated;
 grant execute on function public.public_profes() to anon, authenticated;
 grant execute on function public.book_slot(uuid, text, text, text, int, boolean) to anon, authenticated;
+
+-- Alta de profe desde el servidor (/api/invite-profe, con la clave secreta): deja el perfil
+-- aprobado aunque la cuenta ya existiera (ej. un profe que se borró de la tabla y se vuelve a sumar).
+drop function if exists public.staff_account(text, text, text, numeric);
+create or replace function public.staff_account(p_email text, p_name text, p_phone text, p_pct numeric)
+returns table (profile_id uuid, is_student boolean)
+language plpgsql security definer set search_path = public as $fn$
+declare v uuid; e text := lower(btrim(p_email));
+begin
+  select u.id into v from auth.users u where lower(u.email) = e limit 1;
+  if v is null then return; end if;
+  insert into profiles as pr (id, email, name, phone, commission_pct, approved, teaches, archived)
+  values (v, e, p_name, p_phone, p_pct, true, true, false)
+  on conflict (id) do update set name = excluded.name, phone = coalesce(excluded.phone, pr.phone),
+    commission_pct = excluded.commission_pct, approved = true, archived = false,
+    teaches = case when pr.archived then true else pr.teaches end;
+  update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"staff": true}'::jsonb where auth.users.id = v;
+  return query select v, exists (select 1 from students s where s.id = v);
+end $fn$;
+revoke all on function public.staff_account(text, text, text, numeric) from public, anon, authenticated;
+grant execute on function public.staff_account(text, text, text, numeric) to service_role;
 
 -- ───────────────────────────── 5) Permisos (RLS) ─────────────────────────────
 

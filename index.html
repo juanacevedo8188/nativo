@@ -610,6 +610,7 @@ function supabaseApi() {
     },
     inviteProfe(p) { return this.adminCall(p); },                       // → { password } para mandarle por WhatsApp
     resetProfePassword(id) { return this.adminCall({ action: 'reset', id }); },
+    removeProfe(id) { return this.adminCall({ action: 'remove', id }); },  // → { result: 'deleted' | 'archived' }
     async resetPassword(email) {
       await q(c.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname + '?staff=1' }));
     },
@@ -791,6 +792,12 @@ function demoApi() {
       save(); return wait({ created: true, password: 'Tabla-4827-ola' });
     },
     resetProfePassword() { return wait({ password: 'Remo-5190-sol' }); },
+    removeProfe(id) {
+      const next = db.slots.filter(x => x.profe_id === id && x.status !== 'cancelled' && new Date(x.starts_at) > new Date()).length;
+      if (next) return fail(`Tiene ${next} ${next === 1 ? 'clase próxima' : 'clases próximas'}. Borralas o suspendelas desde la Agenda y volvé a intentar.`);
+      if (db.slots.some(x => x.profe_id === id)) { Object.assign(db.profiles.find(p => p.id === id), { approved: false, archived: true, teaches: false }); save(); return wait({ result: 'archived' }); }
+      db.profiles = db.profiles.filter(p => p.id !== id); save(); return wait({ result: 'deleted' });
+    },
     async setPassword() {},
     updateProfile(id, patch) {
       if (!isAdmin()) { delete patch.role; delete patch.approved; delete patch.commission_pct; delete patch.teaches; }
@@ -1930,7 +1937,7 @@ function exportCsv() {
 /* ── Profes (admin) ── */
 async function paneProfes() {
   try { [st.allProfiles, st.students] = await Promise.all([api.profiles(), api.students ? api.students() : []]); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
-  const pending = st.allProfiles.filter(p => !p.approved);
+  const pending = st.allProfiles.filter(p => !p.approved && !p.archived), gone = st.allProfiles.filter(p => p.archived);
   paneEl().innerHTML = `
     <details class="card more" style="max-width:560px" ${st.allProfiles.length <= 1 ? 'open' : ''}><summary><h2 style="margin:0">Agregar profe</h2></summary><div style="margin-top:10px">
       <p class="small muted" style="margin-bottom:12px">${api.demo ? 'Se le crea la cuenta con una contraseña provisoria para mandarle por WhatsApp. En la demo aparece en la lista de "Entrar".' : 'Se le crea la cuenta con una contraseña provisoria y te damos el mensaje listo para mandarle por WhatsApp. Sin mails.'}</p>
@@ -1951,7 +1958,11 @@ async function paneProfes() {
     ${st.allProfiles.filter(p => p.approved).sort((a, b) => a.name.localeCompare(b.name)).map(p => `<button class="prow" onclick="editProfe('${p.id}')">
       ${avatarHtml(p)}<span class="who"><b>${esc(p.name)}${p.id === st.me.id ? ' (vos)' : ''}</b><span>${ROLES[roleKey(p)]}${teaches(p) ? ` · ${+p.commission_pct}%` : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</span></span>
       <span class="muted" aria-hidden="true">›</span></button>`).join('')}
-    </div>`;
+    </div>
+    ${gone.length ? `<details class="card more" style="max-width:560px"><summary><h3 style="margin:0">Dados de baja <span class="pill gray">${gone.length}</span></h3></summary>
+      <p class="small muted" style="margin:8px 0 4px">No entran ni aparecen en la web. Sus clases y números siguen en el Resumen.</p>
+      ${gone.map(p => `<div class="row between" style="padding:8px 0;border-top:1px solid var(--line)"><div style="min-width:0"><b>${esc(p.name)}</b><div class="tiny muted">${esc(p.email || '')}</div></div>
+        <button class="btn ghost sm" onclick="reviveProfe('${p.id}')">Reactivar</button></div>`).join('')}</details>` : ''}`;
 }
 async function addProfe(ev) {
   ev.preventDefault();
@@ -2043,8 +2054,21 @@ function editProfe(id) {
   st.pendingPhoto = null;
   openModal(`<h2>Editar perfil</h2><div id="pf-err"></div>
     <form onsubmit="saveProfileForm(event,'${id}',true)">${profileFields(p, true)}
-      ${id !== st.me.id ? `<button type="button" class="btn ghost block" style="margin-top:4px" onclick="closeModal();newPasswordFor('${id}')">Se olvidó la contraseña: generar una nueva</button>` : ''}
+      ${id !== st.me.id ? `<button type="button" class="btn ghost block" style="margin-top:4px" onclick="closeModal();newPasswordFor('${id}')">Se olvidó la contraseña: generar una nueva</button>
+        <button type="button" class="btn danger block" style="margin-top:8px" onclick="removeProfe('${id}')">Sacar del equipo</button>` : ''}
       <div class="sheet-foot"><button class="btn coral block" id="pf-btn">Guardar</button></div></form>`);
+}
+async function removeProfe(id) {
+  const p = st.allProfiles.find(x => x.id === id); if (!p) return;
+  if (!await askConfirm(`¿Sacar a ${p.name} del equipo? Ya no va a poder entrar. Si dio clases, su historial y sus números se conservan.`, 'Sacar')) return;
+  try {
+    const r = await api.removeProfe(id); closeModal();
+    toast(r.result === 'archived' ? `${p.name} quedó de baja (su historial se conserva)` : `${p.name} ya no está en el equipo`);
+    paneProfes();
+  } catch (e) { toast(errMsg(e)); }
+}
+async function reviveProfe(id) {
+  try { await api.updateProfile(id, { approved: true, archived: false, teaches: true }); toast('Reactivado ✓'); paneProfes(); } catch (e) { toast(errMsg(e)); }
 }
 async function saveProfileForm(ev, id, admin) {
   ev.preventDefault();
