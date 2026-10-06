@@ -555,6 +555,7 @@ function supabaseApi() {
     updateSlot: (id, patch) => q(c.from('slots').update(patch).eq('id', id)),
     deleteSlot: id => q(c.from('slots').delete().eq('id', id)),
     deleteSuspended: id => q(c.rpc('delete_suspended_slot', { p_slot: id })),
+    deleteSlotForce: (id, force) => q(c.rpc('delete_slot', { p_slot: id, p_force: !!force })),
     createBooking: row => q(c.from('bookings').insert(row)),
     updateBooking: (id, patch) => q(c.from('bookings').update(patch).eq('id', id)),
     // El monto lo calcula el servidor a partir de la reserva: el navegador solo manda el código.
@@ -683,6 +684,10 @@ function demoApi() {
       save(); return wait(null);
     },
     updateSlot(id, patch) { Object.assign(db.slots.find(s => s.id === id), patch); save(); return wait(null); },
+    deleteSlotForce(id, force) {
+      if (!force && db.bookings.some(b => b.slot_id === id && b.paid)) return fail('Esta clase tiene reservas cobradas');
+      db.bookings = db.bookings.filter(b => b.slot_id !== id); db.slots = db.slots.filter(x => x.id !== id); save(); return wait(null);
+    },
     deleteSuspended(id) {
       const s = db.slots.find(x => x.id === id);
       if (!s || s.status !== 'cancelled') return fail('Solo se pueden borrar clases suspendidas');
@@ -1454,10 +1459,10 @@ function slotMenu(id) {
   const n = s.bookings.filter(b => b.status !== 'cancelled').length;
   openModal(`<h2>${hhmm(s.starts_at)} · ${esc(fmtDayShort(s.starts_at))}</h2>
     <div class="choice">
-      ${n ? `<button class="btn danger block" onclick="closeModal();cancelSlot('${s.id}')">Suspender clase (avisar a ${n})</button>`
-          : s.bookings.length ? `<button class="btn danger block" onclick="closeModal();cancelSlot('${s.id}')">Suspender clase</button>`
-          : `<button class="btn danger block" onclick="closeModal();delSlot('${s.id}')">Borrar clase</button>`}
-      <button class="btn ghost block" onclick="closeModal()">Volver</button></div>`);
+      ${s.bookings.length ? `<button class="btn ghost block" onclick="closeModal();cancelSlot('${s.id}')">Suspender clase${n ? ` (avisar a ${n})` : ''}</button>` : ''}
+      <button class="btn danger block" onclick="closeModal();forceDeleteSlot('${s.id}')">Borrar clase${s.bookings.length ? ' y sus reservas' : ''}</button>
+      <button class="btn ghost block" onclick="closeModal()">Volver</button></div>
+    ${s.bookings.length ? '<p class="tiny muted" style="margin-top:10px">Suspender deja registro y la podés avisar. Borrar la elimina del todo: usalo para pruebas o errores de carga.</p>' : ''}`);
 }
 
 async function updBooking(id, patch) {
@@ -1474,6 +1479,15 @@ async function cancelSlot(id) {
   if (!await askConfirm(`¿Suspender esta clase?${act.length ? `\n\nSe van a cancelar ${act.length} reserva(s). Avisales por WhatsApp desde la lista.` : ''}`, 'Suspender')) return;
   try { await api.updateSlot(id, { status: 'cancelled' }); await api.cancelSlotBookings(id); toast('Clase suspendida. Quedó oculta en "Ver suspendidas"'); paneAgenda(); }
   catch (e) { toast(errMsg(e)); }
+}
+async function forceDeleteSlot(id) {
+  const s = st.staffSlots.find(x => x.id === id); if (!s) return;
+  const act = s.bookings.filter(b => b.status !== 'cancelled'), paid = s.bookings.filter(b => b.paid);
+  if (!await askConfirm(s.bookings.length
+      ? `¿Borrar esta clase y sus ${s.bookings.length} ${s.bookings.length === 1 ? 'reserva' : 'reservas'}?${act.length ? `\n\n${act.length} ${act.length === 1 ? 'alumno tiene' : 'alumnos tienen'} el lugar reservado y no les llega ningún aviso.` : ''}`
+      : '¿Borrar esta clase?', 'Borrar')) return;
+  if (paid.length && !await askConfirm(`Ojo: ${paid.length} ${paid.length === 1 ? 'reserva está cobrada' : 'reservas están cobradas'} (${money(paid.reduce((a, b) => a + +b.amount, 0))}). Si la borrás, esa plata sale de los números. ¿Seguro?`, 'Sí, borrar igual')) return;
+  try { await api.deleteSlotForce(id, paid.length > 0); toast('Clase borrada'); paneAgenda(); } catch (e) { toast(errMsg(e)); }
 }
 async function deleteSuspended(id) {
   const s = st.staffSlots.find(x => x.id === id); if (!s) return;

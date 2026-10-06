@@ -374,6 +374,25 @@ begin
   delete from bookings where slot_id = p_slot;
   delete from slots where id = p_slot;
 end $fn$;
+-- Borrar cualquier clase con sus reservas (pruebas o errores de carga). Admin o el profe de la clase.
+-- Si alguna reserva estaba cobrada, hay que confirmarlo explícitamente (p_force = true).
+create or replace function public.delete_slot(p_slot uuid, p_force boolean default false)
+returns void
+language plpgsql security definer set search_path = public as $fn$
+declare s slots;
+begin
+  select * into s from slots where id = p_slot for update;
+  if not found then raise exception 'Esa clase ya no existe'; end if;
+  if not (is_admin() or (is_staff() and s.profe_id = auth.uid())) then raise exception 'No podés borrar esta clase'; end if;
+  if not p_force and exists (select 1 from bookings b where b.slot_id = p_slot and b.paid) then
+    raise exception 'Esta clase tiene reservas cobradas';
+  end if;
+  delete from bookings where slot_id = p_slot;
+  delete from slots where id = p_slot;
+end $fn$;
+revoke all on function public.delete_slot(uuid, boolean) from public;
+grant execute on function public.delete_slot(uuid, boolean) to authenticated;
+
 revoke all on function public.delete_suspended_slot(uuid) from public;
 grant execute on function public.delete_suspended_slot(uuid) to authenticated;
 
