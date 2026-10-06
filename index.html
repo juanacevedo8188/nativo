@@ -529,6 +529,7 @@ function supabaseApi() {
     createSlots: rows => q(c.from('slots').insert(rows)),
     updateSlot: (id, patch) => q(c.from('slots').update(patch).eq('id', id)),
     deleteSlot: id => q(c.from('slots').delete().eq('id', id)),
+    deleteSuspended: id => q(c.rpc('delete_suspended_slot', { p_slot: id })),
     createBooking: row => q(c.from('bookings').insert(row)),
     updateBooking: (id, patch) => q(c.from('bookings').update(patch).eq('id', id)),
     // El monto lo calcula el servidor a partir de la reserva: el navegador solo manda el código.
@@ -651,6 +652,12 @@ function demoApi() {
       save(); return wait(null);
     },
     updateSlot(id, patch) { Object.assign(db.slots.find(s => s.id === id), patch); save(); return wait(null); },
+    deleteSuspended(id) {
+      const s = db.slots.find(x => x.id === id);
+      if (!s || s.status !== 'cancelled') return fail('Solo se pueden borrar clases suspendidas');
+      if (db.bookings.some(b => b.slot_id === id && b.paid)) return fail('Esta clase tiene una reserva cobrada: marcala como no pagada (o devolvé la plata) antes de borrarla');
+      db.bookings = db.bookings.filter(b => b.slot_id !== id); db.slots = db.slots.filter(x => x.id !== id); save(); return wait(null);
+    },
     deleteSlot(id) {
       if (db.bookings.some(b => b.slot_id === id)) return fail('Ese horario tiene reservas: cancelalo en vez de borrarlo');
       db.slots = db.slots.filter(s => s.id !== id); save(); return wait(null);
@@ -1278,6 +1285,9 @@ async function paneAgenda() {
   } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   let list = st.staffSlots.filter(s => !st.agendaProfe || s.profe_id === st.agendaProfe);
   if (st.agendaPast) list = list.reverse();
+  // Las suspendidas no ocupan lugar: quedan ocultas y se pueden ver o borrar desde un botón.
+  const susp = list.filter(s => s.status === 'cancelled');
+  if (!st.showSusp) list = list.filter(s => s.status !== 'cancelled');
   const groups = {};
   list.forEach(s => (groups[dayKey(s.starts_at)] ||= []).push(s));
   const todayK = dayKey(now), tomorrowK = dayKey(addDays(now, 1));
@@ -1288,6 +1298,9 @@ async function paneAgenda() {
     ${isAdmin ? `<div class="chips" style="margin-top:10px"><button class="chip plain ${!st.agendaProfe ? 'on' : ''}" onclick="st.agendaProfe='';paneAgenda()">Todos</button>
       ${teaches(st.me) ? `<button class="chip plain ${st.agendaProfe === st.me.id ? 'on' : ''}" onclick="st.agendaProfe='${st.me.id}';paneAgenda()">Mis clases</button>` : ''}
       ${st.allProfiles.filter(p => p.approved && teaches(p) && p.id !== st.me.id).map(p => `<button class="chip plain ${st.agendaProfe === p.id ? 'on' : ''}" onclick="st.agendaProfe='${p.id}';paneAgenda()">${esc(p.name)}</button>`).join('')}</div>` : ''}
+    ${susp.length ? `<div class="row wrapf" style="margin-top:12px">
+      <button class="btn ghost sm" onclick="st.showSusp=!st.showSusp;paneAgenda()">${st.showSusp ? 'Ocultar' : 'Ver'} ${susp.length} ${susp.length === 1 ? 'suspendida' : 'suspendidas'}</button>
+      ${st.showSusp ? `<button class="btn danger sm" onclick="deleteAllSuspended()">Borrar todas las suspendidas</button>` : ''}</div>` : ''}
     ${Object.keys(groups).length ? Object.entries(groups).map(([k, ss]) => `<div class="dayhead">${esc(dayName(k))}</div>${ss.map(slotCard).join('')}`).join('')
       : `<div class="card empty" style="margin-top:14px">${st.agendaPast ? 'No hubo clases en los últimos 30 días.' : `No tenés clases creadas todavía.<div style="margin-top:14px"><button class="btn coral" onclick="setTab('cargar')">+ Crear mi primera clase</button></div>`}</div>`}`;
 }
@@ -1308,7 +1321,7 @@ function slotCard(s) {
       ${cancelled ? '<span class="pill bad" style="margin:0">Suspendida</span>' : `<span class="cap num ${people >= s.capacity ? 'full' : ''}">${people}/${s.capacity}</span>`}</div>
     ${!cancelled && (share > 0 || pend > 0) ? `<div class="money-line num">${share > 0 ? `<span class="ok">${mine}: ${money(share)}</span>` : ''}${pend > 0 ? `<span class="warn">${past ? 'falta marcar pago' : 'a cobrar'}: ${money(pend)}</span>` : ''}</div>` : ''}
     ${bks.map(b => bookingRow(s, b)).join('')}
-    ${cancelled ? '' : `<div class="slot-foot"><button class="btn ghost sm" onclick="manualBooking('${s.id}')">+ Anotar alumno</button>
+    ${cancelled ? `<div class="slot-foot"><button class="btn danger sm" onclick="deleteSuspended('${s.id}')">Borrar clase suspendida</button></div>` : `<div class="slot-foot"><button class="btn ghost sm" onclick="manualBooking('${s.id}')">+ Anotar alumno</button>
       <button class="btn ghost sm" style="flex:0 0 auto" onclick="slotMenu('${s.id}')" aria-label="Más opciones">${ICON.more.replace('<svg', '<svg width="20" height="20"')}</button></div>`}
   </div>`;
 }
@@ -1373,8 +1386,21 @@ async function cancelSlot(id) {
   const s = st.staffSlots.find(x => x.id === id);
   const act = s.bookings.filter(b => b.status !== 'cancelled');
   if (!await askConfirm(`¿Suspender esta clase?${act.length ? `\n\nSe van a cancelar ${act.length} reserva(s). Avisales por WhatsApp desde la lista.` : ''}`, 'Suspender')) return;
-  try { await api.updateSlot(id, { status: 'cancelled' }); await api.cancelSlotBookings(id); toast('Clase suspendida'); paneAgenda(); }
+  try { await api.updateSlot(id, { status: 'cancelled' }); await api.cancelSlotBookings(id); toast('Clase suspendida. Quedó oculta en "Ver suspendidas"'); paneAgenda(); }
   catch (e) { toast(errMsg(e)); }
+}
+async function deleteSuspended(id) {
+  if (!await askConfirm('¿Borrar esta clase suspendida? Se borran también sus reservas canceladas.', 'Borrar')) return;
+  try { await api.deleteSuspended(id); toast('Clase borrada'); paneAgenda(); } catch (e) { toast(errMsg(e)); }
+}
+async function deleteAllSuspended() {
+  const ids = st.staffSlots.filter(s => s.status === 'cancelled' && (!st.agendaProfe || s.profe_id === st.agendaProfe)).map(s => s.id);
+  if (!ids.length || !await askConfirm(`¿Borrar ${ids.length} ${ids.length === 1 ? 'clase suspendida' : 'clases suspendidas'}? Se borran también sus reservas canceladas.`, 'Borrar todas')) return;
+  let ok = 0, skipped = 0;
+  for (const id of ids) { try { await api.deleteSuspended(id); ok++; } catch { skipped++; } }
+  st.showSusp = false;
+  toast(`${ok} borradas${skipped ? ` · ${skipped} con reservas cobradas quedaron` : ''}`);
+  paneAgenda();
 }
 async function delSlot(id) {
   if (!await askConfirm('¿Borrar este horario?', 'Borrar')) return;

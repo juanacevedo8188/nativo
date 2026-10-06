@@ -341,6 +341,26 @@ grant execute on function public.my_bookings() to authenticated;
 revoke all on function public.booking_by_code(text) from public;
 grant execute on function public.booking_by_code(text) to anon, authenticated;
 
+-- Borrar una clase SUSPENDIDA junto con sus reservas canceladas (para que no ocupe lugar).
+-- Solo el admin o el profe de esa clase. No deja borrar si alguna reserva quedó cobrada.
+create or replace function public.delete_suspended_slot(p_slot uuid)
+returns void
+language plpgsql security definer set search_path = public as $fn$
+declare s slots;
+begin
+  select * into s from slots where id = p_slot for update;
+  if not found then raise exception 'Esa clase ya no existe'; end if;
+  if not (is_admin() or (is_staff() and s.profe_id = auth.uid())) then raise exception 'No podés borrar esta clase'; end if;
+  if s.status <> 'cancelled' then raise exception 'Solo se pueden borrar clases suspendidas'; end if;
+  if exists (select 1 from bookings b where b.slot_id = p_slot and b.paid) then
+    raise exception 'Esta clase tiene una reserva cobrada: marcala como no pagada (o devolvé la plata) antes de borrarla';
+  end if;
+  delete from bookings where slot_id = p_slot;
+  delete from slots where id = p_slot;
+end $fn$;
+revoke all on function public.delete_suspended_slot(uuid) from public;
+grant execute on function public.delete_suspended_slot(uuid) to authenticated;
+
 revoke all on function public.public_slots(timestamptz, timestamptz) from public;
 revoke all on function public.public_profes() from public;
 revoke all on function public.book_slot(uuid, text, text, text, int) from public;
