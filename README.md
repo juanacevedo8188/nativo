@@ -20,11 +20,12 @@ En **Profes** podés entrar como admin, como profe o como profe pendiente de apr
    | `SITE_URL` | la dirección de producción, ej. `https://nativo.vercel.app` (sin barra al final) |
 6. Entrá a la página → **Profes → pedí acceso acá**, confirmá el email y después corré en el SQL Editor:
    ```sql
-   update public.profiles set role = 'admin', approved = true where email = 'tu-email@ejemplo.com';
+   update public.profiles set role = 'admin', approved = true, teaches = false where email = 'tu-email@ejemplo.com';
    ```
 7. Para sumar profes: **Profes → Agregar profe** (nombre, email, WhatsApp, %). Al profe le llega un mail, elige su contraseña y ya entra a su agenda.
    Para esto, en Vercel tienen que estar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (paso 5). La función `api/invite-profe` verifica que quien lo pide sea admin.
    Si un profe pide acceso por su cuenta, aparece en "Pidieron acceso" para aprobarlo con un toque.
+8. Roles (Equipo → Rol): **Profe** da clases; **Admin** maneja la escuela y no aparece como profe; **Admin y profe** hace las dos cosas (crea clases a su nombre, ve "Mis clases" en la agenda y "Tu parte como profe" en el Resumen).
 
 ## Pago online con Mercado Pago (opcional)
 El alumno reserva y en la misma pantalla puede tocar **Pagar ahora con Mercado Pago**. También puede pagar después desde **Pagar mi reserva**, con su código.

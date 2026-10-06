@@ -29,6 +29,10 @@ create table if not exists public.profiles (
   created_at     timestamptz not null default now()
 );
 
+-- Un admin puede ser solo admin (no da clases) o admin y profe a la vez.
+-- teaches = da clases: aparece en la página de reservas y en la lista de profes.
+alter table public.profiles add column if not exists teaches boolean not null default true;
+
 create table if not exists public.class_types (
   id           uuid primary key default gen_random_uuid(),
   name         text not null,
@@ -130,6 +134,7 @@ begin
     new.role := old.role;
     new.approved := old.approved;
     new.commission_pct := old.commission_pct;
+    new.teaches := old.teaches;
     new.email := old.email;
   end if;
   return new;
@@ -194,7 +199,7 @@ language sql stable security definer set search_path = public as $fn$
   select p.id, p.name, p.bio
   from profiles p
   where p.approved
-    and (p.role = 'profe'
+    and (p.teaches
          or exists (select 1 from slots s where s.profe_id = p.id and s.starts_at > now() and s.status = 'open'))
   order by p.name;
 $fn$;
@@ -335,10 +340,11 @@ select * from (values
 where not exists (select 1 from public.class_types);
 
 -- ───────────────────────────── 7) Primer admin ─────────────────────────────
--- Después de crear tu cuenta desde la página (Acceso profes → Crear cuenta),
+-- Después de crear tu cuenta desde la página (Profes → pedí acceso acá),
 -- corré esto UNA vez con tu email para convertirte en admin:
 --
---   update public.profiles set role = 'admin', approved = true
+--   update public.profiles set role = 'admin', approved = true, teaches = false
 --   where email = 'tu-email@ejemplo.com';
 --
--- A partir de ahí, aprobás a los demás profes desde el panel.
+-- (teaches = true si además das clases.) A partir de ahí, los demás admins y
+-- profes se manejan desde la página: Equipo → Rol.
