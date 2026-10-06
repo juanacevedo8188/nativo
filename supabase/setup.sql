@@ -32,6 +32,8 @@ create table if not exists public.profiles (
 -- Un admin puede ser solo admin (no da clases) o admin y profe a la vez.
 -- teaches = da clases: aparece en la página de reservas y en la lista de profes.
 alter table public.profiles add column if not exists teaches boolean not null default true;
+-- Foto del profe (link público al archivo en Storage → bucket "avatars").
+alter table public.profiles add column if not exists avatar_url text;
 
 create table if not exists public.class_types (
   id           uuid primary key default gen_random_uuid(),
@@ -193,10 +195,11 @@ language sql stable security definer set search_path = public as $fn$
 $fn$;
 
 -- Profes para mostrar en la página pública.
+drop function if exists public.public_profes();   -- cambió lo que devuelve (ahora incluye la foto)
 create or replace function public.public_profes()
-returns table (id uuid, name text, bio text)
+returns table (id uuid, name text, bio text, avatar_url text)
 language sql stable security definer set search_path = public as $fn$
-  select p.id, p.name, p.bio
+  select p.id, p.name, p.bio, p.avatar_url
   from profiles p
   where p.approved
     and (p.teaches
@@ -328,6 +331,27 @@ create policy "bookings update" on public.bookings for update to authenticated
 drop policy if exists "bookings delete" on public.bookings;
 create policy "bookings delete" on public.bookings for delete to authenticated
   using (is_admin());
+
+-- ───────────────────────────── 5b) Fotos de perfil (Storage) ─────────────────────────────
+-- Bucket público "avatars": cualquiera puede VER las fotos (las muestra la página de reservas).
+-- Subir/cambiar/borrar: cada uno en su carpeta (avatars/<su id>/…) y el admin en cualquiera.
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do update set public = true;
+
+-- (select: lo pide Storage para reemplazar/borrar archivos; las fotos ya son públicas igual)
+drop policy if exists "avatars select" on storage.objects;
+create policy "avatars select" on storage.objects for select to authenticated
+  using (bucket_id = 'avatars');
+drop policy if exists "avatars insert" on storage.objects;
+create policy "avatars insert" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+drop policy if exists "avatars update" on storage.objects;
+create policy "avatars update" on storage.objects for update to authenticated
+  using (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+drop policy if exists "avatars delete" on storage.objects;
+create policy "avatars delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
 
 -- ───────────────────────────── 6) Datos iniciales ─────────────────────────────
 -- Arrancamos solo con clases de iniciación. Precio, cupo y duración se editan desde

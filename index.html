@@ -109,6 +109,19 @@ h2{font-size:20px;margin-bottom:10px} h3{font-size:16px;margin-bottom:8px}
 .chip.on{background:var(--ink);border-color:var(--ink);color:var(--sun)}
 .chip .avatar{width:30px;height:30px;font-size:13px}
 .avatar{flex:none;width:40px;height:40px;border-radius:50%;background:var(--sun);color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink);font-family:var(--f-display);display:grid;place-items:center;font-weight:700}
+img.avatar{object-fit:cover;background:var(--sea-soft)}
+.avatar.lg{width:96px;height:96px;font-size:34px;box-shadow:inset 0 0 0 3px var(--ink)}
+img.avatar.lg{border:3px solid var(--ink);box-shadow:none}
+.photo-pick{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.photo-pick label.btn{cursor:pointer}
+.photo-pick input{position:absolute;opacity:0;width:1px;height:1px}
+.prow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:12px 0}
+.prow:first-of-type{border-top:0}
+.prow .who{flex:1;min-width:0}
+.prow .who b{display:block;font-size:16px}
+.prow .who span{font-size:13px;color:var(--ink2)}
+.prof-card{display:flex;gap:12px;align-items:center;margin:10px 2px 0;animation:rise .25s var(--ease) both}
+.prof-card .avatar{width:52px;height:52px;font-size:18px}
 .bio{font-size:14px;color:var(--ink2);margin:8px 2px 0;animation:rise .25s var(--ease) both}
 
 /* Tira de días: queda pegada arriba al bajar */
@@ -331,6 +344,21 @@ const WD = ['dom','lun','mar','mié','jue','vie','sáb'];
 // "Miércoles 7 de octubre" (solo la primera en mayúscula, no "De Octubre").
 const fmtDayLong = d => { const t = new Date(d).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'}).replace(',', ''); return t.charAt(0).toUpperCase() + t.slice(1); };
 const fmtDayShort = d => new Date(d).toLocaleDateString('es-AR', {weekday:'short', day:'numeric', month:'short'});
+// Foto del profe, o sus iniciales si no tiene.
+const avatarHtml = (p, cls = '') => p?.avatar_url
+  ? `<img class="avatar ${cls}" src="${esc(p.avatar_url)}" alt="" loading="lazy">`
+  : `<span class="avatar ${cls}">${esc(initials(p?.name))}</span>`;
+// Achica y recorta la foto (cuadrada, 320px) en el teléfono antes de subirla: pesa ~20 KB.
+async function shrinkPhoto(file, size = 320) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    c.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+    return await new Promise(r => c.toBlob(b => r(b), 'image/webp', 0.85));
+  } finally { URL.revokeObjectURL(url); }
+}
 const initials = n => (n || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2));
 const isPast = s => new Date(s.starts_at) < new Date();
@@ -452,6 +480,15 @@ function supabaseApi() {
       await q(c.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname + '?staff=1' }));
     },
     async setPassword(password) { await q(c.auth.updateUser({ password })); },
+    // Foto: se sube a avatars/<id del profe>/<fecha>.webp y se borra la anterior.
+    async uploadAvatar(profileId, blob, oldUrl) {
+      const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
+      const path = `${profileId}/${Date.now()}.${ext}`;
+      await q(c.storage.from('avatars').upload(path, blob, { contentType: blob.type, cacheControl: '31536000' }));
+      const old = String(oldUrl || '').split('/avatars/')[1];
+      if (old) c.storage.from('avatars').remove([decodeURIComponent(old)]).catch(() => {});
+      return c.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+    },
     updateProfile: (id, patch) => q(c.from('profiles').update(patch).eq('id', id)),
     saveClassType: ct => ct.id ? q(c.from('class_types').update(ct).eq('id', ct.id)) : q(c.from('class_types').insert(ct)),
     deleteClassType: id => q(c.from('class_types').delete().eq('id', id)),
@@ -483,7 +520,7 @@ function demoApi() {
     async signOut() { store.del(UKEY); authCb(); },
     me: () => wait(meP()),
     classTypes: () => wait(db.class_types.slice().sort((a, b) => a.sort - b.sort)),
-    publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio }) => ({ id, name, bio }))),
+    publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url }) => ({ id, name, bio, avatar_url }))),
     publicSlots(from, to) {
       const lo = Math.max(+from, Date.now());
       return wait(db.slots.filter(s => s.status === 'open' && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
@@ -547,6 +584,7 @@ function demoApi() {
     mpApprove(code) { const b = db.bookings.find(x => x.code === code); Object.assign(b, { paid: true, payment_method: 'mercadopago' }); save(); },
     cancelSlotBookings(sid) { db.bookings.forEach(b => { if (b.slot_id === sid) b.status = 'cancelled'; }); save(); return wait(null); },
     profiles: () => wait(isAdmin() ? db.profiles : [meP()]),
+    uploadAvatar(id, blob) { return new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(blob); }); },
     inviteProfe(p) {
       if (db.profiles.some(x => x.email === p.email)) return fail('Ya hay un profe con ese email');
       db.profiles.push({ id: uid(), name: p.name, email: p.email, phone: p.phone, bio: '', role: 'profe', teaches: true, approved: true, commission_pct: p.pct });
@@ -682,8 +720,8 @@ function drawPublic() {
       </div></div>` : ''}
     ${st.profes.length > 1 ? `<div class="section"><div class="label">¿Con quién?</div><div class="chips">
         <button class="chip plain ${!st.fProfe ? 'on' : ''}" onclick="setPub('fProfe','')">Cualquier profe</button>
-        ${st.profes.map(p => `<button class="chip ${st.fProfe === p.id ? 'on' : ''}" onclick="setPub('fProfe','${p.id}')"><span class="avatar">${esc(initials(p.name))}</span>${esc(p.name)}</button>`).join('')}
-      </div>${prof?.bio ? `<p class="bio">${esc(prof.bio)}</p>` : ''}</div>` : ''}
+        ${st.profes.map(p => `<button class="chip ${st.fProfe === p.id ? 'on' : ''}" onclick="setPub('fProfe','${p.id}')">${avatarHtml(p)}${esc(p.name)}</button>`).join('')}
+      </div>${prof && (prof.bio || prof.avatar_url) ? `<div class="prof-card">${avatarHtml(prof)}<div><b>${esc(prof.name)}</b>${prof.bio ? `<div class="small muted">${esc(prof.bio)}</div>` : ''}</div></div>` : ''}</div>` : ''}
 
     <div class="daybar" id="daybar"><div class="label" style="margin-bottom:6px">¿Qué día?</div>
       <div class="days" id="days">
@@ -1283,7 +1321,7 @@ async function paneProfes() {
   try { st.allProfiles = await api.profiles(); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const pending = st.allProfiles.filter(p => !p.approved);
   paneEl().innerHTML = `
-    <div class="card" style="max-width:560px"><h2>Agregar profe</h2>
+    <details class="card more" style="max-width:560px" ${st.allProfiles.length <= 1 ? 'open' : ''}><summary><h2 style="margin:0">Agregar profe</h2></summary><div style="margin-top:10px">
       <p class="small muted" style="margin-bottom:12px">${api.demo ? 'En la versión real le llega un mail para que elija su contraseña. En la demo aparece directo en la lista de "Entrar".' : 'Le llega un mail para que elija su contraseña. Después entra en "Profes" con su email.'}</p>
       <div id="ap-err"></div>
       <form onsubmit="addProfe(event)">
@@ -1292,21 +1330,16 @@ async function paneProfes() {
         <div class="grid2"><div class="field"><label for="ap-phone">WhatsApp <span class="muted">(opcional)</span></label><input class="input" id="ap-phone" name="phone" type="tel" placeholder="341 555 1234"></div>
           <div class="field"><label for="ap-pct">Se lleva (% de cada alumno)</label><input class="input" id="ap-pct" name="pct" type="number" min="0" max="100" value="50"></div></div>
         <button class="btn coral" id="ap-btn">Agregar profe</button>
-      </form></div>
+      </form></div></details>
     ${pending.length ? `<div class="card"><h3>Pidieron acceso <span class="pill warn">${pending.length}</span></h3>
       ${pending.map(p => `<div class="row between wrapf" style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(p.name)}</b><div class="tiny muted">${esc(p.email)}</div></div>
         <div class="row"><button class="btn sm" onclick="approveProfe('${p.id}')">Aprobar</button></div></div>`).join('')}</div>` : ''}
     <div class="card"><h2>Equipo</h2>
-    <p class="small muted" style="margin-bottom:12px">El % es la parte de cada alumno cobrado que se lleva el profe. Si lo cambiás, aplica a las clases que se creen desde ahora.</p>
-    <div class="tbl-wrap"><table>
-    <tr><th>Nombre</th><th>Email</th><th>Rol</th><th class="r">% profe</th><th>Activo</th><th></th></tr>
-    ${st.allProfiles.filter(p => p.approved || !pending.includes(p)).map(p => `<tr id="pr-${p.id}">
-      <td><b>${esc(p.name)}</b>${p.phone ? `<div class="tiny muted">${esc(p.phone)}</div>` : ''}</td><td class="small">${esc(p.email)}</td>
-      <td><select class="input sm" data-k="role">${Object.entries(ROLES).map(([k, l]) => `<option value="${k}" ${roleKey(p) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
-      <td class="r"><input class="input sm" style="width:70px" data-k="commission_pct" type="number" min="0" max="100" value="${+p.commission_pct}"></td>
-      <td><label class="check"><input type="checkbox" data-k="approved" ${p.approved ? 'checked' : ''}></label></td>
-      <td><button class="btn sm ghost" onclick="saveProfe('${p.id}')">Guardar</button></td></tr>`).join('')}
-    </table></div></div>`;
+    <p class="small muted" style="margin-bottom:4px">Tocá a alguien para editar su perfil, foto, rol o %.</p>
+    ${st.allProfiles.filter(p => p.approved).sort((a, b) => a.name.localeCompare(b.name)).map(p => `<button class="prow" onclick="editProfe('${p.id}')">
+      ${avatarHtml(p)}<span class="who"><b>${esc(p.name)}${p.id === st.me.id ? ' (vos)' : ''}</b><span>${ROLES[roleKey(p)]}${teaches(p) ? ` · ${+p.commission_pct}%` : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</span></span>
+      <span class="muted" aria-hidden="true">›</span></button>`).join('')}
+    </div>`;
 }
 async function addProfe(ev) {
   ev.preventDefault();
@@ -1324,14 +1357,51 @@ async function approveProfe(id) {
 const ROLES = { profe: 'Profe', admin: 'Admin', 'admin+profe': 'Admin y profe' };
 const roleKey = p => p.role !== 'admin' ? 'profe' : p.teaches === false ? 'admin' : 'admin+profe';
 const teaches = p => !!p && (p.role !== 'admin' || p.teaches !== false);
-async function saveProfe(id) {
-  const tr = $('pr-' + id), g = k => tr.querySelector(`[data-k=${k}]`);
-  const r = g('role').value;
-  if (id === st.me.id && (!g('approved').checked || r === 'profe') && !await askConfirm('Te estás sacando el acceso de admin a vos mismo. ¿Seguro?')) return;
+// Formulario de perfil: lo usa cada uno en "Mi perfil" y el admin para editar a cualquiera.
+function profileFields(p, admin) {
+  return `<div class="photo-pick" id="ph-wrap">${avatarHtml(p, 'lg')}
+      <div><label class="btn ghost sm" for="pf-photo">${p.avatar_url ? 'Cambiar foto' : 'Subir foto'}</label>
+      <input type="file" id="pf-photo" accept="image/*" onchange="pickPhoto(this)">
+      <div class="tiny muted" style="margin-top:6px">Una foto de cara, con buena luz. La ven los alumnos.</div></div></div>
+    <div class="field"><label for="pf-name">Nombre (como lo ven los alumnos)</label><input class="input" id="pf-name" name="name" required maxlength="60" value="${esc(p.name)}"></div>
+    <div class="field"><label for="pf-phone">WhatsApp</label><input class="input" id="pf-phone" name="phone" type="tel" inputmode="tel" maxlength="30" value="${esc(p.phone || '')}" placeholder="341 555 1234"></div>
+    <div class="field"><label for="pf-bio">Presentación corta</label><textarea class="input" id="pf-bio" name="bio" maxlength="160" placeholder="Ej: Instructor certificado, 5 años dando clases en el Paraná.">${esc(p.bio || '')}</textarea></div>
+    ${admin ? `<div class="field"><span class="flabel">Rol</span><div class="seg">${Object.entries(ROLES).map(([k, l]) => `<label><input type="radio" name="role" value="${k}" ${roleKey(p) === k ? 'checked' : ''}>${l}</label>`).join('')}</div></div>
+      <div class="grid2"><div class="field"><label for="pf-pct">% de cada alumno</label><input class="input" id="pf-pct" name="pct" type="number" inputmode="numeric" min="0" max="100" value="${+p.commission_pct}"></div>
+        <div class="field"><span class="flabel">Acceso</span><label class="check" style="min-height:48px"><input type="checkbox" name="approved" ${p.approved ? 'checked' : ''}> Activo</label></div></div>
+      <p class="tiny muted" style="margin-bottom:10px">El % nuevo aplica a las clases que se creen desde ahora. Sacarle "Activo" le quita el acceso.</p>` : ''}
+    <p class="tiny muted">Email: ${esc(p.email || '')}</p>`;
+}
+function pickPhoto(input) {
+  const f = input.files?.[0]; if (!f) return;
+  if (!f.type.startsWith('image/')) return toast('Elegí una imagen');
+  st.pendingPhoto = f;
+  const url = URL.createObjectURL(f), old = $('ph-wrap').querySelector('.avatar');
+  old.outerHTML = `<img class="avatar lg" src="${url}" alt="">`;
+}
+function editProfe(id) {
+  const p = st.allProfiles.find(x => x.id === id); if (!p) return;
+  st.pendingPhoto = null;
+  openModal(`<h2>Editar perfil</h2><div id="pf-err"></div>
+    <form onsubmit="saveProfileForm(event,'${id}',true)">${profileFields(p, true)}
+      <div class="sheet-foot"><button class="btn coral block" id="pf-btn">Guardar</button></div></form>`);
+}
+async function saveProfileForm(ev, id, admin) {
+  ev.preventDefault();
+  const f = ev.target, p = admin ? st.allProfiles.find(x => x.id === id) : st.me, btn = $('pf-btn');
+  const patch = { name: f.name.value.trim(), phone: f.phone.value.trim() || null, bio: f.bio.value.trim() || null };
+  if (admin) {
+    const r = f.role.value;
+    if (id === st.me.id && (!f.approved.checked || r === 'profe') && !await askConfirm('Te estás sacando el acceso de admin a vos mismo. ¿Seguro?')) return;
+    Object.assign(patch, { role: r === 'profe' ? 'profe' : 'admin', teaches: r !== 'admin', commission_pct: Math.min(100, Math.max(0, +f.pct.value || 0)), approved: f.approved.checked });
+  }
+  btn.disabled = true; btn.textContent = st.pendingPhoto ? 'Subiendo foto…' : 'Guardando…';
   try {
-    await api.updateProfile(id, { role: r === 'profe' ? 'profe' : 'admin', teaches: r !== 'admin', commission_pct: Math.min(100, Math.max(0, +g('commission_pct').value)), approved: g('approved').checked });
-    toast('Profe actualizado'); paneProfes();
-  } catch (e) { toast(errMsg(e)); }
+    if (st.pendingPhoto) patch.avatar_url = await api.uploadAvatar(id, await shrinkPhoto(st.pendingPhoto), p.avatar_url);
+    await api.updateProfile(id, patch);
+    st.pendingPhoto = null; toast('Perfil guardado ✓');
+    if (admin) { closeModal(); if (id === st.me.id) renderStaff(); else paneProfes(); } else renderStaff();
+  } catch (e) { $('pf-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; btn.textContent = 'Guardar'; }
 }
 
 /* ── Tipos de clase (admin) ── */
@@ -1361,19 +1431,11 @@ async function saveType(btn) {
 
 /* ── Mi perfil ── */
 function paneProfile() {
-  const m = st.me;
-  paneEl().innerHTML = `<div class="card" style="max-width:520px"><h2>Mi perfil</h2>
-    <form onsubmit="saveProfile(event)">
-      <div class="field"><label>Nombre (lo ven los alumnos)</label><input class="input" name="name" required value="${esc(m.name)}"></div>
-      <div class="field"><label>WhatsApp</label><input class="input" name="phone" type="tel" value="${esc(m.phone || '')}"></div>
-      <div class="field"><label>Presentación corta</label><textarea class="input" name="bio" maxlength="160" placeholder="Ej: Instructor certificado, 5 años dando clases en el Paraná.">${esc(m.bio || '')}</textarea></div>
-      <p class="small muted" style="margin-bottom:12px">Email: ${esc(m.email)} · Tu parte: ${+m.commission_pct}% de lo cobrado</p>
-      <button class="btn">Guardar</button></form></div>`;
-}
-async function saveProfile(ev) {
-  ev.preventDefault(); const f = ev.target;
-  try { await api.updateProfile(st.me.id, { name: f.name.value.trim(), phone: f.phone.value.trim() || null, bio: f.bio.value.trim() || null }); toast('Perfil guardado'); renderStaff(); }
-  catch (e) { toast(errMsg(e)); }
+  st.pendingPhoto = null;
+  paneEl().innerHTML = `<div class="card" style="max-width:520px"><h2>Mi perfil</h2><div id="pf-err"></div>
+    <form onsubmit="saveProfileForm(event,'${st.me.id}',false)">${profileFields(st.me, false)}
+      ${teaches(st.me) ? `<p class="tiny muted" style="margin:-6px 0 12px">Tu parte: ${+st.me.commission_pct}% de lo cobrado.</p>` : ''}
+      <button class="btn coral block" id="pf-btn">Guardar</button></form></div>`;
 }
 
 /* ════════════════════════════ ARRANQUE ════════════════════════════ */
