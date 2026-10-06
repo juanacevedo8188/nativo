@@ -393,6 +393,8 @@ const CONFIG = {
   MERCADOPAGO: false,
   // Entrenamiento: no se reserva por la web, se gestiona por WhatsApp con este contacto.
   TRAINING_CONTACT: { name: 'Torita', whatsapp: '5493364386564' },
+  // Abonos: "Lo quiero" abre el WhatsApp de esta persona.
+  PASS_CONTACT: { name: 'Torita', whatsapp: '5493364386564' },
 };
 // ?demo en la dirección abre la versión de prueba (datos inventados, solo en ese navegador).
 const DEMO = !CONFIG.SUPABASE_URL || new URLSearchParams(location.search).has('demo');
@@ -1184,13 +1186,24 @@ function planCard(pl) {
       <b class="t">${esc(pl.name)} · ${money(pl.price)}</b>
       <div class="small">${pl.classes} clases${pl.description ? ' · ' + esc(pl.description) : ''} · ${money(Math.round(pl.price / pl.classes))} c/u</div>
       ${save > 0 ? `<span class="save">Ahorrás ${money(save)}</span>` : ''}</div>
-    <button class="btn dark sm" onclick="wantPass('${pl.id}')">Lo quiero</button></div>`;
+    ${passWa(pl) ? `<a class="btn dark sm" href="${passWa(pl)}" target="_blank" rel="noopener" onclick="notePassRequest('${pl.id}')">Lo quiero</a>` : `<button class="btn dark sm" onclick="wantPass('${pl.id}')">Lo quiero</button>`}</div>`;
+}
+// "Lo quiero" → WhatsApp de la persona que vende los abonos, con el mensaje armado.
+function passWa(pl) {
+  const c = CONFIG.PASS_CONTACT; if (!c?.whatsapp) return '';
+  const who = st.student ? ` Soy ${st.student.name}.` : '';
+  return waLink(c.whatsapp, `Hola ${c.name}! Quiero el ${pl.name} (${money(pl.price)} · ${pl.classes} clases) de Nativo 🏄.${who} ¿Cómo lo pago?`);
+}
+// Si el alumno tiene cuenta, además queda anotado el pedido para que el admin lo confirme con un toque.
+function notePassRequest(planId) {
+  if (!st.student || (st.myPasses || []).some(p => p.status === 'pending')) return;
+  api.requestPass(planId).then(api.myPasses).then(ps => { st.myPasses = ps; if ($('pub') && st.pub?.length) drawPublic(); else if (location.hash === '#perfil') renderStudent(); }).catch(() => {});
 }
 function myPassCard(p, compact) {
   const left = p.classes_total - p.used;
   if (p.status === 'pending') return `<div class="plan-card"><span class="pc-ic">⏳</span><div class="pc-body"><b class="t">${esc(p.name)}: pedido</b>
-      <div class="small">Pagalo (${money(p.price)}) y la escuela lo activa.</div></div>
-      ${CONFIG.WHATSAPP ? `<a class="btn dark sm" href="${waLink(CONFIG.WHATSAPP, `Hola! Pedí el ${p.name} (${money(p.price)}). Soy ${st.student?.name || ''}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">Pagar</a>` : ''}</div>`;
+      <div class="small">Pagalo (${money(p.price)}) y se activan tus clases.</div></div>
+      ${(CONFIG.PASS_CONTACT?.whatsapp || CONFIG.WHATSAPP) ? `<a class="btn dark sm" href="${waLink(CONFIG.PASS_CONTACT?.whatsapp || CONFIG.WHATSAPP, `Hola ${CONFIG.PASS_CONTACT?.name || ''}! Pedí el ${p.name} (${money(p.price)}). Soy ${st.student?.name || ''}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">Escribile a ${esc(CONFIG.PASS_CONTACT?.name || 'la escuela')}</a>` : ''}</div>`;
   return `<div class="plan-card"><span class="pc-ic">💳</span><div class="pc-body"><b class="t">${esc(p.name)}: ${left} ${left === 1 ? 'clase' : 'clases'}</b>
       <div class="pass-bar"><i style="width:${(left / p.classes_total) * 100}%"></i></div>
       <div class="small">Usaste ${p.used} de ${p.classes_total} · vence el ${fmtDate(p.expires_on)}</div></div>
