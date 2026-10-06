@@ -34,6 +34,8 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists teaches boolean not null default true;
 -- Foto del profe (link público al archivo en Storage → bucket "avatars").
 alter table public.profiles add column if not exists avatar_url text;
+-- Cada profe elige si su WhatsApp se muestra a los alumnos (botón "Escribile").
+alter table public.profiles add column if not exists public_whatsapp boolean not null default true;
 
 create table if not exists public.class_types (
   id           uuid primary key default gen_random_uuid(),
@@ -221,11 +223,11 @@ language sql stable security definer set search_path = public as $fn$
 $fn$;
 
 -- Profes para mostrar en la página pública.
-drop function if exists public.public_profes();   -- cambió lo que devuelve (ahora incluye la foto)
+drop function if exists public.public_profes();   -- cambió lo que devuelve (foto y WhatsApp)
 create or replace function public.public_profes()
-returns table (id uuid, name text, bio text, avatar_url text)
+returns table (id uuid, name text, bio text, avatar_url text, whatsapp text)
 language sql stable security definer set search_path = public as $fn$
-  select p.id, p.name, p.bio, p.avatar_url
+  select p.id, p.name, p.bio, p.avatar_url, case when p.public_whatsapp then nullif(btrim(p.phone), '') end
   from profiles p
   where p.approved
     and (p.teaches
@@ -297,15 +299,17 @@ end $fn$;
 
 -- "Mi reserva": el alumno ve su reserva con el código (link nativo…/#r-CÓDIGO).
 -- Devuelve solo datos de la clase y el primer nombre; nada de teléfono ni email.
+drop function if exists public.booking_by_code(text);   -- cambió lo que devuelve (WhatsApp del profe)
 create or replace function public.booking_by_code(p_code text)
 returns table (
   code text, first_name text, title text, starts_at timestamptz, duration_min int,
   location text, profe_name text, people int, amount numeric, paid boolean,
-  status text, slot_status text
+  status text, slot_status text, profe_whatsapp text
 )
 language sql stable security definer set search_path = public as $fn$
   select b.code, split_part(btrim(b.customer_name), ' ', 1), s.title, s.starts_at, s.duration_min,
-         s.location, p.name, b.people, b.amount, b.paid, b.status, s.status
+         s.location, p.name, b.people, b.amount, b.paid, b.status, s.status,
+         case when p.public_whatsapp then nullif(btrim(p.phone), '') end
   from bookings b
   join slots s on s.id = b.slot_id
   join profiles p on p.id = s.profe_id

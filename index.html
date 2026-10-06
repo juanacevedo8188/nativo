@@ -120,7 +120,9 @@ img.avatar.lg{border:3px solid var(--ink);box-shadow:none}
 .prow .who{flex:1;min-width:0}
 .prow .who b{display:block;font-size:16px}
 .prow .who span{font-size:13px;color:var(--ink2)}
-.prof-card{display:flex;gap:12px;align-items:center;margin:10px 2px 0;animation:rise .25s var(--ease) both}
+.prof-card{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0 0;padding:12px;animation:rise .25s var(--ease) both}
+.prof-card .pc-txt{flex:1 1 160px;min-width:0}
+.prof-card .pc-wa{flex:none;margin-left:auto}
 .prof-card .avatar{width:52px;height:52px;font-size:18px}
 .ticket{padding:0;overflow:hidden;margin-top:16px}
 .ticket .tk-head{background:var(--grad);padding:16px;display:flex;align-items:center;gap:12px}
@@ -468,6 +470,14 @@ const ICON = {
   google: '<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.3H12v4.3h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2-1.9 3.2-4.7 3.2-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.2a6.6 6.6 0 0 1 0-4.3V7.1H2.1a11 11 0 0 0 0 9.9l3.7-2.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7.1l3.7 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>',
   ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>',
 };
+// WhatsApp para escribirle a un profe desde la página pública. Si el profe no muestra su número,
+// el mensaje va al WhatsApp de la escuela nombrando al profe.
+function profeWa(name, phone, extra = '') {
+  const first = String(name || '').split(' ')[0];
+  if (phone) return waLink(phone, `Hola ${first}! Te escribo desde la página de Nativo${extra ? ' ' + extra : ''}.`);
+  if (CONFIG.WHATSAPP) return waLink(CONFIG.WHATSAPP, `Hola! Quería consultarle algo a ${first}${extra ? ' ' + extra : ''}.`);
+  return '';
+}
 // Botón redondo para escribirle al alumno (WhatsApp o Instagram).
 function contactBtn(c, text) {
   c = String(c || '').trim();
@@ -595,7 +605,7 @@ function demoApi() {
     updateStudent(id, patch) { Object.assign(db.students.find(x => x.id === id), patch); save(); return wait(null); },
     me: () => wait(meP()),
     classTypes: () => wait(db.class_types.slice().sort((a, b) => a.sort - b.sort)),
-    publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url }) => ({ id, name, bio, avatar_url }))),
+    publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null }))),
     publicSlots(from, to) {
       const lo = Math.max(+from, Date.now());
       return wait(db.slots.filter(s => s.status === 'open' && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
@@ -606,7 +616,8 @@ function demoApi() {
       const b = db.bookings.find(x => x.code === String(code).toUpperCase()); if (!b) return wait(null);
       const s = db.slots.find(x => x.id === b.slot_id);
       return wait({ code: b.code, first_name: b.customer_name.split(' ')[0], title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location,
-        profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: b.amount, paid: b.paid, status: b.status, slot_status: s.status });
+        profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: b.amount, paid: b.paid, status: b.status, slot_status: s.status,
+        profe_whatsapp: (pp => pp && pp.public_whatsapp !== false ? pp.phone || null : null)(db.profiles.find(p => p.id === s.profe_id)) });
     },
     async book(b) {
       const s = db.slots.find(x => x.id === b.slot_id);
@@ -811,7 +822,8 @@ function drawPublic() {
     ${st.profes.length > 1 ? `<div class="section"><div class="label">¿Con quién?</div><div class="chips">
         <button class="chip plain ${!st.fProfe ? 'on' : ''}" onclick="setPub('fProfe','')">Cualquier profe</button>
         ${st.profes.map(p => `<button class="chip ${st.fProfe === p.id ? 'on' : ''}" onclick="setPub('fProfe','${p.id}')">${avatarHtml(p)}${esc(p.name)}</button>`).join('')}
-      </div>${prof && (prof.bio || prof.avatar_url) ? `<div class="prof-card">${avatarHtml(prof)}<div><b>${esc(prof.name)}</b>${prof.bio ? `<div class="small muted">${esc(prof.bio)}</div>` : ''}</div></div>` : ''}</div>` : ''}
+      </div>${prof ? `<div class="prof-card card">${avatarHtml(prof)}<div class="pc-txt"><b>${esc(prof.name)}</b>${prof.bio ? `<div class="small muted">${esc(prof.bio)}</div>` : ''}</div>
+        ${profeWa(prof.name, prof.whatsapp) ? `<a class="btn wa sm pc-wa" href="${profeWa(prof.name, prof.whatsapp, 'por una clase de SUP')}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} Escribile</a>` : ''}</div>` : ''}</div>` : ''}
 
     <div class="daybar" id="daybar"><div class="label" style="margin-bottom:6px">¿Qué día?</div>
       <div class="days" id="days">
@@ -853,7 +865,8 @@ function openBooking(id) {
   const left = Math.min(s.capacity - s.booked, 10), me = st.student;
   openModal(`
     <h2>Reservar</h2>
-    <div class="sum"><b>${esc(s.title)}</b> con ${esc(s.profe_name)}<br>
+    <div class="sum">${(() => { const pr = st.profes.find(x => x.id === s.profe_id), link = profeWa(s.profe_name, pr?.whatsapp, `por la clase del ${fmtDayShort(s.starts_at)} ${hhmm(s.starts_at)}`);
+        return link ? `<a class="icon-btn wa" style="float:right;margin-left:8px" href="${link}" target="_blank" rel="noopener" aria-label="Escribirle a ${esc(s.profe_name)}">${ICON.wa}</a>` : ''; })()}<b>${esc(s.title)}</b> con ${esc(s.profe_name)}<br>
       <span>${esc(fmtDayLong(s.starts_at))}</span> · <b class="num">${hhmm(s.starts_at)}</b> a ${hhmm(addMin(s.starts_at, s.duration_min))}
       ${s.location ? `<br><span class="muted">${esc(s.location)}</span>${CONFIG.MAPS ? ` · <a href="${CONFIG.MAPS}" target="_blank" rel="noopener">Ver mapa</a>` : ''}` : ''}</div>
     <div id="bk-err"></div>
@@ -956,7 +969,8 @@ async function renderTicket(code) {
         ${CONFIG.MAPS ? `<a class="btn ghost" href="${CONFIG.MAPS}" target="_blank" rel="noopener">Cómo llegar</a>` : ''}
       </div>
       <button class="btn ghost block" onclick="shareTicket()">Compartir / copiar link de la reserva</button>
-      ${CONFIG.WHATSAPP ? `<a class="btn wa block" href="${waLink(CONFIG.WHATSAPP, `Hola! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar por WhatsApp</a>` : ''}
+      ${live && r.profe_whatsapp ? `<a class="btn wa block" href="${profeWa(r.profe_name, r.profe_whatsapp, `por mi clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code})`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Escribirle a ${esc(r.profe_name.split(' ')[0])}</a>` : ''}
+      ${CONFIG.WHATSAPP ? `<a class="btn ${live && r.profe_whatsapp ? 'ghost' : 'wa'} block" href="${waLink(CONFIG.WHATSAPP, `Hola! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar (escuela)</a>` : ''}
       <a class="btn ghost block" href="#">Ver más clases</a>
     </div>`;
 }
@@ -1693,6 +1707,7 @@ function profileFields(p, admin) {
       <div class="tiny muted" style="margin-top:6px">Una foto de cara, con buena luz. La ven los alumnos.</div></div></div>
     <div class="field"><label for="pf-name">Nombre (como lo ven los alumnos)</label><input class="input" id="pf-name" name="name" required maxlength="60" value="${esc(p.name)}"></div>
     <div class="field"><label for="pf-phone">WhatsApp</label><input class="input" id="pf-phone" name="phone" type="tel" inputmode="tel" maxlength="30" value="${esc(p.phone || '')}" placeholder="341 555 1234"></div>
+    <label class="check" style="margin:-6px 0 14px"><input type="checkbox" name="public_whatsapp" ${p.public_whatsapp !== false ? 'checked' : ''}> Mostrar mi WhatsApp a los alumnos (botón "Escribile")</label>
     <div class="field"><label for="pf-bio">Presentación corta</label><textarea class="input" id="pf-bio" name="bio" maxlength="160" placeholder="Ej: Instructor certificado, 5 años dando clases en el Paraná.">${esc(p.bio || '')}</textarea></div>
     ${admin ? `<div class="field"><span class="flabel">Rol</span><div class="seg">${Object.entries(ROLES).map(([k, l]) => `<label><input type="radio" name="role" value="${k}" ${roleKey(p) === k ? 'checked' : ''}>${l}</label>`).join('')}</div></div>
       <div class="grid2"><div class="field"><label for="pf-pct">% de cada alumno</label><input class="input" id="pf-pct" name="pct" type="number" inputmode="numeric" min="0" max="100" value="${+p.commission_pct}"></div>
@@ -1718,7 +1733,7 @@ function editProfe(id) {
 async function saveProfileForm(ev, id, admin) {
   ev.preventDefault();
   const f = ev.target, p = admin ? st.allProfiles.find(x => x.id === id) : st.me, btn = $('pf-btn');
-  const patch = { name: f.name.value.trim(), phone: f.phone.value.trim() || null, bio: f.bio.value.trim() || null };
+  const patch = { name: f.name.value.trim(), phone: f.phone.value.trim() || null, bio: f.bio.value.trim() || null, public_whatsapp: f.public_whatsapp.checked };
   if (admin) {
     const r = f.role.value;
     if (id === st.me.id && (!f.approved.checked || r === 'profe') && !await askConfirm('Te estás sacando el acceso de admin a vos mismo. ¿Seguro?')) return;
