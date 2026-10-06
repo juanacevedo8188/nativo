@@ -34,8 +34,10 @@
   --ease:cubic-bezier(.2,.8,.2,1);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-body{font-family:var(--f-body);background:var(--bg);color:var(--ink);font-size:16px;line-height:1.45;min-height:100vh;min-height:100dvh;overflow-x:hidden}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;overflow-x:hidden;overflow-x:clip}
+/* Sin "rebote" al llegar arriba/abajo (mostraba blanco) */
+html,body{overscroll-behavior-y:none}
+body{font-family:var(--f-body);background:var(--bg);color:var(--ink);font-size:16px;line-height:1.45;min-height:100vh;min-height:100dvh;overflow-x:hidden;overflow-x:clip}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 a{color:var(--sea)}
@@ -68,10 +70,11 @@ h2{font-size:20px;margin-bottom:10px} h3{font-size:16px;margin-bottom:8px}
 .logo:hover img{transform:rotate(-12deg)}
 .logo .wm{display:flex;flex-direction:column;line-height:1;min-width:0}
 .logo b{font-weight:700;font-size:23px;color:var(--sun)}
-.logo span{font-family:var(--f-script);font-size:14px;color:#7fd3da;margin-top:2px;white-space:nowrap}
+.logo span{font-family:var(--f-script);font-size:14px;color:#7fd3da;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top nav{display:flex;gap:4px;flex:none}
 .top nav a{color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:8px 13px;border-radius:999px;transition:background .2s,color .2s}
 .top nav a.on{background:var(--sun);color:var(--ink)}
+@media(max-width:430px){.logo span{font-size:12px}.logo b{font-size:21px}.top nav a{padding:8px 11px}}
 @media(max-width:380px){.logo span{display:none}.logo b{font-size:21px}.top nav a{padding:7px 10px;font-size:13.5px}}
 .demo-bar{background:var(--coral-soft);color:#6b5200;font-size:12.5px;text-align:center;padding:6px 16px}
 
@@ -101,7 +104,7 @@ h2{font-size:20px;margin-bottom:10px} h3{font-size:16px;margin-bottom:8px}
 .err{background:var(--bad-soft);color:var(--bad);padding:10px 12px;border-radius:10px;font-size:14px;margin-bottom:12px}
 
 /* Chips (filtros) */
-.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px;margin:0 -16px;padding-left:16px;padding-right:16px;scrollbar-width:none;scroll-snap-type:x proximity}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px;margin:0 -16px;padding-left:16px;padding-right:16px;scrollbar-width:none;overscroll-behavior-x:contain;touch-action:pan-x pan-y}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--line2);background:var(--card);border-radius:999px;padding:6px 14px 6px 6px;font-size:15px;font-weight:600;white-space:nowrap;scroll-snap-align:start;transition:background .2s,border-color .2s,color .2s,transform .1s}
 .chip.plain{padding:8px 16px}
@@ -176,12 +179,14 @@ img.avatar.xl{border:4px solid var(--ink)}
 .train-card{display:flex;gap:12px;align-items:center;background:var(--ink);color:#fff;border-radius:var(--r);padding:14px;margin-top:16px}
 .train-card i{font-style:normal;font-size:30px}
 .train-card .small{color:#cfe3e1}
+.train-card.promo{align-items:flex-start;margin-top:22px}
+.train-card.promo .small{margin-top:3px}
 .bio{font-size:14px;color:var(--ink2);margin:8px 2px 0;animation:rise .25s var(--ease) both}
 
 /* Tira de días: queda pegada arriba al bajar */
 .daybar{position:sticky;top:calc(var(--top-h) + env(safe-area-inset-top,0px));z-index:20;background:var(--bg);margin:0 -16px;padding:10px 16px 8px;border-bottom:1px solid transparent;transition:border-color .2s,box-shadow .2s}
 .daybar.stuck{border-color:var(--line);box-shadow:0 6px 12px -10px rgba(31,29,30,.25)}
-.days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;margin:0 -16px;padding:0 16px}
+.days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -16px;padding:0 16px}
 .days::-webkit-scrollbar{display:none}
 .day{flex:none;width:54px;border:1.5px solid var(--line);background:var(--card);border-radius:14px;padding:7px 0 6px;text-align:center;scroll-snap-align:start;transition:background .2s,border-color .2s,color .2s,transform .1s}
 .day:active{transform:scale(.94)}
@@ -254,7 +259,7 @@ textarea.input{min-height:80px;resize:vertical}
 .stepper output{min-width:56px;text-align:center;font-family:var(--f-display);font-size:22px;font-weight:600}
 
 /* ── Hoja inferior (reservar, cobrar, etc.) ── */
-.modal{position:fixed;inset:0;background:rgba(15,30,30,.5);display:flex;align-items:flex-end;justify-content:center;z-index:50;animation:rise .2s both}
+.modal{position:fixed;inset:0;background:rgba(15,30,30,.5);display:flex;align-items:flex-end;justify-content:center;z-index:50;animation:rise .2s both;overscroll-behavior:contain}
 .modal .sheet{position:relative;background:var(--card);border-radius:22px 22px 0 0;width:100%;max-width:520px;max-height:92vh;max-height:92dvh;overflow:auto;padding:10px 18px calc(18px + env(safe-area-inset-bottom,0px));animation:sheetUp .32s var(--ease) both;overscroll-behavior:contain}
 .modal .sheet::before{content:"";display:block;width:42px;height:5px;border-radius:3px;background:var(--line2);margin:0 auto 12px}
 .sheet .x{position:absolute;z-index:3;top:10px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:var(--bg);font-size:18px;color:var(--ink2)}
@@ -316,7 +321,7 @@ textarea.input{min-height:80px;resize:vertical}
 .kpi small{display:block;font-size:12.5px;color:var(--ink2)}
 .kpi b{display:block;font-size:21px;margin-top:2px;font-variant-numeric:tabular-nums}
 .kpi.hl{background:var(--ink);border-color:var(--ink);color:var(--sun);grid-column:1/-1} .kpi.hl small{color:#d9e6e1} .kpi.hl b{font-size:28px}
-.tbl-wrap{overflow-x:auto}
+.tbl-wrap{overflow-x:auto;overscroll-behavior-x:contain}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;font-size:11.5px;color:var(--ink2);font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:8px 6px;border-bottom:1px solid var(--line2);white-space:nowrap}
 td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
@@ -377,6 +382,8 @@ const CONFIG = {
   // Pago online con Mercado Pago (Checkout Pro). Requiere las funciones de /api (Vercel)
   // y sus variables de entorno (ver README). En modo demo se simula.
   MERCADOPAGO: false,
+  // Entrenamiento: no se reserva por la web, se gestiona por WhatsApp con este contacto.
+  TRAINING_CONTACT: { name: 'Torita', whatsapp: '5493364386564' },
 };
 // ?demo en la dirección abre la versión de prueba (datos inventados, solo en ese navegador).
 const DEMO = !CONFIG.SUPABASE_URL || new URLSearchParams(location.search).has('demo');
@@ -445,11 +452,24 @@ function askConfirm(msg, yes = 'Sí, seguir') {
     $('ask-yes').onclick = () => done(true); $('ask-no').onclick = () => done(false);
   });
 }
+// Con una ventana abierta la página de atrás no se mueve (en iPhone overflow:hidden no alcanza: se fija el body).
+let lockedY = null;
+function lockScroll() {
+  if (lockedY !== null) return;
+  lockedY = window.scrollY;
+  Object.assign(document.body.style, { position: 'fixed', top: `-${lockedY}px`, left: '0', right: '0', width: '100%' });
+}
+function unlockScroll() {
+  if (lockedY === null) return;
+  Object.assign(document.body.style, { position: '', top: '', left: '', right: '', width: '' });
+  const y = lockedY; lockedY = null;
+  document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, y); document.documentElement.style.scrollBehavior = '';
+}
 function openModal(html) {
   $('modal-body').innerHTML = `<button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button>` + html;
-  $('modal').classList.remove('hidden'); document.body.style.overflow = 'hidden';
+  $('modal').classList.remove('hidden'); lockScroll();
 }
-function closeModal() { $('modal').classList.add('hidden'); $('modal-body').innerHTML = ''; document.body.style.overflow = ''; }
+function closeModal() { $('modal').classList.add('hidden'); $('modal-body').innerHTML = ''; unlockScroll(); }
 function errMsg(e) {
   const m = e?.message || String(e);
   if (/Invalid login/i.test(m)) return 'Email o contraseña incorrectos';
@@ -619,7 +639,7 @@ function demoApi() {
     publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null }))),
     publicSlots(from, to) {
       const lo = Math.max(+from, Date.now());
-      return wait(db.slots.filter(s => s.status === 'open' && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
+      return wait(db.slots.filter(s => s.status === 'open' && !s.members_only && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
         .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
         .map(s => ({ ...s, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, booked: booked(s.id) })));
     },
@@ -726,7 +746,7 @@ function demoSeed() {
   ];
   const class_types = [
     { id: 'ct-ini', name: 'Clase de iniciación', description: 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', duration_min: 60, price: 30000, capacity: 4, active: true, sort: 1 },
-    { id: 'ct-ent', name: 'Entrenamiento', description: 'Grupo de entrenamiento: técnica, resistencia y remada larga.', duration_min: 90, price: 25000, capacity: 8, active: true, sort: 2, members_only: true },
+    { id: 'ct-ent', name: 'Entrenamiento', description: 'Martes y jueves 19 hs. Técnica, resistencia y remada larga para los que ya se paran en la tabla.', duration_min: 90, price: 25000, capacity: 8, active: true, sort: 2, members_only: true },
   ];
   // [profe, día de semana, hora, tipo]
   const plan = [
@@ -822,14 +842,15 @@ function filteredPub() {
 }
 
 function drawPublic() {
-  const list = filteredPub();
+  const list = filteredPub().filter(s => !s.members_only);    // entrenamiento: solo en la agenda de los profes
   const avail = list.filter(s => s.capacity - s.booked > 0);
   const daysWith = new Set(avail.map(s => dayKey(s.starts_at)));
   if (!st.day || !daysWith.has(st.day)) st.day = [...daysWith].sort()[0] || dayKey(new Date());
   const today = startOfDay(new Date());
   const days = Array.from({ length: CONFIG.DAYS_AHEAD }, (_, i) => addDays(today, i));
   const daySlots = list.filter(s => dayKey(s.starts_at) === st.day);
-  const activeTypes = st.types.filter(t => t.active);
+  const activeTypes = st.types.filter(t => t.active && !t.members_only);
+  const trainType = st.types.find(t => t.active && t.members_only);
   if (activeTypes[0] && $('hero-facts') && !$('hero-facts').innerHTML) $('hero-facts').innerHTML = heroFacts(activeTypes[0]);
   const prof = st.profes.find(p => p.id === st.fProfe);
 
@@ -865,7 +886,8 @@ function drawPublic() {
             ${full ? '<span class="pill gray">Completo</span>' : left <= 2 && s.capacity > 2 ? `<span class="pill warn">¡Quedan ${left}!</span>` : `<span class="pill ok">${left} ${left === 1 ? 'lugar libre' : 'lugares libres'}</span>`}</div>
           <span class="go" aria-hidden="true">${full ? '–' : '→'}</span>
         </button>`; }).join('') : `<div class="card empty">${avail.length ? 'No quedan lugares este día. Probá con otro día marcado con punto.' : 'Todavía no hay clases publicadas para las próximas semanas.'}${CONFIG.WHATSAPP ? `<div style="margin-top:12px"><a class="btn wa sm" href="${waLink(CONFIG.WHATSAPP, 'Hola! Quería consultar por una clase de SUP')}" target="_blank" rel="noopener">Consultanos por WhatsApp</a></div>` : ''}</div>`}
-    </div>`;
+    </div>
+    ${trainType ? trainingPromo(trainType) : ''}`;
   document.querySelector('.day.on')?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   watchDaybar();
   if (st.resumeBook) { const id = st.resumeBook; st.resumeBook = null; if (st.pub.some(x => x.id === id)) openBooking(id); }   // venía de "reservar con Google"
@@ -1087,6 +1109,16 @@ function demoMpResult(code, result) {
 }
 
 /* ── Entrenamiento: clases solo para alumnos aprobados ── */
+// En la web solo se promociona: el grupo se arma y se maneja por WhatsApp con la admin.
+function trainingPromo(t) {
+  const c = CONFIG.TRAINING_CONTACT;
+  const wa = c?.whatsapp ? waLink(c.whatsapp, `Hola ${c.name}! Quería info para sumarme a los entrenamientos de SUP de Nativo 🏅`) : '';
+  return `<div class="train-card promo rise"><i>🏅</i><div style="flex:1;min-width:0">
+      <b style="font-family:var(--f-display);font-size:19px">Grupo de ${esc(t.name.toLowerCase())}</b>
+      <div class="small">${esc(t.description || 'Para los que ya reman y quieren mejorar técnica y resistencia.')}</div>
+      ${wa ? `<a class="btn wa sm" style="margin-top:10px" href="${wa}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} Pedile info a ${esc(c.name)}</a>` : ''}
+    </div></div>`;
+}
 function trainingInfo(s) {
   const me = st.student, t = me?.training;
   openModal(`<div style="text-align:center"><div class="big-emoji">🏅</div><h2>Clase de entrenamiento</h2>
@@ -1099,8 +1131,8 @@ function trainingInfo(s) {
     </div>`);
 }
 function requestTraining() {
-  openModal(`<h2>Pedir acceso a entrenamiento</h2>
-    <p class="small muted" style="margin-bottom:12px">Un admin lo revisa y te habilita las clases de entrenamiento.</p><div id="tr-err"></div>
+  openModal(`<h2>Pedir la insignia de entrenamiento 🏅</h2>
+    <p class="small muted" style="margin-bottom:12px">Si ya sos del grupo de entrenamiento, un admin lo confirma y tu perfil muestra la insignia.</p><div id="tr-err"></div>
     <form onsubmit="sendTrainingRequest(event)">
       <div class="field"><label for="tr-note">Contanos un poco</label><textarea class="input" id="tr-note" name="note" maxlength="200" required placeholder="Ej: Entreno con Lucas los martes y jueves desde marzo."></textarea></div>
       <div class="sheet-foot"><button class="btn coral block" id="tr-btn">Enviar pedido</button></div></form>`);
@@ -1190,7 +1222,9 @@ async function renderStudent() {
     <div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>
     ${me.training === 'approved' ? '' : `<div class="train-card"><i>🏅</i><div style="flex:1">${me.training === 'requested'
         ? `<b>Pedido de entrenamiento enviado</b><div class="small">Un admin lo tiene que aprobar.</div></div><button class="btn ghost sm" style="background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px #fff" onclick="cancelTrainingRequest()">Cancelar</button>`
-        : `<b>¿Entrenás con nosotros?</b><div class="small">Pedí acceso a las clases de entrenamiento.</div></div><button class="btn coral sm" onclick="requestTraining()">Pedir</button>`}</div>`}
+        : `<b>¿Entrenás con nosotros?</b><div class="small">Si ya sos del grupo, pedí tu insignia 🏅. Si te querés sumar, escribile a ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')}.</div>
+          <div class="row wrapf" style="margin-top:8px"><button class="btn coral sm" onclick="requestTraining()">Ya entreno: pedir 🏅</button>
+          ${CONFIG.TRAINING_CONTACT?.whatsapp ? `<a class="btn wa sm" href="${waLink(CONFIG.TRAINING_CONTACT.whatsapp, `Hola ${CONFIG.TRAINING_CONTACT.name}! Quería info para sumarme a los entrenamientos de SUP de Nativo 🏅`)}" target="_blank" rel="noopener">Quiero sumarme</a>` : ''}</div></div>`}</div>`}
     <div class="section"><div class="label">Logros · ${got} de ${badges.length}</div>
       <div class="badges">${badges.map(([i, t, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${t}</div>`).join('')}</div></div>
     <div class="section"><div class="label">Próximas clases</div>
@@ -1791,7 +1825,7 @@ async function newPasswordFor(id) {
 function trainingSection() {
   const all = st.students || [], req = all.filter(x => x.training === 'requested'), ok = all.filter(x => x.training === 'approved'), rest = all.filter(x => x.training === 'none');
   return `<div class="card ${req.length ? 'unpaid' : ''}"><h2>🏅 Entrenamiento ${req.length ? `<span class="pill warn">${req.length} ${req.length === 1 ? 'pedido' : 'pedidos'}</span>` : ''}</h2>
-    <p class="small muted" style="margin-bottom:6px">Solo los alumnos aprobados pueden reservar las clases marcadas "Solo entrenamiento" (en Más → Precio y cupo).</p>
+    <p class="small muted" style="margin-bottom:6px">Los aprobados muestran 🏅 en su perfil. Las clases "Solo entrenamiento" no se publican en la web: se manejan por WhatsApp y los profes anotan a los chicos desde la agenda.</p>
     ${req.map(x => `<div class="prow" style="cursor:default">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.training_note || 'Sin mensaje')}</span></span>
       <span class="row" style="flex:none"><button class="btn sm" onclick="setTraining('${x.id}','approved')">Aprobar</button><button class="btn ghost sm" onclick="setTraining('${x.id}','none')" aria-label="Rechazar">✕</button></span></div>`).join('')}
     ${ok.length ? `<div class="label" style="margin-top:12px">Grupo (${ok.length})</div>${ok.map(x => `<div class="prow" style="cursor:default">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.phone || x.email || '')}</span></span>
@@ -1876,7 +1910,7 @@ async function paneTypes() {
     <td><input type="checkbox" data-k="members_only" ${t.members_only ? 'checked' : ''} aria-label="Solo entrenamiento"></td>
     <td><button class="btn sm" onclick="saveType(this)">Guardar</button></td></tr>`;
   paneEl().innerHTML = `<div class="card"><h2>Precio y cupo de la clase</h2>
-    <p class="small muted" style="margin-bottom:12px">Son los valores sugeridos al cargar horarios. Cambiar un precio acá no modifica horarios ya cargados. <b>Solo entren.</b>: esa clase solo la pueden reservar alumnos de entrenamiento aprobados (Equipo → Entrenamiento).</p>
+    <p class="small muted" style="margin-bottom:12px">Son los valores sugeridos al cargar horarios. Cambiar un precio acá no modifica horarios ya cargados. <b>Solo entren.</b>: esas clases no se publican en la web (solo se ven en la agenda) y en la página aparece una tarjeta para pedir info por WhatsApp a ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')}. Usá la descripción para contar días y horarios.</p>
     <div class="tbl-wrap"><table id="tt"><tr><th>Nombre</th><th>Descripción</th><th>Min</th><th>Cupo</th><th>Precio</th><th>Activa</th><th>Solo entren.</th><th></th></tr>
     ${st.types.map(row).join('')}${row({ sort: st.types.length + 1 })}</table></div></div>`;
 }

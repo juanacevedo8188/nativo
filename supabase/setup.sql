@@ -227,6 +227,7 @@ language sql stable security definer set search_path = public as $fn$
   from slots s
   join profiles p on p.id = s.profe_id
   where s.status = 'open'
+    and not s.members_only          -- las de entrenamiento se manejan por WhatsApp: no se publican
     and p.approved
     and s.starts_at >= greatest(p_from, now())
     and s.starts_at < p_to

@@ -39,10 +39,10 @@ Configuración (una vez):
 4. Supabase → *Authentication → Sign In / Providers* → **"Allow new users to sign up" activado** (si no, los alumnos no pueden crear su cuenta).
 5. Supabase → *Authentication → URL Configuration → Redirect URLs* → agregá `https://tu-sitio.vercel.app/**`.
 
-## Entrenamiento (clases solo para alumnos aprobados)
-- En *Más → Precio y cupo* marcá un tipo de clase como **Solo entren.**; las clases que se creen con ese tipo solo las pueden reservar alumnos de entrenamiento (lo controla `book_slot` en la base).
-- El alumno (con cuenta de Google) lo pide desde su perfil o al tocar una clase de entrenamiento; el admin lo aprueba, rechaza o quita en *Equipo → Entrenamiento* (también puede dar acceso directo). Un alumno no se puede aprobar solo (`students_guard`).
-- Los aprobados muestran 🏅 en su perfil (y suman un logro) y en la agenda de los profes.
+## Entrenamiento
+- En *Más → Precio y cupo* marcá el tipo de clase como **Solo entren.** y usá la descripción para días y horarios. Esas clases **no se publican en la web** (`public_slots` las excluye): se ven solo en la agenda de los profes, que anotan a los chicos con "+ Anotar alumno".
+- En la página aparece una tarjeta de promoción con el WhatsApp de contacto (`CONFIG.TRAINING_CONTACT`, hoy Torita) para pedir info y sumarse.
+- Los chicos del grupo con cuenta de Google piden su insignia desde el perfil; el admin la aprueba en *Equipo → Entrenamiento*. Los aprobados muestran 🏅 en el perfil (y suman un logro) y en la agenda.
 
 ## Comprobante para el alumno
 Al reservar, el alumno pasa a **"Tu reserva"** (`/#r-CÓDIGO`): la reserva actualizada (pagada, suspendida…), botón para **guardar el comprobante como imagen** en el celu, agregarla al calendario, cómo llegar, compartir el link y escribir por WhatsApp. Ese celular además recuerda sus reservas y las muestra arriba en "Tus próximas clases". La función `booking_by_code` solo devuelve datos de la clase y el primer nombre.
