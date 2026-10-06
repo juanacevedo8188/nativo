@@ -28,6 +28,9 @@ En **Profes** podés entrar como admin, como profe o como profe pendiente de apr
 9. Perfiles: cada profe edita su nombre, WhatsApp, presentación y **foto** en *Perfil*. El admin edita a cualquiera tocándolo en *Equipo* (también rol, % y acceso). Las fotos se guardan achicadas (~20 KB) en Supabase Storage, bucket `avatars`.
 8. Roles (Equipo → Rol): **Profe** da clases; **Admin** maneja la escuela y no aparece como profe; **Admin y profe** hace las dos cosas (crea clases a su nombre, ve "Mis clases" en la agenda y "Tu parte como profe" en el Resumen).
 
+## Comprobante para el alumno
+Al reservar, el alumno pasa a **"Tu reserva"** (`/#r-CÓDIGO`): la reserva actualizada (pagada, suspendida…), botón para **guardar el comprobante como imagen** en el celu, agregarla al calendario, cómo llegar, compartir el link y escribir por WhatsApp. Ese celular además recuerda sus reservas y las muestra arriba en "Tus próximas clases". La función `booking_by_code` solo devuelve datos de la clase y el primer nombre.
+
 ## Pago online con Mercado Pago (opcional)
 El alumno reserva y en la misma pantalla puede tocar **Pagar ahora con Mercado Pago**. También puede pagar después desde **Pagar mi reserva**, con su código.
 Cuando Mercado Pago aprueba el pago, avisa al servidor (`api/mp-webhook`) y la reserva queda marcada como **pagó · mercadopago** sin que nadie toque nada.

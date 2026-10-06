@@ -268,6 +268,25 @@ begin
            p_people, s.price * p_people;
 end $fn$;
 
+-- "Mi reserva": el alumno ve su reserva con el código (link nativo…/#r-CÓDIGO).
+-- Devuelve solo datos de la clase y el primer nombre; nada de teléfono ni email.
+create or replace function public.booking_by_code(p_code text)
+returns table (
+  code text, first_name text, title text, starts_at timestamptz, duration_min int,
+  location text, profe_name text, people int, amount numeric, paid boolean,
+  status text, slot_status text
+)
+language sql stable security definer set search_path = public as $fn$
+  select b.code, split_part(btrim(b.customer_name), ' ', 1), s.title, s.starts_at, s.duration_min,
+         s.location, p.name, b.people, b.amount, b.paid, b.status, s.status
+  from bookings b
+  join slots s on s.id = b.slot_id
+  join profiles p on p.id = s.profe_id
+  where p_code ~* '^[0-9a-f]{6}$' and b.code = upper(btrim(p_code));
+$fn$;
+revoke all on function public.booking_by_code(text) from public;
+grant execute on function public.booking_by_code(text) to anon, authenticated;
+
 revoke all on function public.public_slots(timestamptz, timestamptz) from public;
 revoke all on function public.public_profes() from public;
 revoke all on function public.book_slot(uuid, text, text, text, int) from public;

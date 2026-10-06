@@ -122,6 +122,23 @@ img.avatar.lg{border:3px solid var(--ink);box-shadow:none}
 .prow .who span{font-size:13px;color:var(--ink2)}
 .prof-card{display:flex;gap:12px;align-items:center;margin:10px 2px 0;animation:rise .25s var(--ease) both}
 .prof-card .avatar{width:52px;height:52px;font-size:18px}
+.ticket{padding:0;overflow:hidden;margin-top:16px}
+.ticket .tk-head{background:var(--grad);padding:16px;display:flex;align-items:center;gap:12px}
+.ticket .tk-head img{width:58px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.2))}
+.ticket .tk-head b{font-family:var(--f-display);font-size:22px;display:block;line-height:1.1}
+.ticket .tk-body{padding:16px}
+.ticket .when{font-family:var(--f-display);font-weight:600;font-size:22px;line-height:1.15}
+.ticket .when span{display:block;font-size:30px;font-weight:700}
+.tk-rows{margin:14px 0 4px;display:grid;gap:8px;font-size:15px}
+.tk-rows div{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed var(--line2);padding-top:8px}
+.tk-rows span{color:var(--ink2)}
+.tk-rows b{text-align:right}
+.tk-acts{display:grid;gap:8px;margin-top:14px}
+.tk-acts .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mine{display:grid;gap:8px;margin-top:16px}
+.mine a{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--ink);border-radius:var(--r);padding:12px 14px;text-decoration:none;color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.mine a .t{font-size:20px;font-weight:700}
+.mine a .who{flex:1;min-width:0;font-size:14px}
 .bio{font-size:14px;color:var(--ink2);margin:8px 2px 0;animation:rise .25s var(--ease) both}
 
 /* Tira de días: queda pegada arriba al bajar */
@@ -448,6 +465,7 @@ function supabaseApi() {
     classTypes: () => q(c.from('class_types').select('*').order('sort').order('name')),
     publicProfes: () => q(c.rpc('public_profes')),
     publicSlots: (from, to) => q(c.rpc('public_slots', { p_from: from.toISOString(), p_to: to.toISOString() })),
+    async bookingByCode(code) { const rows = await q(c.rpc('booking_by_code', { p_code: code })); return rows[0] || null; },
     async book(b) {
       const rows = await q(c.rpc('book_slot', { p_slot: b.slot_id, p_name: b.name, p_phone: b.phone, p_email: b.email || null, p_people: b.people }));
       return rows[0];
@@ -527,6 +545,12 @@ function demoApi() {
       return wait(db.slots.filter(s => s.status === 'open' && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
         .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
         .map(s => ({ ...s, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, booked: booked(s.id) })));
+    },
+    bookingByCode(code) {
+      const b = db.bookings.find(x => x.code === String(code).toUpperCase()); if (!b) return wait(null);
+      const s = db.slots.find(x => x.id === b.slot_id);
+      return wait({ code: b.code, first_name: b.customer_name.split(' ')[0], title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location,
+        profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: b.amount, paid: b.paid, status: b.status, slot_status: s.status });
     },
     async book(b) {
       const s = db.slots.find(x => x.id === b.slot_id);
@@ -663,10 +687,11 @@ const st = {
 
 function route() {
   const staff = location.hash.startsWith('#staff');
+  const ticket = /^#r-([0-9a-f]{6})$/i.exec(location.hash);
   $('nav-public').classList.toggle('on', !staff);
   $('nav-staff').classList.toggle('on', staff);
   closeModal();
-  staff ? renderStaff() : renderPublic();
+  staff ? renderStaff() : ticket ? renderTicket(ticket[1].toUpperCase()) : renderPublic();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
@@ -714,7 +739,10 @@ function drawPublic() {
   if (activeTypes[0] && $('hero-facts') && !$('hero-facts').innerHTML) $('hero-facts').innerHTML = heroFacts(activeTypes[0]);
   const prof = st.profes.find(p => p.id === st.fProfe);
 
+  const mine = myUpcoming();
   $('pub').innerHTML = `
+    ${mine.length ? `<div class="section"><div class="label">Tus próximas clases</div><div class="mine" style="margin-top:0">${mine.map(m => `<a href="#r-${esc(m.code)}">
+        <span class="t num">${hhmm(m.starts_at)}</span><span class="who"><b>${esc(fmtDayLong(m.starts_at))}</b><br><span class="muted">Reserva ${esc(m.code)}</span></span><span aria-hidden="true">›</span></a>`).join('')}</div></div>` : ''}
     ${activeTypes.length > 1 ? `<div class="section"><div class="label">Clase</div><div class="chips">
         <button class="chip plain ${!st.fType ? 'on' : ''}" onclick="setPub('fType','')">Todas</button>
         ${activeTypes.map(t => `<button class="chip plain ${st.fType === t.id ? 'on' : ''}" onclick="setPub('fType','${t.id}')">${esc(t.name)}</button>`).join('')}
@@ -794,25 +822,123 @@ async function submitBooking(ev, id) {
   btn.disabled = true; btn.textContent = 'Reservando…';
   try {
     const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value });
-    const end = addMin(r.starts_at, st.pub.find(x => x.id === id)?.duration_min || 60);
-    const gdate = d => new Date(d).toISOString().replace(/[-:]|\.\d{3}/g, '');
-    const cal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('SUP · ' + r.title + ' (Nativo)')}&dates=${gdate(r.starts_at)}/${gdate(end)}&details=${encodeURIComponent('Reserva ' + r.code + ' con ' + r.profe_name)}&location=${encodeURIComponent(CONFIG.LOCATION)}`;
-    openModal(`
-      <div style="text-align:center"><div class="big-emoji">🏄</div><h2>¡Reserva confirmada!</h2>
-      <p class="muted">${esc(r.title)} con ${esc(r.profe_name)}<br><span>${esc(fmtDayLong(r.starts_at))}</span> · ${hhmm(r.starts_at)} hs</p>
-      <div class="code">${esc(r.code)}</div>
-      <p class="small muted">Sacale captura a este código. ${r.people} ${r.people > 1 ? 'personas' : 'persona'} · Total ${money(r.amount)}</p></div>
-      <div style="display:grid;gap:8px;margin-top:16px">
-        ${MP_ON && r.amount > 0 ? `<button class="btn mp" onclick="payBooking('${r.code}', this)">Pagar ahora con Mercado Pago</button><div id="pay-err"></div>` : ''}
-        <a class="btn ${MP_ON ? 'ghost' : ''}" href="${cal}" target="_blank" rel="noopener">Agregar a mi calendario</a>
-        ${CONFIG.MAPS ? `<a class="btn ghost" href="${CONFIG.MAPS}" target="_blank" rel="noopener">Cómo llegar · ${esc(CONFIG.LOCATION)}</a>` : ''}
-        ${CONFIG.WHATSAPP ? `<a class="btn ghost" href="${waLink(CONFIG.WHATSAPP, `Hola! Reservé ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}. Código ${r.code}`)}" target="_blank" rel="noopener">Avisar o cambiar por WhatsApp</a>` : ''}
-        <button class="btn ghost" onclick="closeModal();renderPublic()">Listo</button>
-      </div>`);
+    rememberBooking(r.code, r.starts_at);
+    st.justBooked = r.code;
+    closeModal();
+    location.hash = 'r-' + r.code;                          // → pantalla "Tu reserva"
   } catch (e) {
     $('bk-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`;
     btn.disabled = false; btn.textContent = 'Confirmar reserva';
   }
+}
+
+/* ── "Mi reserva": link propio, comprobante en imagen y recordatorio en el celu ── */
+const MINE = 'nativo_mis_reservas';
+function rememberBooking(code, starts_at) {
+  const list = store.get(MINE, []).filter(x => x.code !== code && new Date(x.starts_at) > addDays(new Date(), -1));
+  list.push({ code, starts_at }); store.set(MINE, list.slice(-10));
+}
+const myUpcoming = () => store.get(MINE, []).filter(x => new Date(x.starts_at) > addMin(new Date(), -120)).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+const ticketUrl = code => location.origin + location.pathname + '#r-' + code;
+function calLink(r) {
+  const g = d => new Date(d).toISOString().replace(/[-:]|\.\d{3}/g, '');
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('SUP · ' + r.title + ' (Nativo)')}&dates=${g(r.starts_at)}/${g(addMin(r.starts_at, r.duration_min || 60))}`
+    + `&details=${encodeURIComponent(`Reserva ${r.code} con ${r.profe_name}\n${ticketUrl(r.code)}`)}&location=${encodeURIComponent(r.location || CONFIG.LOCATION)}`;
+}
+function ticketState(r) {
+  if (r.status === 'cancelled' || r.slot_status === 'cancelled') return ['bad', r.slot_status === 'cancelled' ? 'Clase suspendida' : 'Cancelada'];
+  if (new Date(r.starts_at) < addMin(new Date(), -(r.duration_min || 60))) return ['gray', 'Clase terminada'];
+  return r.paid ? ['ok', 'Confirmada · Pagada'] : ['ok', 'Confirmada'];
+}
+
+async function renderTicket(code) {
+  $('app').innerHTML = `<div class="wrap" id="tk"><div class="loading">Buscando tu reserva…</div></div>`;
+  let r = null;
+  try { r = await api.bookingByCode(code); } catch (e) { /* se muestra abajo */ }
+  if (!$('tk')) return;
+  if (!r) { $('tk').innerHTML = `<div class="card empty" style="margin-top:16px">No encontramos la reserva <b>${esc(code)}</b>. Revisá el código o escribinos.<div style="margin-top:14px"><a class="btn coral" href="#">Ver clases</a></div></div>`; return; }
+  st.ticket = r;
+  const [cls, label] = ticketState(r), fresh = st.justBooked === r.code, live = cls === 'ok';
+  st.justBooked = null;
+  const end = addMin(r.starts_at, r.duration_min || 60);
+  $('tk').innerHTML = `
+    ${fresh ? `<div style="text-align:center;margin-top:18px"><div class="big-emoji">🏄</div><h2 style="margin:4px 0 0">¡Listo, ${esc(r.first_name)}! Tenés tu lugar</h2>
+      <p class="small muted">Guardá esta pantalla: el link siempre muestra tu reserva actualizada.</p></div>` : ''}
+    <div class="card ticket rise">
+      <div class="tk-head"><img src="img/logo.webp" alt=""><div><span class="tiny">Nativo · Escuela de SUP</span><b>Tu reserva</b></div></div>
+      <div class="tk-body">
+        <span class="pill ${cls}" style="margin:0 0 10px">${label}</span>
+        <div class="when">${esc(fmtDayLong(r.starts_at))}<span class="num">${hhmm(r.starts_at)} a ${hhmm(end)}</span></div>
+        <div class="tk-rows">
+          <div><span>Clase</span><b>${esc(r.title)}</b></div>
+          <div><span>Profe</span><b>${esc(r.profe_name)}</b></div>
+          <div><span>Lugar</span><b>${esc(r.location || CONFIG.LOCATION)}</b></div>
+          <div><span>Personas</span><b class="num">${r.people}</b></div>
+          <div><span>Total</span><b class="num">${money(r.amount)} ${r.paid ? '· pagado ✓' : '· se paga en la base'}</b></div>
+        </div>
+        <div class="code" style="margin-bottom:0">${esc(r.code)}</div>
+      </div>
+    </div>
+    <div class="tk-acts">
+      ${live && MP_ON && !r.paid && r.amount > 0 ? `<button class="btn mp block" onclick="payBooking('${r.code}', this)">Pagar ahora con Mercado Pago</button><div id="pay-err"></div>` : ''}
+      <button class="btn coral block" onclick="saveTicketImage(this)">Guardar comprobante en el celu</button>
+      <div class="two">
+        ${live ? `<a class="btn ghost" href="${calLink(r)}" target="_blank" rel="noopener">Al calendario</a>` : ''}
+        ${CONFIG.MAPS ? `<a class="btn ghost" href="${CONFIG.MAPS}" target="_blank" rel="noopener">Cómo llegar</a>` : ''}
+      </div>
+      <button class="btn ghost block" onclick="shareTicket()">Compartir / copiar link de la reserva</button>
+      ${CONFIG.WHATSAPP ? `<a class="btn wa block" href="${waLink(CONFIG.WHATSAPP, `Hola! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar por WhatsApp</a>` : ''}
+      <a class="btn ghost block" href="#">Ver más clases</a>
+    </div>`;
+}
+
+async function shareTicket() {
+  const r = st.ticket, url = ticketUrl(r.code);
+  const text = `Mi clase de SUP en Nativo: ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}. Código ${r.code}`;
+  try { if (navigator.share) { await navigator.share({ title: 'Mi reserva · Nativo', text, url }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('Link copiado ✓'); } catch { toast(url); }
+}
+
+// Comprobante como imagen (1080×1350, formato historia/galería), dibujado en el teléfono.
+async function saveTicketImage(btn) {
+  const r = st.ticket; if (!r) return;
+  btn.disabled = true; const label = btn.textContent; btn.textContent = 'Generando…';
+  try {
+    await document.fonts?.ready;
+    const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, H);
+    [[0, '#ffc928'], [.34, '#b9cc55'], [.66, '#6cc483'], [1, '#1cb9bc']].forEach(([o, col]) => grad.addColorStop(o, col));
+    g.fillStyle = grad; g.fillRect(0, 0, W, H);
+    const logo = new Image(); logo.src = 'img/logo.webp'; await logo.decode().catch(() => {});
+    if (logo.naturalWidth) g.drawImage(logo, 70, 60, 230, 230 * logo.naturalHeight / logo.naturalWidth);
+    const disp = '"Fredoka", "Arial Rounded MT Bold", sans-serif', body = '"Figtree", system-ui, sans-serif';
+    g.fillStyle = '#1f1d1e'; g.font = `700 74px ${disp}`; g.fillText('Tu clase de SUP', 330, 175);
+    g.font = `500 38px ${body}`; g.fillText('Nativo · Escuela de SUP', 334, 235);
+    const card = (x, y, w, h, rad) => { g.beginPath(); g.roundRect(x, y, w, h, rad); };
+    g.fillStyle = '#1f1d1e'; card(78, 398, W - 140, 860, 44); g.fill();      // sombra tipo sticker
+    g.fillStyle = '#ffffff'; card(64, 384, W - 140, 860, 44); g.fill();
+    g.lineWidth = 6; g.strokeStyle = '#1f1d1e'; g.stroke();
+    g.fillStyle = '#1f1d1e'; g.font = `600 52px ${disp}`; g.fillText(fmtDayLong(r.starts_at), 120, 490);
+    g.font = `700 120px ${disp}`; g.fillText(`${hhmm(r.starts_at)} hs`, 116, 620);
+    const rows = [['Profe', r.profe_name], ['Lugar', r.location || CONFIG.LOCATION], ['Personas', String(r.people)], ['Total', money(r.amount) + (r.paid ? ' · pagado' : '')]];
+    rows.forEach(([k, v], i) => {
+      const y = 710 + i * 78; g.strokeStyle = '#bcd8cb'; g.lineWidth = 3; g.setLineDash([12, 10]); g.beginPath(); g.moveTo(120, y - 48); g.lineTo(W - 136, y - 48); g.stroke(); g.setLineDash([]);
+      g.fillStyle = '#4a5a56'; g.font = `500 38px ${body}`; g.fillText(k, 120, y);
+      g.fillStyle = '#1f1d1e'; g.textAlign = 'right';
+      let fs = 38; do g.font = `700 ${fs}px ${body}`; while (g.measureText(v).width > 660 && --fs > 26);   // achica la letra si no entra
+      let t = v; while (g.measureText(t).width > 660 && t.length > 4) t = t.slice(0, -2); if (t !== v) t += '…';
+      g.fillText(t, W - 136, y); g.textAlign = 'left';
+    });
+    g.fillStyle = '#fbef46'; card(120, 1040, W - 256, 150, 30); g.fill(); g.lineWidth = 6; g.strokeStyle = '#1f1d1e'; g.stroke();
+    g.fillStyle = '#1f1d1e'; g.font = `700 96px ${disp}`; g.textAlign = 'center'; g.fillText(r.code.split('').join(' '), W / 2 - 8, 1148);
+    g.font = `500 32px ${body}`; g.fillText(ticketUrl(r.code).replace(/^https?:\/\//, ''), W / 2, 1305); g.textAlign = 'left';
+    const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
+    const file = new File([blob], `nativo-reserva-${r.code}.png`, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: 'Mi reserva · Nativo' }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('Comprobante descargado ✓');
+  } catch (e) { toast('No se pudo generar la imagen. Sacale captura a esta pantalla.'); }
+  finally { btn.disabled = false; btn.textContent = label; }
 }
 
 /* ── Pago online ── */
@@ -843,7 +969,7 @@ function showPayResult(result, code) {
   }[result] || null;
   if (!R) return;
   openModal(`<div style="text-align:center"><div style="font-size:40px">${R[0]}</div><h2>${R[1]}</h2><p class="muted">${R[2]}</p>
-    ${code ? `<div class="code">${esc(code)}</div>` : ''}</div>
+    ${code ? `<div class="code">${esc(code)}</div><a class="btn ghost block" href="#r-${esc(code)}" onclick="closeModal()">Ver mi reserva</a>` : ''}</div>
     <div style="display:grid;gap:8px;margin-top:12px">
       ${result === 'error' && code ? `<button class="btn mp" onclick="payBooking('${esc(code)}', this)">Reintentar pago</button><div id="pay-err"></div>` : ''}
       <button class="btn ghost" onclick="closeModal()">Listo</button></div>`);
