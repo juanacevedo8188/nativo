@@ -444,6 +444,7 @@ revoke all on function public.delete_slot(uuid, boolean) from public;
 grant execute on function public.delete_slot(uuid, boolean) to authenticated;
 
 -- ── Abonos ──
+drop function if exists public.cancel_pass(uuid);   -- ahora devuelve cuántas reservas cambió
 -- Clases usadas de un abono = personas de sus reservas no canceladas.
 create or replace function public.pass_used(p_pass uuid) returns int
 language sql stable security definer set search_path = public as $fn$
@@ -514,17 +515,35 @@ begin
   return v_id;
 end $fn$;
 
-create or replace function public.cancel_pass(p_pass uuid) returns void
+-- Anular: las reservas FUTURAS hechas con ese abono pasan a "a cobrar" con el precio normal de la clase
+-- (las que ya pasaron quedan como estaban). Devuelve cuántas reservas cambió.
+create or replace function public.cancel_pass(p_pass uuid) returns int
 language plpgsql security definer set search_path = public as $fn$
+declare n int;
 begin
   if not is_admin() then raise exception 'Solo un admin puede anular abonos'; end if;
   update passes set status = 'cancelled' where id = p_pass;
+  update bookings b set pass_id = null, paid = false, payment_method = null, amount = s.price * b.people
+  from slots s
+  where b.slot_id = s.id and b.pass_id = p_pass and b.status <> 'cancelled' and s.starts_at > now();
+  get diagnostics n = row_count;
+  return n;
+end $fn$;
+
+-- Deshacer una anulación (si fue por error): vuelve a quedar activo con sus fechas originales.
+create or replace function public.reactivate_pass(p_pass uuid) returns void
+language plpgsql security definer set search_path = public as $fn$
+begin
+  if not is_admin() then raise exception 'Solo un admin puede reactivar abonos'; end if;
+  update passes set status = case when paid_at is null then 'pending' else 'active' end
+  where id = p_pass and status = 'cancelled';
+  if not found then raise exception 'Ese abono no está anulado'; end if;
 end $fn$;
 
 revoke all on function public.pass_used(uuid), public.request_pass(uuid), public.my_passes(), public.admin_passes(),
-                       public.activate_pass(uuid, text), public.grant_pass(uuid, uuid, text), public.cancel_pass(uuid) from public;
+                       public.activate_pass(uuid, text), public.grant_pass(uuid, uuid, text), public.cancel_pass(uuid), public.reactivate_pass(uuid) from public;
 grant execute on function public.request_pass(uuid), public.my_passes(), public.admin_passes(),
-                          public.activate_pass(uuid, text), public.grant_pass(uuid, uuid, text), public.cancel_pass(uuid) to authenticated;
+                          public.activate_pass(uuid, text), public.grant_pass(uuid, uuid, text), public.cancel_pass(uuid), public.reactivate_pass(uuid) to authenticated;
 
 revoke all on function public.delete_suspended_slot(uuid) from public;
 grant execute on function public.delete_suspended_slot(uuid) to authenticated;
