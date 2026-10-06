@@ -397,7 +397,10 @@ const CONFIG = {
   WHATSAPP: '5493364386564',        // WhatsApp de la escuela: 549 + característica + número, sin 15 (vacío = no se muestra)
   LOCATION: 'Guardería Barlovento, Rosario',  // lugar por defecto de las clases
   MAPS: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Guardería Barlovento Rosario'),  // botón "Cómo llegar"
-  DAYS_AHEAD: 21,                   // cuántos días hacia adelante se pueden reservar
+  DAYS_AHEAD: 21,
+  // Profes con nombre de usuario (sin mail): por dentro la cuenta es usuario@USER_DOMAIN.
+  // No se le manda ningún mail; solo tiene que ser un dominio de la escuela.
+  USER_DOMAIN: 'usuarios.nativoescuela.com.ar',                   // cuántos días hacia adelante se pueden reservar
   // Pago online con Mercado Pago (Checkout Pro). Requiere las funciones de /api (Vercel)
   // y sus variables de entorno (ver README). En modo demo se simula.
   MERCADOPAGO: false,
@@ -407,6 +410,16 @@ const CONFIG = {
   PASS_CONTACT: { name: 'Torita', whatsapp: '5493364386564' },
 };
 // ?demo en la dirección abre la versión de prueba (datos inventados, solo en ese navegador).
+// "tomi" → tomi@usuarios.nativoescuela.com.ar ; un email se deja como está.
+function loginEmail(v) {
+  v = String(v || '').trim().toLowerCase();
+  if (v.includes('@')) return v;
+  return v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.') + '@' + CONFIG.USER_DOMAIN;
+}
+const validUser = v => v.includes('@') ? /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) : /^[a-z0-9._-]{3,30}$/.test(loginEmail(v).split('@')[0]);
+// Lo que se muestra: el usuario si es de la escuela, si no el email.
+const userLabel = e => String(e || '').endsWith('@' + CONFIG.USER_DOMAIN) ? e.split('@')[0] : String(e || '');
+const isUserLogin = e => String(e || '').endsWith('@' + CONFIG.USER_DOMAIN);
 const DEMO = !CONFIG.SUPABASE_URL || new URLSearchParams(location.search).has('demo');
 const MP_ON = DEMO || CONFIG.MERCADOPAGO;
 
@@ -787,7 +800,7 @@ function demoApi() {
     profiles: () => wait(isAdmin() ? db.profiles : [meP()]),
     uploadAvatar(id, blob) { return new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(blob); }); },
     inviteProfe(p) {
-      if (db.profiles.some(x => x.email === p.email)) return fail('Ya hay un profe con ese email');
+      if (db.profiles.some(x => x.email === p.email)) return fail('Ya hay alguien con ese usuario');
       db.profiles.push({ id: uid(), name: p.name, email: p.email, phone: p.phone, bio: '', role: 'profe', teaches: true, approved: true, commission_pct: p.pct });
       save(); return wait({ created: true, password: 'Tabla-4827-ola' });
     },
@@ -1458,7 +1471,7 @@ function drawLogin(mode = 'in') {
   if (api.demo) {
     const db = store.get('nativo_demo_v8', { profiles: [] });
     $('staff').innerHTML = `<div class="card" style="max-width:440px;margin:24px auto">
-      <h2>Entrar (demo)</h2><p class="small muted" style="margin-bottom:12px">En la versión real cada profe entra con su email y contraseña. Acá elegí con quién probar:</p>
+      <h2>Entrar (demo)</h2><p class="small muted" style="margin-bottom:12px">En la versión real cada profe entra con su usuario y contraseña. Acá elegí con quién probar:</p>
       <div style="display:grid;gap:8px">${db.profiles.map(p => `<button class="btn ghost" style="justify-content:space-between" onclick="api.loginAs('${p.id}')">
         <span>${esc(p.name)}</span><span class="pill ${p.role === 'admin' ? '' : p.approved ? 'ok' : 'warn'}" style="margin:0">${p.approved ? ROLES[roleKey(p)].toLowerCase() : 'pendiente'}</span></button>`).join('')}</div>
       <button class="btn ghost sm" style="margin-top:14px" onclick="askConfirm('¿Borrar los datos de prueba y volver a generarlos?','Reiniciar').then(ok=>{if(ok){api.reset();renderStaff()}})">Reiniciar datos demo</button></div>`;
@@ -1470,7 +1483,8 @@ function drawLogin(mode = 'in') {
     <div id="lg-err"></div>
     <form onsubmit="doAuth(event,'${mode}')">
       ${up ? '<div class="field"><label>Nombre (como lo van a ver los alumnos)</label><input class="input" name="name" required maxlength="60"></div>' : ''}
-      <div class="field"><label>Email</label><input class="input" name="email" type="email" required autocomplete="email"></div>
+      ${up ? '<div class="field"><label>Email</label><input class="input" name="email" type="email" required autocomplete="email"></div>'
+        : '<div class="field"><label for="lg-user">Usuario o email</label><input class="input" id="lg-user" name="email" type="text" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="ej: tomi"></div>'}
       <div class="field"><label>Contraseña</label><input class="input" name="pw" type="password" required minlength="6" autocomplete="${up ? 'new-password' : 'current-password'}"></div>
       <button class="btn block" id="lg-btn">${up ? 'Crear cuenta' : 'Entrar'}</button>
     </form>
@@ -1487,14 +1501,14 @@ async function doAuth(ev, mode) {
         $('staff').innerHTML = `<div class="card" style="max-width:420px;margin:24px auto"><h2>Revisá tu email</h2><p class="muted">Te mandamos un link para confirmar la cuenta. Después, avisale a la escuela para que te aprueben.</p></div>`;
         return;
       }
-    } else await api.signIn(f.email.value.trim(), f.pw.value);
+    } else await api.signIn(loginEmail(f.email.value), f.pw.value);
     renderStaff();
   } catch (e) { $('lg-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
 }
 function drawSetPassword() {
   $('staff').innerHTML = `<div class="card" style="max-width:420px;margin:24px auto">
     <h2>${AUTH_LINK === 'invite' ? `¡Bienvenido/a a Nativo, ${esc(st.me.name)}!` : 'Nueva contraseña'}</h2>
-    <p class="small muted" style="margin-bottom:12px">Elegí una contraseña para entrar de ahora en más con tu email (${esc(st.me.email)}).</p>
+    <p class="small muted" style="margin-bottom:12px">Elegí una contraseña para entrar de ahora en más ${isUserLogin(st.me.email) ? 'con tu usuario' : 'con tu email'} (${esc(userLabel(st.me.email))}).</p>
     <div id="sp-err"></div>
     <form onsubmit="doSetPassword(event)">
       <div class="field"><label for="sp-pw">Contraseña</label><input class="input" id="sp-pw" name="pw" type="password" required minlength="6" autocomplete="new-password"></div>
@@ -1944,13 +1958,14 @@ async function paneProfes() {
       <div id="ap-err"></div>
       <form onsubmit="addProfe(event)">
         <div class="grid2"><div class="field"><label for="ap-name">Nombre</label><input class="input" id="ap-name" name="name" required maxlength="60" placeholder="Ej: Tomi"></div>
-          <div class="field"><label for="ap-email">Email</label><input class="input" id="ap-email" name="email" type="email" required placeholder="tomi@gmail.com"></div></div>
+          <div class="field"><label for="ap-email">Usuario</label><input class="input" id="ap-email" name="email" type="text" required autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60" placeholder="ej: tomi"></div></div>
+        <p class="tiny muted" style="margin:-6px 0 12px">Con eso entra (sin espacios, sin mail). Si ya es alumno y entra con Google, poné su email de Google así usa la misma cuenta.</p>
         <div class="grid2"><div class="field"><label for="ap-phone">WhatsApp <span class="muted">(opcional)</span></label><input class="input" id="ap-phone" name="phone" type="tel" placeholder="341 555 1234"></div>
           <div class="field"><label for="ap-pct">Se lleva (% de cada alumno)</label><input class="input" id="ap-pct" name="pct" type="number" min="0" max="100" value="50"></div></div>
         <button class="btn coral" id="ap-btn">Agregar profe</button>
       </form></div></details>
     ${pending.length ? `<div class="card"><h3>Pidieron acceso <span class="pill warn">${pending.length}</span></h3>
-      ${pending.map(p => `<div class="row between wrapf" style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(p.name)}</b><div class="tiny muted">${esc(p.email)}</div></div>
+      ${pending.map(p => `<div class="row between wrapf" style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(p.name)}</b><div class="tiny muted">${esc(userLabel(p.email))}</div></div>
         <div class="row"><button class="btn sm" onclick="approveProfe('${p.id}')">Aprobar</button></div></div>`).join('')}</div>` : ''}
     ${trainingSection()}
     <div class="card"><h2>Equipo</h2>
@@ -1961,15 +1976,18 @@ async function paneProfes() {
     </div>
     ${gone.length ? `<details class="card more" style="max-width:560px"><summary><h3 style="margin:0">Dados de baja <span class="pill gray">${gone.length}</span></h3></summary>
       <p class="small muted" style="margin:8px 0 4px">No entran ni aparecen en la web. Sus clases y números siguen en el Resumen.</p>
-      ${gone.map(p => `<div class="row between" style="padding:8px 0;border-top:1px solid var(--line)"><div style="min-width:0"><b>${esc(p.name)}</b><div class="tiny muted">${esc(p.email || '')}</div></div>
+      ${gone.map(p => `<div class="row between" style="padding:8px 0;border-top:1px solid var(--line)"><div style="min-width:0"><b>${esc(p.name)}</b><div class="tiny muted">${esc(userLabel(p.email))}</div></div>
         <button class="btn ghost sm" onclick="reviveProfe('${p.id}')">Reactivar</button></div>`).join('')}</details>` : ''}`;
 }
 async function addProfe(ev) {
   ev.preventDefault();
-  const f = ev.target, btn = $('ap-btn'); btn.disabled = true; $('ap-err').innerHTML = '';
+  const f = ev.target, btn = $('ap-btn'); $('ap-err').innerHTML = '';
+  const raw = f.email.value.trim().toLowerCase();
+  if (!validUser(raw)) { $('ap-err').innerHTML = `<div class="err">${raw.includes('@') ? 'El email no es válido' : 'El usuario tiene que tener entre 3 y 30 letras o números, sin espacios (podés usar . _ -)'}</div>`; return; }
+  btn.disabled = true;
   try {
-    const r = await api.inviteProfe({ name: f.name.value.trim(), email: f.email.value.trim().toLowerCase(), phone: f.phone.value.trim() || null, pct: Math.min(100, Math.max(0, +f.pct.value || 0)) });
-    const name = f.name.value.trim(), email = f.email.value.trim().toLowerCase(), phone = f.phone.value.trim();
+    const name = f.name.value.trim(), email = loginEmail(raw), phone = f.phone.value.trim();
+    const r = await api.inviteProfe({ name, email, phone: phone || null, pct: Math.min(100, Math.max(0, +f.pct.value || 0)) });
     await paneProfes();
     if (r?.password) showCredentials({ name, email, phone, password: r.password, nuevo: true });
     else toast(`${name} ya tenía cuenta: quedó aprobado ✓. Si no sabe su contraseña, generale una nueva desde su perfil.`);
@@ -1978,11 +1996,11 @@ async function addProfe(ev) {
 // Datos de acceso para mandarle al profe por WhatsApp (en vez de mails).
 function showCredentials({ name, email, phone, password, nuevo }) {
   const site = location.origin + location.pathname;
-  const msg = `Hola ${name.split(' ')[0]}! ${nuevo ? 'Te sumé a Nativo 🏄 para que cargues tus clases y veas tu agenda.' : 'Te generé una contraseña nueva para Nativo.'}\n\nEntrá a ${site}#staff con:\nEmail: ${email}\nContraseña: ${password}\n\nDespués cambiala por una tuya en Perfil.`;
+  const msg = `Hola ${name.split(' ')[0]}! ${nuevo ? 'Te sumé a Nativo 🏄 para que cargues tus clases y veas tu agenda.' : 'Te generé una contraseña nueva para Nativo.'}\n\nEntrá a ${site}#staff con:\n${isUserLogin(email) ? 'Usuario' : 'Email'}: ${userLabel(email)}\nContraseña: ${password}\n\nDespués cambiala por una tuya en Perfil.`;
   st.credMsg = msg;
   openModal(`<h2>${nuevo ? `Listo, ${esc(name.split(' ')[0])} ya tiene cuenta` : 'Contraseña nueva'}</h2>
     <p class="small muted" style="margin-bottom:12px">Mandale estos datos. ${nuevo ? 'Con eso entra directo a su agenda.' : 'La anterior ya no sirve.'}</p>
-    <div class="sum"><div class="row between"><span class="muted">Email</span><b>${esc(email)}</b></div>
+    <div class="sum"><div class="row between"><span class="muted">${isUserLogin(email) ? 'Usuario' : 'Email'}</span><b style="user-select:all">${esc(userLabel(email))}</b></div>
       <div class="row between" style="margin-top:6px"><span class="muted">Contraseña</span><b style="font-family:var(--f-display);font-size:20px;user-select:all">${esc(password)}</b></div></div>
     <div class="choice">
       ${phone ? `<a class="btn wa block" href="${waLink(phone, msg)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Mandárselo por WhatsApp</a>` : ''}
@@ -2040,7 +2058,7 @@ function profileFields(p, admin) {
       <div class="grid2"><div class="field"><label for="pf-pct">% de cada alumno</label><input class="input" id="pf-pct" name="pct" type="number" inputmode="numeric" min="0" max="100" value="${+p.commission_pct}"></div>
         <div class="field"><span class="flabel">Acceso</span><label class="check" style="min-height:48px"><input type="checkbox" name="approved" ${p.approved ? 'checked' : ''}> Activo</label></div></div>
       <p class="tiny muted" style="margin-bottom:10px">El % nuevo aplica a las clases que se creen desde ahora. Sacarle "Activo" le quita el acceso.</p>` : ''}
-    <p class="tiny muted">Email: ${esc(p.email || '')}</p>`;
+    <p class="tiny muted">${isUserLogin(p.email) ? 'Usuario' : 'Email'}: ${esc(userLabel(p.email))}</p>`;
 }
 function pickPhoto(input) {
   const f = input.files?.[0]; if (!f) return;

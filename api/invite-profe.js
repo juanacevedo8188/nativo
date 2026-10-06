@@ -1,5 +1,5 @@
 // POST con el token del admin en Authorization. Sin mails (no depende del límite de Supabase):
-//  { name, email, phone, pct }  → crea la cuenta del profe con contraseña provisoria y la devuelve,
+//  { name, email, phone, pct }  → (email = usuario@usuarios.<dominio> o un email real) crea la cuenta del profe con contraseña provisoria y la devuelve,
 //                                  para que el admin se la mande por WhatsApp. Perfil aprobado.
 //  { action: 'reset', id }      → contraseña provisoria nueva para ese profe.
 //  { action: 'remove', id }     → lo saca del equipo (borra la cuenta o lo da de baja si tiene historial).
@@ -77,7 +77,8 @@ module.exports = async (req, res) => {
   const phone = b.phone ? String(b.phone).trim().slice(0, 30) : null;
   const pct = Math.min(100, Math.max(0, Number(b.pct ?? 50) || 0));
   if (name.length < 2) return json(400, { error: 'Poné el nombre del profe' });
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: 'El email no es válido' });
+  // El usuario llega ya convertido a email (tomi → tomi@usuarios.<dominio>, ver USER_DOMAIN en index.html).
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: 'El usuario o email no es válido' });
 
   let password = tempPassword();
   const cr = await call('/auth/v1/admin/users', {
@@ -86,7 +87,8 @@ module.exports = async (req, res) => {
   const exists = !cr.ok && (cr.status === 422 || /already|exists|registered/i.test(JSON.stringify(cr.data)));
   if (!cr.ok && !exists) {
     console.error('create', cr.status, cr.data);
-    return json(502, { error: 'No se pudo crear la cuenta. Revisá el email y probá de nuevo.' });
+    const why = cr.data?.msg || cr.data?.message || cr.data?.error_description || '';
+    return json(502, { error: `No se pudo crear la cuenta. Revisá el usuario y probá de nuevo.${why ? ` (Supabase: ${why})` : ''}` });
   }
 
   // Perfil aprobado con sus datos, exista o no de antes (alumno de Google, profe dado de baja,
