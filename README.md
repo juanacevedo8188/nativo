@@ -28,6 +28,17 @@ En **Profes** podés entrar como admin, como profe o como profe pendiente de apr
    Recomendado: en Supabase → *Authentication → Sign In / Providers* desactivá **"Allow new users to sign up"**, así solo el admin crea cuentas.
 8. Roles (Equipo → Rol): **Profe** da clases; **Admin** maneja la escuela y no aparece como profe; **Admin y profe** hace las dos cosas (crea clases a su nombre, ve "Mis clases" en la agenda y "Tu parte como profe" en el Resumen).
 
+## Cuenta de alumno con Google (opcional para el alumno)
+Los alumnos pueden reservar como invitados o **entrar con Google**: reservan en un toque (nombre y WhatsApp ya cargados) y tienen perfil con foto, Instagram, nivel, sus clases (próximas e historial), estadísticas y logros. Las reservas que hicieron como invitados con el mismo email de Google se suman solas.
+Las cuentas de profes las crea el admin (el servidor las marca con `app_metadata.staff`); cualquier otro registro es alumno, así que entrar con Google nunca da acceso a la parte de profes.
+
+Configuración (una vez):
+1. [Google Cloud Console](https://console.cloud.google.com/) → crear proyecto → *APIs y servicios → Pantalla de consentimiento de OAuth* (Externo, nombre "Nativo", tu email) → *Publicar app*.
+2. *Credenciales → Crear credenciales → ID de cliente de OAuth* → tipo **Aplicación web** → en *URIs de redireccionamiento autorizados* poné `https://<tu-proyecto>.supabase.co/auth/v1/callback`. Copiá el *ID de cliente* y el *Secreto*.
+3. Supabase → *Authentication → Sign In / Providers → Google* → activalo y pegá ID y Secreto → *Save*.
+4. Supabase → *Authentication → Sign In / Providers* → **"Allow new users to sign up" activado** (si no, los alumnos no pueden crear su cuenta).
+5. Supabase → *Authentication → URL Configuration → Redirect URLs* → agregá `https://tu-sitio.vercel.app/**`.
+
 ## Comprobante para el alumno
 Al reservar, el alumno pasa a **"Tu reserva"** (`/#r-CÓDIGO`): la reserva actualizada (pagada, suspendida…), botón para **guardar el comprobante como imagen** en el celu, agregarla al calendario, cómo llegar, compartir el link y escribir por WhatsApp. Ese celular además recuerda sus reservas y las muestra arriba en "Tus próximas clases". La función `booking_by_code` solo devuelve datos de la clase y el primer nombre.
 

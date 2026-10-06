@@ -139,6 +139,37 @@ img.avatar.lg{border:3px solid var(--ink);box-shadow:none}
 .mine a{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--ink);border-radius:var(--r);padding:12px 14px;text-decoration:none;color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
 .mine a .t{font-size:20px;font-weight:700}
 .mine a .who{flex:1;min-width:0;font-size:14px}
+.top nav a img{width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;margin:-4px 6px -4px -4px;border:2px solid var(--sun)}
+.btn.google{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line2),0 1px 2px rgba(0,0,0,.06)}
+.btn.google svg{width:20px;height:20px}
+.perks{list-style:none;display:grid;gap:8px;margin:14px 0 18px;font-size:15px}
+.perks li::before{content:"✓";display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--sun);box-shadow:inset 0 0 0 1.5px var(--ink);font-size:12px;font-weight:800;margin-right:10px}
+.as-me{display:flex;align-items:center;gap:10px;background:var(--sea-soft);border-radius:14px;padding:10px 12px;margin-bottom:14px;font-size:15px}
+.as-me .avatar{width:34px;height:34px;font-size:13px}
+.quick-login{display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--coral-soft);border-radius:14px;padding:10px 12px;margin-bottom:14px;font-size:14px}
+.sp-cover{background:var(--grad);height:110px;margin:0 -16px;position:relative;overflow:hidden}
+.sp-cover .waves{height:26px}
+.sp-head{text-align:center;margin-top:-58px;position:relative}
+.sp-head .avatar.xl{width:116px;height:116px;font-size:40px;margin:0 auto;border:4px solid var(--ink);box-shadow:4px 4px 0 var(--ink);animation:pop .5s var(--ease) both}
+img.avatar.xl{border:4px solid var(--ink)}
+.sp-head h1{font-size:28px;margin-top:10px}
+.sp-head .bio-t{color:var(--ink2);margin:6px auto 0;max-width:420px}
+.sp-head .tags{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.sp-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0 6px}
+.sp-stats div{background:var(--card);border:1.5px solid var(--ink);border-radius:16px;padding:10px 6px;text-align:center;box-shadow:3px 3px 0 var(--ink)}
+.sp-stats b{display:block;font-family:var(--f-display);font-size:26px;line-height:1.1}
+.sp-stats span{font-size:12.5px;color:var(--ink2)}
+.badges{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+@media(max-width:360px){.badges{grid-template-columns:repeat(3,1fr)}}
+.badge-i{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:10px 4px;text-align:center;font-size:11.5px;font-weight:700;line-height:1.2}
+.badge-i i{display:block;font-style:normal;font-size:30px;line-height:1.2}
+.badge-i.off{opacity:.45;filter:grayscale(1)}
+.badge-i.on{border-color:var(--ink);background:var(--coral-soft);animation:pop .4s var(--ease) both}
+.hist{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.hist:first-of-type{border-top:0}
+.hist .avatar{width:40px;height:40px;font-size:14px}
+.hist .who{flex:1;min-width:0;font-size:14px}
+.mini-av{width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:-5px;margin-right:6px;border:1.5px solid var(--ink)}
 .bio{font-size:14px;color:var(--ink2);margin:8px 2px 0;animation:rise .25s var(--ease) both}
 
 /* Tira de días: queda pegada arriba al bajar */
@@ -309,7 +340,7 @@ details.more[open]>summary::after{content:"－"}
     <a class="logo" href="#"><img src="img/icon-sm.webp" alt="" width="38" height="38"><span class="wm"><b>Nativo</b><span>Sup, Windsurf &amp; Kayak</span></span></a>
     <nav>
       <a href="#" id="nav-public">Reservar</a>
-      <a href="#staff" id="nav-staff">Profes</a>
+      <a href="#perfil" id="nav-acct">Entrar</a>
     </nav>
   </div>
 </header>
@@ -434,6 +465,7 @@ const ICON = {
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/></svg>',
   wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.3 0 .5l-.3.5-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 .9c.3.2.5.2.5.4.1.1.1.7-.1 1.3z"/></svg>',
+  google: '<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.3H12v4.3h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2-1.9 3.2-4.7 3.2-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.2a6.6 6.6 0 0 1 0-4.3V7.1H2.1a11 11 0 0 0 0 9.9l3.7-2.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7.1l3.7 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>',
   ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>',
 };
 // Botón redondo para escribirle al alumno (WhatsApp o Instagram).
@@ -446,7 +478,8 @@ function contactBtn(c, text) {
 
 /* ════════════════════════════ API · SUPABASE ════════════════════════════ */
 function supabaseApi() {
-  const c = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+  // PKCE: la vuelta de Google trae ?code=… y supabase-js lo canjea solo por la sesión.
+  const c = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, { auth: { flowType: 'pkce' } });
   const q = async p => { const { data, error } = await p; if (error) throw error; return data; };
   return {
     // Solo login/logout: ignora refrescos de token para no re-dibujar mientras alguien edita.
@@ -457,6 +490,17 @@ function supabaseApi() {
       return q(c.auth.signUp({ email, password, options: { data: { name }, emailRedirectTo: location.origin + location.pathname } }));
     },
     async signOut() { await c.auth.signOut(); },
+    // Alumnos: entran con Google. La vuelta llega a la misma página con ?code=…
+    async signInGoogle() {
+      await q(c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } } }));
+    },
+    async student() {
+      const { data: { session } } = await c.auth.getSession();
+      if (!session) return null;
+      return q(c.from('students').select('*').eq('id', session.user.id).maybeSingle());
+    },
+    myBookings: () => q(c.rpc('my_bookings')),
+    updateStudent: (id, patch) => q(c.from('students').update(patch).eq('id', id)),
     async me() {
       const { data: { session } } = await c.auth.getSession();
       if (!session) return null;
@@ -470,7 +514,7 @@ function supabaseApi() {
       const rows = await q(c.rpc('book_slot', { p_slot: b.slot_id, p_name: b.name, p_phone: b.phone, p_email: b.email || null, p_people: b.people }));
       return rows[0];
     },
-    staffSlots: (from, to) => q(c.from('slots').select('*, profe:profe_id(name), bookings(*)')
+    staffSlots: (from, to) => q(c.from('slots').select('*, profe:profe_id(name), bookings(*, student:student_id(name,avatar_url))')
       .gte('starts_at', from.toISOString()).lt('starts_at', to.toISOString()).order('starts_at')),
     createSlots: rows => q(c.from('slots').insert(rows)),
     updateSlot: (id, patch) => q(c.from('slots').update(patch).eq('id', id)),
@@ -520,7 +564,7 @@ function supabaseApi() {
    Imita las mismas reglas que la base real (cupos, roles, % del profe) para poder
    mostrar la app sin configurar nada.                                               */
 function demoApi() {
-  const KEY = 'nativo_demo_v5', UKEY = 'nativo_demo_user';
+  const KEY = 'nativo_demo_v6', UKEY = 'nativo_demo_user', SKEY = 'nativo_demo_student';
   let db = store.get(KEY, null);
   if (!db) { db = demoSeed(); store.set(KEY, db); }
   const save = () => store.set(KEY, db);
@@ -538,7 +582,17 @@ function demoApi() {
     loginAs(id) { store.set(UKEY, id); authCb(); },
     async signIn() { return fail('En modo demo elegí un perfil de la lista'); },
     async signUp() { return fail('En modo demo no se crean cuentas'); },
-    async signOut() { store.del(UKEY); authCb(); },
+    async signOut() { store.del(UKEY); store.del(SKEY); authCb(); },
+    // "Google" de mentira: entra como una alumna de ejemplo con clases ya tomadas.
+    async signInGoogle() { store.set(SKEY, 'st-demo'); await wait(null); finishLogin(); },
+    student: () => wait(db.students.find(x => x.id === store.get(SKEY, null)) || null),
+    myBookings() {
+      const sid = store.get(SKEY, null);
+      return wait(db.bookings.filter(b => sid && b.student_id === sid).map(b => { const s = db.slots.find(x => x.id === b.slot_id), p = db.profiles.find(x => x.id === s.profe_id);
+        return { code: b.code, status: b.status, paid: b.paid, people: b.people, amount: b.amount, title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location, slot_status: s.status, profe_name: p?.name, profe_avatar: p?.avatar_url }; })
+        .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
+    },
+    updateStudent(id, patch) { Object.assign(db.students.find(x => x.id === id), patch); save(); return wait(null); },
     me: () => wait(meP()),
     classTypes: () => wait(db.class_types.slice().sort((a, b) => a.sort - b.sort)),
     publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url }) => ({ id, name, bio, avatar_url }))),
@@ -567,7 +621,7 @@ function demoApi() {
         return fail('Ya hay una reserva con ese WhatsApp en este horario');
       const code = Math.random().toString(16).slice(2, 8).toUpperCase();
       db.bookings.push({ id: uid(), code, slot_id: s.id, customer_name: name, customer_phone: b.phone.trim(), customer_email: b.email || null,
-        people: b.people, amount: s.price * b.people, status: 'confirmed', paid: false, payment_method: null, notes: null, source: 'web', created_at: new Date().toISOString() });
+        people: b.people, amount: s.price * b.people, status: 'confirmed', paid: false, payment_method: null, notes: null, source: 'web', student_id: store.get(SKEY, null), created_at: new Date().toISOString() });
       save();
       return wait({ code, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: s.price * b.people });
     },
@@ -575,7 +629,7 @@ function demoApi() {
       const m = meP(); if (!m?.approved) return wait([]);
       return wait(db.slots.filter(s => (isAdmin() || s.profe_id === m.id) && new Date(s.starts_at) >= from && new Date(s.starts_at) < to)
         .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
-        .map(s => ({ ...s, profe: { name: db.profiles.find(p => p.id === s.profe_id)?.name }, bookings: db.bookings.filter(b => b.slot_id === s.id) })));
+        .map(s => ({ ...s, profe: { name: db.profiles.find(p => p.id === s.profe_id)?.name }, bookings: db.bookings.filter(b => b.slot_id === s.id).map(b => ({ ...b, student: db.students.find(x => x.id === b.student_id) || null })) })));
     },
     createSlots(rows) {
       const m = meP();
@@ -675,7 +729,10 @@ function demoSeed() {
       }
     });
   }
-  return { profiles, class_types, slots, bookings };
+  // Alumna de ejemplo con cuenta: sus reservas quedan vinculadas a su perfil.
+  const students = [{ id: 'st-demo', email: 'sofi@gmail.com', name: 'Sofía Gómez', phone: '3415559876', avatar_url: null, bio: 'Aprendiendo a pararme en la tabla 🌊', instagram: 'sofi.rema', level: 'pocas' }];
+  bookings.forEach(b => { if (b.customer_name === 'Sofía Gómez') b.student_id = 'st-demo'; });
+  return { profiles, class_types, slots, bookings, students };
 }
 
 /* ════════════════════════════ ESTADO + RUTEO ════════════════════════════ */
@@ -686,16 +743,16 @@ const api = DEMO ? demoApi() : supabaseApi();
 const st = {
   types: [], profes: [], pub: [], fType: '', fProfe: '', day: null,
   me: null, tab: null, needPassword: AUTH_LINK === 'invite' || AUTH_LINK === 'recovery', agendaPast: false, agendaProfe: '', month: dayKey(new Date()).slice(0, 7),
-  staffSlots: [], allProfiles: [],
+  staffSlots: [], allProfiles: [], student: undefined,
 };
 
 function route() {
   const staff = location.hash.startsWith('#staff');
-  const ticket = /^#r-([0-9a-f]{6})$/i.exec(location.hash);
-  $('nav-public').classList.toggle('on', !staff);
-  $('nav-staff').classList.toggle('on', staff);
+  const ticket = /^#r-([0-9a-f]{6})$/i.exec(location.hash), perfil = location.hash === '#perfil';
+  $('nav-public').classList.toggle('on', !staff && !perfil);
+  $('nav-acct').classList.toggle('on', staff || perfil);
   closeModal();
-  staff ? renderStaff() : ticket ? renderTicket(ticket[1].toUpperCase()) : renderPublic();
+  staff ? renderStaff() : perfil ? renderStudent() : ticket ? renderTicket(ticket[1].toUpperCase()) : renderPublic();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
@@ -777,6 +834,7 @@ function drawPublic() {
     </div>`;
   document.querySelector('.day.on')?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   watchDaybar();
+  if (st.resumeBook) { const id = st.resumeBook; st.resumeBook = null; if (st.pub.some(x => x.id === id)) openBooking(id); }   // venía de "reservar con Google"
 }
 function setPub(k, v) {
   st[k] = v; if (k !== 'day') st.day = null;
@@ -792,22 +850,26 @@ function watchDaybar() {
 
 function openBooking(id) {
   const s = st.pub.find(x => x.id === id); if (!s) return;
-  const left = Math.min(s.capacity - s.booked, 10);
+  const left = Math.min(s.capacity - s.booked, 10), me = st.student;
   openModal(`
     <h2>Reservar</h2>
     <div class="sum"><b>${esc(s.title)}</b> con ${esc(s.profe_name)}<br>
       <span>${esc(fmtDayLong(s.starts_at))}</span> · <b class="num">${hhmm(s.starts_at)}</b> a ${hhmm(addMin(s.starts_at, s.duration_min))}
       ${s.location ? `<br><span class="muted">${esc(s.location)}</span>${CONFIG.MAPS ? ` · <a href="${CONFIG.MAPS}" target="_blank" rel="noopener">Ver mapa</a>` : ''}` : ''}</div>
     <div id="bk-err"></div>
+    ${me ? `<div class="as-me">${avatarHtml(me)}<span>Reservás como <b>${esc(me.name)}</b></span></div>`
+      : `<div class="quick-login"><span>¿Tenés cuenta? Reservá más rápido</span><button type="button" class="btn google sm" onclick="loginWithGoogle({ book: '${s.id}' })">${ICON.google} Google</button></div>`}
     <form onsubmit="submitBooking(event,'${s.id}')" id="bk-form">
-      <div class="field"><label for="bk-name">Nombre y apellido</label><input class="input" id="bk-name" name="name" required minlength="2" maxlength="80" autocomplete="name" autocapitalize="words"></div>
-      <div class="field"><label for="bk-phone">WhatsApp</label><input class="input" id="bk-phone" name="phone" required type="tel" inputmode="tel" placeholder="341 555 1234" autocomplete="tel" maxlength="30"></div>
+      ${me ? `<input type="hidden" name="name" value="${esc(me.name)}">`
+        : `<div class="field"><label for="bk-name">Nombre y apellido</label><input class="input" id="bk-name" name="name" required minlength="2" maxlength="80" autocomplete="name" autocapitalize="words"></div>`}
+      <div class="field"><label for="bk-phone">WhatsApp</label><input class="input" id="bk-phone" name="phone" required type="tel" inputmode="tel" placeholder="341 555 1234" autocomplete="tel" maxlength="30" value="${esc(me?.phone || '')}">
+        ${me && !me.phone ? '<div class="tiny muted" style="margin-top:4px">Lo guardamos en tu perfil para la próxima.</div>' : ''}</div>
       <div class="field"><span class="flabel">¿Cuántos son?</span>
         <div class="row between"><div class="stepper"><button type="button" onclick="stepPeople(-1,${left},${s.price})" aria-label="Menos">−</button><output id="bk-people">1</output><button type="button" onclick="stepPeople(1,${left},${s.price})" aria-label="Más">+</button></div>
         <span class="tiny muted">quedan ${s.capacity - s.booked}</span></div>
         <input type="hidden" name="people" value="1"></div>
-      <details class="field"><summary class="small muted" style="cursor:pointer">Agregar email (opcional)</summary>
-        <input class="input" style="margin-top:8px" name="email" type="email" autocomplete="email" maxlength="120" aria-label="Email"></details>
+      ${me ? `<input type="hidden" name="email" value="${esc(me.email || '')}">` : `<details class="field"><summary class="small muted" style="cursor:pointer">Agregar email (opcional)</summary>
+        <input class="input" style="margin-top:8px" name="email" type="email" autocomplete="email" maxlength="120" aria-label="Email"></details>`}
       <p class="tiny muted">${MP_ON ? 'Después de confirmar podés pagar online con Mercado Pago, o abonar en la base el día de la clase.' : 'Se abona en la base el día de la clase (efectivo o transferencia).'} Si hay mal clima, te avisamos para reprogramar.</p>
       <div class="sheet-foot">
         <div class="total"><span>Total</span><b class="num" id="bk-total">${money(s.price)}</b></div>
@@ -827,6 +889,9 @@ async function submitBooking(ev, id) {
   try {
     const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value });
     rememberBooking(r.code, r.starts_at);
+    if (st.student && f.phone.value.trim() !== (st.student.phone || '')) {      // guarda el WhatsApp en su perfil
+      api.updateStudent(st.student.id, { phone: f.phone.value.trim() }).then(() => { st.student.phone = f.phone.value.trim(); }).catch(() => {});
+    }
     st.justBooked = r.code;
     closeModal();
     location.hash = 'r-' + r.code;                          // → pantalla "Tu reserva"
@@ -984,11 +1049,115 @@ function demoMpResult(code, result) {
   showPayResult(result, code);
 }
 
+/* ════════════════════════════ CUENTA DE ALUMNO (Google) ════════════════════════════ */
+const LEVELS = { nunca: 'Primera vez', pocas: 'Ya remé algunas veces', seguido: 'Remo seguido' };
+async function refreshAccount() {
+  try { [st.student, st.me] = await Promise.all([api.student(), api.me()]); } catch { st.student = null; }
+  drawNav();
+}
+function drawNav() {
+  const a = $('nav-acct');
+  if (st.me?.approved) { a.href = '#staff'; a.textContent = 'Profes'; }
+  else if (st.student) { a.href = '#perfil'; a.innerHTML = `${st.student.avatar_url ? `<img src="${esc(st.student.avatar_url)}" alt="">` : ''}Mi perfil`; }
+  else { a.href = '#perfil'; a.textContent = 'Entrar'; }
+}
+// Entrar con Google y volver a donde estaba (su perfil, o la reserva que estaba por hacer).
+function loginWithGoogle(after = { hash: '#perfil' }) {
+  try { sessionStorage.setItem('nativo_after', JSON.stringify(after)); } catch {}
+  api.signInGoogle().catch(e => toast(errMsg(e)));
+}
+async function finishLogin() {
+  let after = { hash: '#perfil' };
+  try { after = JSON.parse(sessionStorage.getItem('nativo_after')) || after; sessionStorage.removeItem('nativo_after'); } catch {}
+  await refreshAccount();
+  if (!st.student && !st.me) { toast('No se pudo entrar. Probá de nuevo.'); return route(); }
+  if (st.student) toast(`¡Hola, ${st.student.name.split(' ')[0]}! 👋`);
+  if (after.book) { st.resumeBook = after.book; history.replaceState(null, '', location.pathname); }
+  else history.replaceState(null, '', location.pathname + (st.student ? after.hash || '#perfil' : '#staff'));
+  route();
+}
+
+async function renderStudent() {
+  $('app').innerHTML = `<div class="wrap" id="sp"><div class="loading">Cargando…</div></div>`;
+  if (st.student === undefined) await refreshAccount();
+  if (!$('sp')) return;
+  const me = st.student;
+  if (!me) {
+    $('sp').innerHTML = `<div class="card rise" style="max-width:440px;margin:22px auto;text-align:center">
+      <img src="img/logo.webp" alt="" style="width:92px;height:auto;margin-bottom:6px">
+      <h2>Tu cuenta Nativo</h2>
+      <ul class="perks" style="text-align:left"><li>Reservás en un toque</li><li>Tus clases y tus logros en un lugar</li><li>Tu perfil con foto para la comunidad</li></ul>
+      <button class="btn google block" onclick="loginWithGoogle()">${ICON.google} Continuar con Google</button>
+      <a class="btn ghost block" style="margin-top:8px" href="#">Seguir como invitado</a>
+      <p class="small muted" style="margin-top:16px">¿Sos profe? <a href="#staff">Entrá acá</a></p></div>`;
+    return;
+  }
+  let list = [];
+  try { list = await api.myBookings(); } catch (e) { toast(errMsg(e)); }
+  if (!$('sp')) return;
+  const now = new Date(), ok = b => b.status !== 'cancelled' && b.slot_status !== 'cancelled';
+  const past = list.filter(b => ok(b) && b.status !== 'no_show' && new Date(b.starts_at) < now);
+  const next = list.filter(b => ok(b) && addMin(b.starts_at, b.duration_min || 60) >= now).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  const hours = past.reduce((a, b) => a + (b.duration_min || 60), 0) / 60;
+  const byProfe = {}; past.forEach(b => { byProfe[b.profe_name] = (byProfe[b.profe_name] || 0) + 1; });
+  const badges = [
+    ['🏄', 'Primera remada', past.length >= 1], ['🔥', '5 clases', past.length >= 5], ['🏆', '10 clases', past.length >= 10],
+    ['🌅', 'Madrugador', past.some(b => new Date(b.starts_at).getHours() < 9)], ['🌇', 'Atardecer', past.some(b => new Date(b.starts_at).getHours() >= 18)],
+    ['🤝', 'En grupo', past.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', Object.values(byProfe).some(n => n >= 3)],
+  ];
+  const got = badges.filter(b => b[2]).length;
+  const row = b => `<a class="hist" href="#r-${esc(b.code)}" style="text-decoration:none;color:inherit">${avatarHtml({ name: b.profe_name, avatar_url: b.profe_avatar })}
+      <span class="who"><b>${esc(fmtDayLong(b.starts_at))} · ${hhmm(b.starts_at)}</b><br><span class="muted">con ${esc(b.profe_name)}${b.people > 1 ? ` · ${b.people} personas` : ''}</span></span>
+      ${!ok(b) ? '<span class="pill bad" style="margin:0">Cancelada</span>' : b.status === 'no_show' ? '<span class="pill warn" style="margin:0">No fuiste</span>' : new Date(b.starts_at) < now ? '<span class="pill ok" style="margin:0">✓</span>' : '<span class="muted">›</span>'}</a>`;
+  $('sp').innerHTML = `
+    <div class="sp-cover"><svg class="waves" viewBox="0 0 2400 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18C150 4 300 4 450 16S750 32 900 18 1050 4 1200 18 1500 32 1650 18 1950 4 2100 16 2250 30 2400 18V34H0Z"/></svg></div>
+    <div class="sp-head">${avatarHtml(me, 'xl')}
+      <h1>${esc(me.name)}</h1>
+      <div class="tags">${me.level ? `<span class="pill" style="margin:0">${esc(LEVELS[me.level])}</span>` : ''}${me.instagram ? `<a class="pill" style="margin:0;background:#fbe7f1;color:#c13584;text-decoration:none" href="https://instagram.com/${encodeURIComponent(me.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(me.instagram.replace(/^@/, ''))}</a>` : ''}</div>
+      ${me.bio ? `<p class="bio-t">${esc(me.bio)}</p>` : ''}
+      <div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost sm" onclick="editStudent()">Editar perfil</button><a class="btn coral sm" href="#">Reservar clase</a></div>
+    </div>
+    <div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>
+    <div class="section"><div class="label">Logros · ${got} de ${badges.length}</div>
+      <div class="badges">${badges.map(([i, t, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${t}</div>`).join('')}</div></div>
+    <div class="section"><div class="label">Próximas clases</div>
+      ${next.length ? `<div class="card" style="padding:4px 14px">${next.map(row).join('')}</div>` : `<div class="card empty" style="padding:18px">No tenés clases reservadas.<div style="margin-top:10px"><a class="btn coral sm" href="#">Reservar una clase</a></div></div>`}</div>
+    ${list.length > next.length ? `<div class="section"><div class="label">Historial</div><div class="card" style="padding:4px 14px">${list.filter(b => !next.includes(b)).map(row).join('')}</div></div>` : ''}
+    <div style="text-align:center;margin:22px 0 30px"><button class="btn ghost sm" onclick="logoutStudent()">Salir</button></div>`;
+}
+function editStudent() {
+  const me = st.student; st.pendingPhoto = null;
+  openModal(`<h2>Editar perfil</h2><div id="pf-err"></div>
+    <form onsubmit="saveStudent(event)">
+      <div class="photo-pick" id="ph-wrap">${avatarHtml(me, 'lg')}
+        <div><label class="btn ghost sm" for="pf-photo">Cambiar foto</label><input type="file" id="pf-photo" accept="image/*" onchange="pickPhoto(this)"></div></div>
+      <div class="field"><label for="sf-name">Nombre</label><input class="input" id="sf-name" name="name" required maxlength="60" value="${esc(me.name)}"></div>
+      <div class="field"><label for="sf-phone">WhatsApp</label><input class="input" id="sf-phone" name="phone" type="tel" inputmode="tel" maxlength="30" value="${esc(me.phone || '')}" placeholder="341 555 1234"></div>
+      <div class="field"><label for="sf-ig">Instagram</label><input class="input" id="sf-ig" name="instagram" maxlength="40" value="${esc(me.instagram || '')}" placeholder="@usuario"></div>
+      <div class="field"><label for="sf-bio">Sobre vos</label><textarea class="input" id="sf-bio" name="bio" maxlength="160" placeholder="Ej: Me encanta remar al atardecer 🌅">${esc(me.bio || '')}</textarea></div>
+      <div class="field"><span class="flabel">¿Cuánto remaste?</span><div class="seg">${Object.entries(LEVELS).map(([k, l]) => `<label><input type="radio" name="level" value="${k}" ${me.level === k ? 'checked' : ''}>${l}</label>`).join('')}</div></div>
+      <div class="sheet-foot"><button class="btn coral block" id="pf-btn">Guardar</button></div></form>`);
+}
+async function saveStudent(ev) {
+  ev.preventDefault();
+  const f = ev.target, me = st.student, btn = $('pf-btn');
+  const patch = { name: f.name.value.trim(), phone: f.phone.value.trim() || null, instagram: f.instagram.value.trim().replace(/^@/, '') || null, bio: f.bio.value.trim() || null, level: f.level.value || null };
+  btn.disabled = true; btn.textContent = st.pendingPhoto ? 'Subiendo foto…' : 'Guardando…';
+  try {
+    if (st.pendingPhoto) patch.avatar_url = await api.uploadAvatar(me.id, await shrinkPhoto(st.pendingPhoto), me.avatar_url);
+    await api.updateStudent(me.id, patch);
+    Object.assign(st.student, patch); st.pendingPhoto = null;
+    closeModal(); drawNav(); toast('Perfil guardado ✓'); renderStudent();
+  } catch (e) { $('pf-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; btn.textContent = 'Guardar'; }
+}
+async function logoutStudent() { await api.signOut(); st.student = null; st.me = null; drawNav(); location.hash = '#'; }
+
 /* ════════════════════════════ ÁREA PROFES / ADMIN ════════════════════════════ */
 async function renderStaff() {
   $('app').innerHTML = `<div class="wrap" id="staff"><div class="loading">Cargando…</div></div>`;
   try { st.me = await api.me(); } catch (e) { st.me = null; }
   if (!$('staff')) return;                       // el usuario se fue a la vista pública mientras cargaba
+  drawNav();
   if (!st.me) return drawLogin();
   if (st.needPassword) return drawSetPassword();
   if (!st.me.approved) return drawPending();
@@ -1008,7 +1177,7 @@ async function renderStaff() {
   ({ resumen: paneStats, numeros: paneStats, agenda: paneAgenda, cargar: paneCreate, profes: paneProfes, clases: paneTypes, perfil: paneProfile, mas: paneMore })[st.tab]();
 }
 function setTab(t) { st.tab = t; renderStaff(); window.scrollTo({ top: 0 }); }
-async function logout() { await api.signOut(); st.me = null; st.tab = null; renderStaff(); }
+async function logout() { await api.signOut(); st.me = null; st.student = null; st.tab = null; drawNav(); renderStaff(); }
 function paneMore() {
   paneEl().innerHTML = `<div class="menu">
     <button class="btn ghost block" onclick="setTab('clases')"><span>Precio y cupo de la clase</span><span>›</span></button>
@@ -1019,7 +1188,7 @@ function paneMore() {
 
 function drawLogin(mode = 'in') {
   if (api.demo) {
-    const db = store.get('nativo_demo_v5', { profiles: [] });
+    const db = store.get('nativo_demo_v6', { profiles: [] });
     $('staff').innerHTML = `<div class="card" style="max-width:440px;margin:24px auto">
       <h2>Entrar (demo)</h2><p class="small muted" style="margin-bottom:12px">En la versión real cada profe entra con su email y contraseña. Acá elegí con quién probar:</p>
       <div style="display:grid;gap:8px">${db.profiles.map(p => `<button class="btn ghost" style="justify-content:space-between" onclick="api.loginAs('${p.id}')">
@@ -1134,7 +1303,7 @@ function bookingRow(s, b) {
   const msg = `Hola ${b.customer_name.split(' ')[0]}! Te escribo de Nativo por tu clase del ${fmtDayShort(s.starts_at)} ${hhmm(s.starts_at)}.`;
   return `<div class="bk ${x ? 'x' : ''}">
     ${contactBtn(b.customer_phone, msg)}
-    <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${esc(b.customer_name)}${b.people > 1 ? ` ×${b.people}` : ''}</b>
+    <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${b.student?.avatar_url ? `<img class="mini-av" src="${esc(b.student.avatar_url)}" alt="">` : ''}${esc(b.customer_name)}${b.people > 1 ? ` ×${b.people}` : ''}</b>
       <span>${x ? 'Cancelada' : money(b.amount)}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</span></div>
     ${x ? '' : `<div class="acts">
       ${isPast(s) ? `<button class="tog ${came ? 'yes' : miss ? 'no' : ''}" onclick="toggleCame('${b.id}')">${came ? '✓ Vino' : miss ? 'Faltó' : 'Vino?'}</button>` : ''}
@@ -1613,15 +1782,23 @@ async function changeMyPassword(ev) {
 
 /* ════════════════════════════ ARRANQUE ════════════════════════════ */
 if (DEMO) $('demo-bar').classList.remove('hidden');
-api.onAuth(() => { if (location.hash.startsWith('#staff')) renderStaff(); });
+api.onAuth(() => { if (location.hash.startsWith('#staff')) renderStaff(); else refreshAccount(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 // Vuelta desde un mail de invitación / recuperar contraseña → ir directo al área de profes.
 // Primero dejamos que Supabase lea el token del link; recién después limpiamos la URL.
-if (AUTH_LINK || new URLSearchParams(location.search).has('staff')) {
+const QS = new URLSearchParams(location.search);
+if (QS.has('code') || QS.has('error_description')) {
+  // Vuelta desde Google: supabase-js canjea el ?code= por la sesión; después seguimos donde estaba.
+  const err = QS.get('error_description');
+  api.ready().finally(() => {
+    history.replaceState(null, '', location.pathname + location.hash);
+    if (err) { toast('No se pudo entrar con Google: ' + err); refreshAccount(); route(); } else finishLogin();
+  });
+} else if (AUTH_LINK || QS.has('staff')) {
   (AUTH_LINK && api.ready ? api.ready() : Promise.resolve()).finally(() => {
     history.replaceState(null, '', location.pathname + '#staff'); route();
   });
-} else route();
+} else { route(); refreshAccount(); }
 (() => {                                                    // vuelta desde Mercado Pago
   const u = new URLSearchParams(location.search), r = u.get('pago');
   if (!r) return;

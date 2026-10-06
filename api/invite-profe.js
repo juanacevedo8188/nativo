@@ -54,7 +54,7 @@ module.exports = async (req, res) => {
 
   const password = tempPassword();
   const cr = await call('/auth/v1/admin/users', {
-    method: 'POST', body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name } }),
+    method: 'POST', body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name }, app_metadata: { staff: true } }),
   });
   const exists = !cr.ok && (cr.status === 422 || /already|exists|registered/i.test(JSON.stringify(cr.data)));
   if (!cr.ok && !exists) {
@@ -64,9 +64,18 @@ module.exports = async (req, res) => {
 
   // Perfil aprobado con sus datos (el trigger handle_new_user ya lo creó).
   const filter = cr.ok && cr.data?.id ? `id=eq.${cr.data.id}` : `email=eq.${encodeURIComponent(email)}`;
-  const upd = await call(`/rest/v1/profiles?${filter}`, {
+  let upd = await call(`/rest/v1/profiles?${filter}`, {
     method: 'PATCH', body: JSON.stringify({ name, phone, commission_pct: pct, approved: true }),
   });
+  // Ya tenía cuenta de ALUMNO (entró con Google): le sumamos el perfil de profe a esa misma cuenta.
+  if ((!upd.ok || !upd.data?.length) && exists) {
+    const stu = await call(`/rest/v1/students?email=eq.${encodeURIComponent(email)}&select=id`);
+    const sid = stu.data?.[0]?.id;
+    if (sid) {
+      upd = await call('/rest/v1/profiles', { method: 'POST', body: JSON.stringify({ id: sid, email, name, phone, commission_pct: pct, approved: true }) });
+      await call(`/auth/v1/admin/users/${sid}`, { method: 'PUT', body: JSON.stringify({ app_metadata: { staff: true } }) });
+    }
+  }
   if (!upd.ok || !upd.data?.length) return json(500, { error: 'Se creó la cuenta pero no se pudo aprobar el perfil. Aprobalo desde la lista.' });
   // Si ya tenía cuenta no le tocamos la contraseña: el admin puede generarle una nueva desde Equipo.
   return json(200, { ok: true, created: cr.ok, alreadyExisted: exists, id: upd.data[0].id, password: cr.ok ? password : null });

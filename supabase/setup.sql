@@ -83,6 +83,21 @@ create table if not exists public.bookings (
   created_at     timestamptz not null default now()
 );
 create index if not exists bookings_slot_idx on public.bookings (slot_id);
+
+-- Alumnos con cuenta (entran con Google). Los invitados siguen reservando sin cuenta.
+create table if not exists public.students (
+  id         uuid primary key references auth.users(id) on delete cascade,
+  email      text,
+  name       text not null default '',
+  phone      text,
+  avatar_url text,
+  bio        text,
+  instagram  text,
+  level      text check (level in ('nunca', 'pocas', 'seguido')),
+  created_at timestamptz not null default now()
+);
+alter table public.bookings add column if not exists student_id uuid references public.students(id) on delete set null;
+create index if not exists bookings_student_idx on public.bookings (student_id);
 -- Pago online: id del pago de Mercado Pago (lo completa el webhook, nunca el navegador).
 alter table public.bookings add column if not exists mp_payment_id text;
 -- Canal por el que llegó la reserva: la web, o cargada a mano por el profe.
@@ -115,10 +130,21 @@ $fn$;
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $fn$
 begin
-  insert into profiles (id, email, name)
-  values (new.id, new.email,
-          coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), split_part(new.email, '@', 1)))
-  on conflict (id) do nothing;
+  -- Profes/admins: los crea el admin desde Equipo y el servidor les marca app_metadata.staff
+  -- (app_metadata solo lo puede escribir el servidor, no el usuario). También el primer usuario.
+  if coalesce(new.raw_app_meta_data ->> 'staff', '') = 'true' or not exists (select 1 from profiles) then
+    insert into profiles (id, email, name)
+    values (new.id, new.email,
+            coalesce(nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), split_part(new.email, '@', 1)))
+    on conflict (id) do nothing;
+  else
+    -- Cualquier otro registro (Google) es un alumno: nombre y foto vienen de su cuenta de Google.
+    insert into students (id, email, name, avatar_url)
+    values (new.id, new.email,
+            coalesce(nullif(btrim(coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name')), ''), split_part(new.email, '@', 1)),
+            coalesce(new.raw_user_meta_data ->> 'avatar_url', new.raw_user_meta_data ->> 'picture'))
+    on conflict (id) do nothing;
+  end if;
   return new;
 end $fn$;
 
@@ -258,8 +284,9 @@ begin
     raise exception 'Ya hay una reserva con ese WhatsApp en este horario';
   end if;
 
-  insert into bookings (slot_id, customer_name, customer_phone, customer_email, people, amount)
-  values (p_slot, p_name, p_phone, p_email, p_people, s.price * p_people)
+  insert into bookings (slot_id, customer_name, customer_phone, customer_email, people, amount, student_id)
+  values (p_slot, p_name, p_phone, p_email, p_people, s.price * p_people,
+          (select st.id from students st where st.id = auth.uid()))   -- si reservó con su cuenta
   returning bookings.code into v_code;
 
   return query
@@ -284,6 +311,29 @@ language sql stable security definer set search_path = public as $fn$
   join profiles p on p.id = s.profe_id
   where p_code ~* '^[0-9a-f]{6}$' and b.code = upper(btrim(p_code));
 $fn$;
+-- Clases del alumno con cuenta (perfil). Suma las que reservó como invitado con el mismo email de Google.
+create or replace function public.my_bookings()
+returns table (
+  code text, status text, paid boolean, people int, amount numeric, title text,
+  starts_at timestamptz, duration_min int, location text, slot_status text,
+  profe_name text, profe_avatar text
+)
+language plpgsql security definer set search_path = public as $fn$
+#variable_conflict use_column
+begin
+  if auth.uid() is null or not exists (select 1 from students where id = auth.uid()) then return; end if;
+  update bookings b set student_id = auth.uid()
+  where b.student_id is null and auth.email() is not null and lower(b.customer_email) = lower(auth.email());
+  return query
+    select b.code, b.status, b.paid, b.people, b.amount, s.title, s.starts_at, s.duration_min,
+           s.location, s.status, p.name, p.avatar_url
+    from bookings b join slots s on s.id = b.slot_id join profiles p on p.id = s.profe_id
+    where b.student_id = auth.uid()
+    order by s.starts_at desc;
+end $fn$;
+revoke all on function public.my_bookings() from public;
+grant execute on function public.my_bookings() to authenticated;
+
 revoke all on function public.booking_by_code(text) from public;
 grant execute on function public.booking_by_code(text) to anon, authenticated;
 
@@ -311,6 +361,15 @@ create policy "profiles update" on public.profiles for update to authenticated
 drop policy if exists "profiles delete" on public.profiles;
 create policy "profiles delete" on public.profiles for delete to authenticated
   using (is_admin());
+
+-- students: cada alumno ve/edita su perfil; profes y admins pueden verlo (nombre y foto en la agenda).
+alter table public.students enable row level security;
+drop policy if exists "students select" on public.students;
+create policy "students select" on public.students for select to authenticated
+  using (id = auth.uid() or is_staff());
+drop policy if exists "students update" on public.students;
+create policy "students update" on public.students for update to authenticated
+  using (id = auth.uid()) with check (id = auth.uid());
 
 -- class_types: lectura pública de las activas; solo admin edita.
 drop policy if exists "class_types select" on public.class_types;
