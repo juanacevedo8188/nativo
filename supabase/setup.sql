@@ -99,6 +99,16 @@ create table if not exists public.students (
   created_at timestamptz not null default now()
 );
 alter table public.bookings add column if not exists student_id uuid references public.students(id) on delete set null;
+
+-- Entrenamiento: clases solo para alumnos aprobados por un admin.
+--   class_types.members_only / slots.members_only → la clase es "Solo entrenamiento".
+--   students.training: none (nada) → requested (lo pidió) → approved (lo aprobó un admin).
+alter table public.class_types add column if not exists members_only boolean not null default false;
+alter table public.slots       add column if not exists members_only boolean not null default false;
+alter table public.students    add column if not exists training text not null default 'none';
+alter table public.students    add column if not exists training_note text;
+alter table public.students    drop constraint if exists students_training_check;
+alter table public.students    add constraint students_training_check check (training in ('none', 'requested', 'approved'));
 create index if not exists bookings_student_idx on public.bookings (student_id);
 -- Pago online: id del pago de Mercado Pago (lo completa el webhook, nunca el navegador).
 alter table public.bookings add column if not exists mp_payment_id text;
@@ -200,18 +210,20 @@ create trigger slots_guard
 -- ─────────────────────── 4) Funciones públicas (sin login) ───────────────────────
 
 -- Horarios disponibles a futuro, con cupo ocupado. No expone datos de alumnos.
+drop function if exists public.public_slots(timestamptz, timestamptz);   -- cambió lo que devuelve (members_only)
 create or replace function public.public_slots(p_from timestamptz, p_to timestamptz)
 returns table (
   id uuid, title text, class_type_id uuid, starts_at timestamptz, duration_min int,
   capacity int, price numeric, location text, notes text,
-  profe_id uuid, profe_name text, booked int
+  profe_id uuid, profe_name text, booked int, members_only boolean
 )
 language sql stable security definer set search_path = public as $fn$
   select s.id, s.title, s.class_type_id, s.starts_at, s.duration_min,
          s.capacity, s.price, s.location, s.notes,
          s.profe_id, p.name,
          coalesce((select sum(b.people) from bookings b
-                   where b.slot_id = s.id and b.status <> 'cancelled'), 0)::int
+                   where b.slot_id = s.id and b.status <> 'cancelled'), 0)::int,
+         s.members_only
   from slots s
   join profiles p on p.id = s.profe_id
   where s.status = 'open'
@@ -271,6 +283,9 @@ begin
   end if;
   if s.starts_at <= now() then
     raise exception 'Ese horario ya pasó';
+  end if;
+  if s.members_only and not exists (select 1 from students st where st.id = auth.uid() and st.training = 'approved') then
+    raise exception 'Esta clase es solo para alumnos de entrenamiento';
   end if;
 
   select coalesce(sum(b.people), 0) into v_booked
@@ -393,7 +408,23 @@ create policy "students select" on public.students for select to authenticated
   using (id = auth.uid() or is_staff());
 drop policy if exists "students update" on public.students;
 create policy "students update" on public.students for update to authenticated
-  using (id = auth.uid()) with check (id = auth.uid());
+  using (id = auth.uid() or is_admin()) with check (id = auth.uid() or is_admin());
+
+-- El alumno puede pedir (o cancelar el pedido de) entrenamiento, pero solo un admin lo aprueba.
+create or replace function public.students_guard() returns trigger
+language plpgsql security definer set search_path = public as $fn$
+begin
+  if auth.uid() is not null and not is_admin() then
+    if old.training = 'approved' or new.training not in ('none', 'requested') then
+      new.training := old.training;
+    end if;
+    new.email := old.email;
+  end if;
+  return new;
+end $fn$;
+drop trigger if exists students_guard on public.students;
+create trigger students_guard before update on public.students
+  for each row execute function public.students_guard();
 
 -- class_types: lectura pública de las activas; solo admin edita.
 drop policy if exists "class_types select" on public.class_types;

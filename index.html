@@ -172,6 +172,10 @@ img.avatar.xl{border:4px solid var(--ink)}
 .hist .avatar{width:40px;height:40px;font-size:14px}
 .hist .who{flex:1;min-width:0;font-size:14px}
 .mini-av{width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:-5px;margin-right:6px;border:1.5px solid var(--ink)}
+.pill.train{background:var(--ink);color:var(--sun)}
+.train-card{display:flex;gap:12px;align-items:center;background:var(--ink);color:#fff;border-radius:var(--r);padding:14px;margin-top:16px}
+.train-card i{font-style:normal;font-size:30px}
+.train-card .small{color:#cfe3e1}
 .bio{font-size:14px;color:var(--ink2);margin:8px 2px 0;animation:rise .25s var(--ease) both}
 
 /* Tira de días: queda pegada arriba al bajar */
@@ -511,6 +515,7 @@ function supabaseApi() {
     },
     myBookings: () => q(c.rpc('my_bookings')),
     updateStudent: (id, patch) => q(c.from('students').update(patch).eq('id', id)),
+    students: () => q(c.from('students').select('*').order('name')),
     async me() {
       const { data: { session } } = await c.auth.getSession();
       if (!session) return null;
@@ -524,7 +529,7 @@ function supabaseApi() {
       const rows = await q(c.rpc('book_slot', { p_slot: b.slot_id, p_name: b.name, p_phone: b.phone, p_email: b.email || null, p_people: b.people }));
       return rows[0];
     },
-    staffSlots: (from, to) => q(c.from('slots').select('*, profe:profe_id(name), bookings(*, student:student_id(name,avatar_url))')
+    staffSlots: (from, to) => q(c.from('slots').select('*, profe:profe_id(name), bookings(*, student:student_id(name,avatar_url,training))')
       .gte('starts_at', from.toISOString()).lt('starts_at', to.toISOString()).order('starts_at')),
     createSlots: rows => q(c.from('slots').insert(rows)),
     updateSlot: (id, patch) => q(c.from('slots').update(patch).eq('id', id)),
@@ -575,7 +580,7 @@ function supabaseApi() {
    Imita las mismas reglas que la base real (cupos, roles, % del profe) para poder
    mostrar la app sin configurar nada.                                               */
 function demoApi() {
-  const KEY = 'nativo_demo_v6', UKEY = 'nativo_demo_user', SKEY = 'nativo_demo_student';
+  const KEY = 'nativo_demo_v7', UKEY = 'nativo_demo_user', SKEY = 'nativo_demo_student';
   let db = store.get(KEY, null);
   if (!db) { db = demoSeed(); store.set(KEY, db); }
   const save = () => store.set(KEY, db);
@@ -603,7 +608,12 @@ function demoApi() {
         return { code: b.code, status: b.status, paid: b.paid, people: b.people, amount: b.amount, title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location, slot_status: s.status, profe_name: p?.name, profe_avatar: p?.avatar_url }; })
         .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
-    updateStudent(id, patch) { Object.assign(db.students.find(x => x.id === id), patch); save(); return wait(null); },
+    updateStudent(id, patch) {
+      const x = db.students.find(y => y.id === id);
+      if (!isAdmin() && 'training' in patch && (x.training === 'approved' || !['none', 'requested'].includes(patch.training))) delete patch.training;
+      Object.assign(x, patch); save(); return wait(null);
+    },
+    students: () => wait(db.students.slice().sort((a, b) => a.name.localeCompare(b.name))),
     me: () => wait(meP()),
     classTypes: () => wait(db.class_types.slice().sort((a, b) => a.sort - b.sort)),
     publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null }))),
@@ -627,6 +637,7 @@ function demoApi() {
       if (digits.length < 8) return fail('Ingresá un WhatsApp válido (con característica)');
       if (!s || s.status !== 'open') return fail('Ese horario ya no está disponible');
       if (new Date(s.starts_at) <= new Date()) return fail('Ese horario ya pasó');
+      if (s.members_only && db.students.find(x => x.id === store.get(SKEY, null))?.training !== 'approved') return fail('Esta clase es solo para alumnos de entrenamiento');
       const left = s.capacity - booked(s.id);
       if (b.people > left) return fail(`Quedan ${Math.max(left, 0)} lugares en ese horario`);
       if (db.bookings.some(x => x.slot_id === s.id && x.status !== 'cancelled' && x.customer_phone.replace(/\D/g, '').slice(-10) === digits.slice(-10)))
@@ -715,12 +726,14 @@ function demoSeed() {
   ];
   const class_types = [
     { id: 'ct-ini', name: 'Clase de iniciación', description: 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', duration_min: 60, price: 30000, capacity: 4, active: true, sort: 1 },
+    { id: 'ct-ent', name: 'Entrenamiento', description: 'Grupo de entrenamiento: técnica, resistencia y remada larga.', duration_min: 90, price: 25000, capacity: 8, active: true, sort: 2, members_only: true },
   ];
   // [profe, día de semana, hora, tipo]
   const plan = [
     ['u-tomi', 2, '09:00', 'ct-ini'], ['u-tomi', 4, '09:00', 'ct-ini'], ['u-tomi', 6, '10:00', 'ct-ini'], ['u-tomi', 6, '17:00', 'ct-ini'],
     ['u-flor', 1, '10:00', 'ct-ini'], ['u-flor', 3, '10:00', 'ct-ini'], ['u-flor', 5, '17:30', 'ct-ini'], ['u-flor', 0, '10:00', 'ct-ini'],
     ['u-lucas', 6, '08:30', 'ct-ini'], ['u-lucas', 0, '08:30', 'ct-ini'], ['u-lucas', 3, '18:00', 'ct-ini'],
+    ['u-lucas', 2, '19:00', 'ct-ent'], ['u-lucas', 4, '19:00', 'ct-ent'],
   ];
   const names = ['Sofía Gómez', 'Mateo Díaz', 'Valentina Ruiz', 'Benjamín López', 'Catalina Sosa', 'Joaquín Romero', 'Martina Álvarez', 'Lautaro Torres', 'Julieta Benítez', 'Facundo Medina', 'Agustina Herrera', 'Nicolás Castro', 'Camila Suárez', 'Tomás Rojas', 'Lucía Molina'];
   const slots = [], bookings = [], today = startOfDay(new Date());
@@ -730,7 +743,7 @@ function demoSeed() {
       const t = class_types.find(x => x.id === ct), [h, m] = time.split(':');
       const start = new Date(day); start.setHours(+h, +m, 0, 0);
       const s = { id: uid(), profe_id, class_type_id: ct, title: t.name, starts_at: start.toISOString(), duration_min: t.duration_min, capacity: t.capacity,
-        price: t.price, profe_pct: profiles.find(p => p.id === profe_id).commission_pct, location: CONFIG.LOCATION, notes: null, status: 'open', created_at: start.toISOString() };
+        price: t.price, profe_pct: profiles.find(p => p.id === profe_id).commission_pct, location: CONFIG.LOCATION, notes: null, status: 'open', created_at: start.toISOString(), members_only: !!t.members_only };
       if (d < 0 && rnd() < 0.05) s.status = 'cancelled';                 // alguna suspendida por viento
       slots.push(s);
       const past = d < 0, fill = Math.floor(rnd() * (t.capacity + 1) * (past ? 1 : 0.7));
@@ -748,7 +761,9 @@ function demoSeed() {
     });
   }
   // Alumna de ejemplo con cuenta: sus reservas quedan vinculadas a su perfil.
-  const students = [{ id: 'st-demo', email: 'sofi@gmail.com', name: 'Sofía Gómez', phone: '3415559876', avatar_url: null, bio: 'Aprendiendo a pararme en la tabla 🌊', instagram: 'sofi.rema', level: 'pocas' }];
+  const students = [{ id: 'st-demo', email: 'sofi@gmail.com', name: 'Sofía Gómez', phone: '3415559876', avatar_url: null, bio: 'Aprendiendo a pararme en la tabla 🌊', instagram: 'sofi.rema', level: 'pocas', training: 'none' },
+    { id: 'st-2', email: 'mateo@gmail.com', name: 'Mateo Díaz', phone: '3415554321', avatar_url: null, bio: null, instagram: null, level: 'seguido', training: 'requested', training_note: 'Entreno con Lucas martes y jueves a la noche' },
+    { id: 'st-3', email: 'cata@gmail.com', name: 'Catalina Sosa', phone: '3415551212', avatar_url: null, bio: null, instagram: null, level: 'seguido', training: 'approved' }];
   bookings.forEach(b => { if (b.customer_name === 'Sofía Gómez') b.student_id = 'st-demo'; });
   return { profiles, class_types, slots, bookings, students };
 }
@@ -845,7 +860,7 @@ function drawPublic() {
         const left = s.capacity - s.booked, full = left <= 0;
         return `<button class="slot rise ${full ? 'full' : ''}" ${full ? 'disabled' : ''} onclick="openBooking('${s.id}')">
           <div class="t num">${hhmm(s.starts_at)}<small>${s.duration_min} min</small></div>
-          <div class="mid"><div class="who">con ${esc(s.profe_name)}</div>
+          <div class="mid"><div class="who">con ${esc(s.profe_name)}${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅 Entrenamiento</span>' : ''}</div>
             <div class="meta">${s.location ? esc(s.location) + ' · ' : ''}${money(s.price)}</div>
             ${full ? '<span class="pill gray">Completo</span>' : left <= 2 && s.capacity > 2 ? `<span class="pill warn">¡Quedan ${left}!</span>` : `<span class="pill ok">${left} ${left === 1 ? 'lugar libre' : 'lugares libres'}</span>`}</div>
           <span class="go" aria-hidden="true">${full ? '–' : '→'}</span>
@@ -869,6 +884,7 @@ function watchDaybar() {
 
 function openBooking(id) {
   const s = st.pub.find(x => x.id === id); if (!s) return;
+  if (s.members_only && st.student?.training !== 'approved') return trainingInfo(s);
   const left = Math.min(s.capacity - s.booked, 10), me = st.student;
   openModal(`
     <h2>Reservar</h2>
@@ -1070,6 +1086,38 @@ function demoMpResult(code, result) {
   showPayResult(result, code);
 }
 
+/* ── Entrenamiento: clases solo para alumnos aprobados ── */
+function trainingInfo(s) {
+  const me = st.student, t = me?.training;
+  openModal(`<div style="text-align:center"><div class="big-emoji">🏅</div><h2>Clase de entrenamiento</h2>
+    <p class="muted">${s ? `${esc(fmtDayLong(s.starts_at))} · ${hhmm(s.starts_at)} con ${esc(s.profe_name)}<br>` : ''}Es solo para alumnos del grupo de entrenamiento, aprobados por la escuela.</p></div>
+    <div class="choice" style="margin-top:16px">
+      ${!me ? `<button class="btn google block" onclick="loginWithGoogle({ hash: '#perfil' })">${ICON.google} Entrá con Google para pedir acceso</button>`
+        : t === 'requested' ? `<div class="sum" style="margin:0;text-align:center">⏳ Tu pedido está pendiente. Te avisamos cuando lo aprueben.</div>`
+        : `<button class="btn coral block" onclick="closeModal();requestTraining()">Pedir acceso a entrenamiento</button>`}
+      ${CONFIG.WHATSAPP ? `<a class="btn ghost block" href="${waLink(CONFIG.WHATSAPP, 'Hola! Quería consultar por las clases de entrenamiento')}" target="_blank" rel="noopener">Consultar por WhatsApp</a>` : ''}
+    </div>`);
+}
+function requestTraining() {
+  openModal(`<h2>Pedir acceso a entrenamiento</h2>
+    <p class="small muted" style="margin-bottom:12px">Un admin lo revisa y te habilita las clases de entrenamiento.</p><div id="tr-err"></div>
+    <form onsubmit="sendTrainingRequest(event)">
+      <div class="field"><label for="tr-note">Contanos un poco</label><textarea class="input" id="tr-note" name="note" maxlength="200" required placeholder="Ej: Entreno con Lucas los martes y jueves desde marzo."></textarea></div>
+      <div class="sheet-foot"><button class="btn coral block" id="tr-btn">Enviar pedido</button></div></form>`);
+}
+async function sendTrainingRequest(ev) {
+  ev.preventDefault(); const f = ev.target;
+  $('tr-btn').disabled = true;
+  try {
+    const patch = { training: 'requested', training_note: f.note.value.trim() };
+    await api.updateStudent(st.student.id, patch); Object.assign(st.student, patch);
+    closeModal(); toast('Pedido enviado ✓'); if (location.hash === '#perfil') renderStudent();
+  } catch (e) { $('tr-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; $('tr-btn').disabled = false; }
+}
+async function cancelTrainingRequest() {
+  try { await api.updateStudent(st.student.id, { training: 'none' }); st.student.training = 'none'; toast('Pedido cancelado'); renderStudent(); } catch (e) { toast(errMsg(e)); }
+}
+
 /* ════════════════════════════ CUENTA DE ALUMNO (Google) ════════════════════════════ */
 const LEVELS = { nunca: 'Primera vez', pocas: 'Ya remé algunas veces', seguido: 'Remo seguido' };
 async function refreshAccount() {
@@ -1125,6 +1173,7 @@ async function renderStudent() {
     ['🏄', 'Primera remada', past.length >= 1], ['🔥', '5 clases', past.length >= 5], ['🏆', '10 clases', past.length >= 10],
     ['🌅', 'Madrugador', past.some(b => new Date(b.starts_at).getHours() < 9)], ['🌇', 'Atardecer', past.some(b => new Date(b.starts_at).getHours() >= 18)],
     ['🤝', 'En grupo', past.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', Object.values(byProfe).some(n => n >= 3)],
+    ['🏅', 'Entrenamiento', me.training === 'approved'],
   ];
   const got = badges.filter(b => b[2]).length;
   const row = b => `<a class="hist" href="#r-${esc(b.code)}" style="text-decoration:none;color:inherit">${avatarHtml({ name: b.profe_name, avatar_url: b.profe_avatar })}
@@ -1134,11 +1183,14 @@ async function renderStudent() {
     <div class="sp-cover"><svg class="waves" viewBox="0 0 2400 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18C150 4 300 4 450 16S750 32 900 18 1050 4 1200 18 1500 32 1650 18 1950 4 2100 16 2250 30 2400 18V34H0Z"/></svg></div>
     <div class="sp-head">${avatarHtml(me, 'xl')}
       <h1>${esc(me.name)}</h1>
-      <div class="tags">${me.level ? `<span class="pill" style="margin:0">${esc(LEVELS[me.level])}</span>` : ''}${me.instagram ? `<a class="pill" style="margin:0;background:#fbe7f1;color:#c13584;text-decoration:none" href="https://instagram.com/${encodeURIComponent(me.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(me.instagram.replace(/^@/, ''))}</a>` : ''}</div>
+      <div class="tags">${me.training === 'approved' ? '<span class="pill train" style="margin:0">🏅 Alumno de entrenamiento</span>' : ''}${me.level ? `<span class="pill" style="margin:0">${esc(LEVELS[me.level])}</span>` : ''}${me.instagram ? `<a class="pill" style="margin:0;background:#fbe7f1;color:#c13584;text-decoration:none" href="https://instagram.com/${encodeURIComponent(me.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(me.instagram.replace(/^@/, ''))}</a>` : ''}</div>
       ${me.bio ? `<p class="bio-t">${esc(me.bio)}</p>` : ''}
       <div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost sm" onclick="editStudent()">Editar perfil</button><a class="btn coral sm" href="#">Reservar clase</a></div>
     </div>
     <div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>
+    ${me.training === 'approved' ? '' : `<div class="train-card"><i>🏅</i><div style="flex:1">${me.training === 'requested'
+        ? `<b>Pedido de entrenamiento enviado</b><div class="small">Un admin lo tiene que aprobar.</div></div><button class="btn ghost sm" style="background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px #fff" onclick="cancelTrainingRequest()">Cancelar</button>`
+        : `<b>¿Entrenás con nosotros?</b><div class="small">Pedí acceso a las clases de entrenamiento.</div></div><button class="btn coral sm" onclick="requestTraining()">Pedir</button>`}</div>`}
     <div class="section"><div class="label">Logros · ${got} de ${badges.length}</div>
       <div class="badges">${badges.map(([i, t, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${t}</div>`).join('')}</div></div>
     <div class="section"><div class="label">Próximas clases</div>
@@ -1209,7 +1261,7 @@ function paneMore() {
 
 function drawLogin(mode = 'in') {
   if (api.demo) {
-    const db = store.get('nativo_demo_v6', { profiles: [] });
+    const db = store.get('nativo_demo_v7', { profiles: [] });
     $('staff').innerHTML = `<div class="card" style="max-width:440px;margin:24px auto">
       <h2>Entrar (demo)</h2><p class="small muted" style="margin-bottom:12px">En la versión real cada profe entra con su email y contraseña. Acá elegí con quién probar:</p>
       <div style="display:grid;gap:8px">${db.profiles.map(p => `<button class="btn ghost" style="justify-content:space-between" onclick="api.loginAs('${p.id}')">
@@ -1317,7 +1369,7 @@ function slotCard(s) {
   const mine = st.me.role === 'admin' ? 'profe' : 'para vos';
   return `<div class="card sslot rise ${cancelled ? 'cancelled' : ''}">
     <div class="hd"><div class="t num">${hhmm(s.starts_at)}</div>
-      <div class="info"><b>${esc(s.title)}</b><div>${st.me.role === 'admin' ? `con ${esc(s.profe?.name)} · ` : ''}${s.duration_min} min${s.location ? ' · ' + esc(s.location) : ''}</div></div>
+      <div class="info"><b>${esc(s.title)}</b>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅</span>' : ''}<div>${st.me.role === 'admin' ? `con ${esc(s.profe?.name)} · ` : ''}${s.duration_min} min${s.location ? ' · ' + esc(s.location) : ''}</div></div>
       ${cancelled ? '<span class="pill bad" style="margin:0">Suspendida</span>' : `<span class="cap num ${people >= s.capacity ? 'full' : ''}">${people}/${s.capacity}</span>`}</div>
     ${!cancelled && (share > 0 || pend > 0) ? `<div class="money-line num">${share > 0 ? `<span class="ok">${mine}: ${money(share)}</span>` : ''}${pend > 0 ? `<span class="warn">${past ? 'falta marcar pago' : 'a cobrar'}: ${money(pend)}</span>` : ''}</div>` : ''}
     ${bks.map(b => bookingRow(s, b)).join('')}
@@ -1330,7 +1382,7 @@ function bookingRow(s, b) {
   const msg = `Hola ${b.customer_name.split(' ')[0]}! Te escribo de Nativo por tu clase del ${fmtDayShort(s.starts_at)} ${hhmm(s.starts_at)}.`;
   return `<div class="bk ${x ? 'x' : ''}">
     ${contactBtn(b.customer_phone, msg)}
-    <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${b.student?.avatar_url ? `<img class="mini-av" src="${esc(b.student.avatar_url)}" alt="">` : ''}${esc(b.customer_name)}${b.people > 1 ? ` ×${b.people}` : ''}</b>
+    <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${b.student?.avatar_url ? `<img class="mini-av" src="${esc(b.student.avatar_url)}" alt="">` : ''}${esc(b.customer_name)}${b.student?.training === 'approved' ? ' 🏅' : ''}${b.people > 1 ? ` ×${b.people}` : ''}</b>
       <span>${x ? 'Cancelada' : money(b.amount)}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</span></div>
     ${x ? (b.paid ? `<div class="acts"><button class="tog yes" onclick="payMenu('${b.id}')">✓ Cobrada · ¿devolver?</button></div>` : '') : `<div class="acts">
       ${isPast(s) ? `<button class="tog ${came ? 'yes' : miss ? 'no' : ''}" onclick="toggleCame('${b.id}')">${came ? '✓ Vino' : miss ? 'Faltó' : 'Vino?'}</button>` : ''}
@@ -1543,6 +1595,7 @@ function previewCreate() {
     : f.mode.value === 'one' ? (n ? `<span>${esc(fmtDayLong(r.rows[0]))}</span> · ${hhmm(r.rows[0])} hs` : '')
     : n ? `Se van a crear <b>${n}</b> clases` : 'Elegí al menos un día y una hora';
   $('cf-btn').textContent = f.mode.value === 'one' || n <= 1 ? 'Crear clase' : `Crear ${n} clases`;
+  if (!r.error && st.types.find(t => t.id === f.type.value)?.members_only) $('cf-prev').innerHTML += ' · <span class="pill train" style="margin:0">🏅 Solo entrenamiento</span>';
   $('cf-btn').disabled = !!r.error || !n;
 }
 async function doCreate(ev) {
@@ -1555,7 +1608,7 @@ async function doCreate(ev) {
     const first = r.rows.reduce((a, b) => a < b ? a : b), last = r.rows.reduce((a, b) => a > b ? a : b);
     const existing = new Set((await api.staffSlots(first, addMin(last, 1))).filter(s => s.profe_id === profe_id && s.status === 'open').map(s => +new Date(s.starts_at)));
     const rows = r.rows.filter(d => !existing.has(+d)).map(d => ({
-      profe_id, class_type_id: f.type.value || null, title: f.title.value.trim(), starts_at: d.toISOString(),
+      profe_id, class_type_id: f.type.value || null, title: f.title.value.trim(), starts_at: d.toISOString(), members_only: !!st.types.find(t => t.id === f.type.value)?.members_only,
       duration_min: +f.dur.value, capacity: +f.cap.value, price: +f.price.value, location: f.loc.value.trim() || null, notes: f.notes.value.trim() || null,
     }));
     if (rows.length) await api.createSlots(rows);
@@ -1675,7 +1728,7 @@ function exportCsv() {
 
 /* ── Profes (admin) ── */
 async function paneProfes() {
-  try { st.allProfiles = await api.profiles(); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  try { [st.allProfiles, st.students] = await Promise.all([api.profiles(), api.students ? api.students() : []]); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const pending = st.allProfiles.filter(p => !p.approved);
   paneEl().innerHTML = `
     <details class="card more" style="max-width:560px" ${st.allProfiles.length <= 1 ? 'open' : ''}><summary><h2 style="margin:0">Agregar profe</h2></summary><div style="margin-top:10px">
@@ -1691,6 +1744,7 @@ async function paneProfes() {
     ${pending.length ? `<div class="card"><h3>Pidieron acceso <span class="pill warn">${pending.length}</span></h3>
       ${pending.map(p => `<div class="row between wrapf" style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(p.name)}</b><div class="tiny muted">${esc(p.email)}</div></div>
         <div class="row"><button class="btn sm" onclick="approveProfe('${p.id}')">Aprobar</button></div></div>`).join('')}</div>` : ''}
+    ${trainingSection()}
     <div class="card"><h2>Equipo</h2>
     <p class="small muted" style="margin-bottom:4px">Tocá a alguien para editar su perfil, foto, rol o %.</p>
     ${st.allProfiles.filter(p => p.approved).sort((a, b) => a.name.localeCompare(b.name)).map(p => `<button class="prow" onclick="editProfe('${p.id}')">
@@ -1732,6 +1786,25 @@ async function newPasswordFor(id) {
   const p = st.allProfiles.find(x => x.id === id); if (!p) return;
   if (!await askConfirm(`¿Generar una contraseña nueva para ${p.name}? La que tiene deja de funcionar.`, 'Generar')) return;
   try { const r = await api.resetProfePassword(id); showCredentials({ name: p.name, email: p.email, phone: p.phone, password: r.password }); }
+  catch (e) { toast(errMsg(e)); }
+}
+function trainingSection() {
+  const all = st.students || [], req = all.filter(x => x.training === 'requested'), ok = all.filter(x => x.training === 'approved'), rest = all.filter(x => x.training === 'none');
+  return `<div class="card ${req.length ? 'unpaid' : ''}"><h2>🏅 Entrenamiento ${req.length ? `<span class="pill warn">${req.length} ${req.length === 1 ? 'pedido' : 'pedidos'}</span>` : ''}</h2>
+    <p class="small muted" style="margin-bottom:6px">Solo los alumnos aprobados pueden reservar las clases marcadas "Solo entrenamiento" (en Más → Precio y cupo).</p>
+    ${req.map(x => `<div class="prow" style="cursor:default">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.training_note || 'Sin mensaje')}</span></span>
+      <span class="row" style="flex:none"><button class="btn sm" onclick="setTraining('${x.id}','approved')">Aprobar</button><button class="btn ghost sm" onclick="setTraining('${x.id}','none')" aria-label="Rechazar">✕</button></span></div>`).join('')}
+    ${ok.length ? `<div class="label" style="margin-top:12px">Grupo (${ok.length})</div>${ok.map(x => `<div class="prow" style="cursor:default">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.phone || x.email || '')}</span></span>
+      <button class="btn ghost sm" onclick="setTraining('${x.id}','none')">Quitar</button></div>`).join('')}` : ''}
+    ${rest.length ? `<div class="row" style="margin-top:12px"><select class="input" id="tr-add" style="flex:1"><option value="">Dar acceso a un alumno…</option>${rest.map(x => `<option value="${x.id}">${esc(x.name)}${x.email ? ' · ' + esc(x.email) : ''}</option>`).join('')}</select>
+      <button class="btn sm" onclick="$('tr-add').value&&setTraining($('tr-add').value,'approved')">Dar acceso</button></div>
+      <p class="tiny muted" style="margin-top:6px">Aparecen los alumnos que ya entraron con Google.</p>` : ''}
+  </div>`;
+}
+async function setTraining(id, v) {
+  const x = (st.students || []).find(y => y.id === id);
+  if (v === 'none' && x?.training === 'approved' && !await askConfirm(`¿Quitar a ${x.name} del grupo de entrenamiento?`, 'Quitar')) return;
+  try { await api.updateStudent(id, { training: v }); toast(v === 'approved' ? `${x?.name.split(' ')[0] || 'Alumno'} ya es de entrenamiento 🏅` : 'Listo'); paneProfes(); }
   catch (e) { toast(errMsg(e)); }
 }
 async function approveProfe(id) {
@@ -1800,16 +1873,17 @@ async function paneTypes() {
     <td><input class="input sm" style="width:60px" data-k="capacity" type="number" min="1" value="${t.capacity || 1}"></td>
     <td><input class="input sm" style="width:100px" data-k="price" type="number" min="0" step="500" value="${+t.price || 0}"></td>
     <td><input type="checkbox" data-k="active" ${t.active !== false ? 'checked' : ''}></td>
+    <td><input type="checkbox" data-k="members_only" ${t.members_only ? 'checked' : ''} aria-label="Solo entrenamiento"></td>
     <td><button class="btn sm" onclick="saveType(this)">Guardar</button></td></tr>`;
   paneEl().innerHTML = `<div class="card"><h2>Precio y cupo de la clase</h2>
-    <p class="small muted" style="margin-bottom:12px">Son los valores sugeridos al cargar horarios. Cambiar un precio acá no modifica horarios ya cargados.</p>
-    <div class="tbl-wrap"><table id="tt"><tr><th>Nombre</th><th>Descripción</th><th>Min</th><th>Cupo</th><th>Precio</th><th>Activa</th><th></th></tr>
+    <p class="small muted" style="margin-bottom:12px">Son los valores sugeridos al cargar horarios. Cambiar un precio acá no modifica horarios ya cargados. <b>Solo entren.</b>: esa clase solo la pueden reservar alumnos de entrenamiento aprobados (Equipo → Entrenamiento).</p>
+    <div class="tbl-wrap"><table id="tt"><tr><th>Nombre</th><th>Descripción</th><th>Min</th><th>Cupo</th><th>Precio</th><th>Activa</th><th>Solo entren.</th><th></th></tr>
     ${st.types.map(row).join('')}${row({ sort: st.types.length + 1 })}</table></div></div>`;
 }
 async function saveType(btn) {
   const tr = btn.closest('tr'), g = k => tr.querySelector(`[data-k=${k}]`);
   const ct = { name: g('name').value.trim(), description: g('description').value.trim() || null, duration_min: +g('duration_min').value,
-    capacity: +g('capacity').value, price: +g('price').value, active: g('active').checked };
+    capacity: +g('capacity').value, price: +g('price').value, active: g('active').checked, members_only: g('members_only').checked };
   if (!ct.name) return toast('Poné un nombre');
   if (tr.dataset.id) ct.id = tr.dataset.id; else ct.sort = st.types.length + 1;
   try { await api.saveClassType(ct); toast('Guardado ✓'); paneTypes(); } catch (e) { toast(errMsg(e)); }
