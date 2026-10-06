@@ -181,6 +181,15 @@ img.avatar.xl{border:4px solid var(--ink)}
 .train-card .small{color:#cfe3e1}
 .train-card.promo{align-items:flex-start;margin-top:22px}
 .train-card.promo .small{margin-top:3px}
+.plan-card{display:flex;gap:12px;align-items:center;background:var(--sun);border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);border-radius:var(--r);padding:14px;margin-top:16px}
+.plan-card .pc-ic{font-size:30px;line-height:1}
+.plan-card .pc-body{flex:1;min-width:0}
+.plan-card b.t{font-family:var(--f-display);font-size:19px;display:block;line-height:1.15}
+.plan-card .save{display:inline-block;background:var(--ink);color:var(--sun);border-radius:999px;padding:2px 9px;font-size:12.5px;font-weight:700;margin-top:4px}
+.pass-bar{height:10px;background:rgba(31,29,30,.12);border-radius:5px;overflow:hidden;margin:8px 0 4px}
+.pass-bar i{display:block;height:100%;background:var(--ink);border-radius:5px}
+.use-pass{display:flex;align-items:center;gap:10px;background:var(--coral-soft);border:1.5px solid var(--ink);border-radius:14px;padding:10px 12px;margin-bottom:14px;font-size:15px}
+.use-pass input{width:22px;height:22px;accent-color:var(--ink)}
 .bio{font-size:14px;color:var(--ink2);margin:8px 2px 0;animation:rise .25s var(--ease) both}
 
 /* Tira de días: queda pegada arriba al bajar */
@@ -536,6 +545,15 @@ function supabaseApi() {
     myBookings: () => q(c.rpc('my_bookings')),
     updateStudent: (id, patch) => q(c.from('students').update(patch).eq('id', id)),
     students: () => q(c.from('students').select('*').order('name')),
+    // Abonos
+    plans: () => q(c.from('plans').select('*').order('sort').order('price')),
+    savePlan: pl => pl.id ? q(c.from('plans').update(pl).eq('id', pl.id)) : q(c.from('plans').insert(pl)),
+    requestPass: planId => q(c.rpc('request_pass', { p_plan: planId })),
+    myPasses: () => q(c.rpc('my_passes')),
+    adminPasses: () => q(c.rpc('admin_passes')),
+    activatePass: (id, method) => q(c.rpc('activate_pass', { p_pass: id, p_method: method })),
+    grantPass: (studentId, planId, method) => q(c.rpc('grant_pass', { p_student: studentId, p_plan: planId, p_method: method })),
+    cancelPass: id => q(c.rpc('cancel_pass', { p_pass: id })),
     async me() {
       const { data: { session } } = await c.auth.getSession();
       if (!session) return null;
@@ -546,7 +564,7 @@ function supabaseApi() {
     publicSlots: (from, to) => q(c.rpc('public_slots', { p_from: from.toISOString(), p_to: to.toISOString() })),
     async bookingByCode(code) { const rows = await q(c.rpc('booking_by_code', { p_code: code })); return rows[0] || null; },
     async book(b) {
-      const rows = await q(c.rpc('book_slot', { p_slot: b.slot_id, p_name: b.name, p_phone: b.phone, p_email: b.email || null, p_people: b.people }));
+      const rows = await q(c.rpc('book_slot', { p_slot: b.slot_id, p_name: b.name, p_phone: b.phone, p_email: b.email || null, p_people: b.people, p_use_pass: !!b.usePass }));
       return rows[0];
     },
     staffSlots: (from, to) => q(c.from('slots').select('*, profe:profe_id(name), bookings(*, student:student_id(name,avatar_url,training))')
@@ -601,7 +619,7 @@ function supabaseApi() {
    Imita las mismas reglas que la base real (cupos, roles, % del profe) para poder
    mostrar la app sin configurar nada.                                               */
 function demoApi() {
-  const KEY = 'nativo_demo_v7', UKEY = 'nativo_demo_user', SKEY = 'nativo_demo_student';
+  const KEY = 'nativo_demo_v8', UKEY = 'nativo_demo_user', SKEY = 'nativo_demo_student';
   let db = store.get(KEY, null);
   if (!db) { db = demoSeed(); store.set(KEY, db); }
   const save = () => store.set(KEY, db);
@@ -610,6 +628,8 @@ function demoApi() {
   const isAdmin = () => { const m = meP(); return !!(m && m.approved && m.role === 'admin'); };
   const booked = sid => db.bookings.filter(b => b.slot_id === sid && b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
   const wait = v => new Promise(r => setTimeout(() => r(structuredClone(v)), 120));
+  const demoUsed = pid => db.bookings.filter(b => b.pass_id === pid && b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
+  const demoActive = days => { const t = dayKey(new Date()); return { starts_on: t, expires_on: dayKey(addDays(new Date(), days - 1)), paid_at: new Date().toISOString() }; };
   const fail = m => Promise.reject(new Error(m));
   let authCb = () => {};
   return {
@@ -635,6 +655,21 @@ function demoApi() {
       Object.assign(x, patch); save(); return wait(null);
     },
     students: () => wait(db.students.slice().sort((a, b) => a.name.localeCompare(b.name))),
+    plans: () => wait((db.plans || []).slice().sort((a, b) => a.sort - b.sort)),
+    savePlan(pl) { db.plans ||= []; if (pl.id) Object.assign(db.plans.find(x => x.id === pl.id), pl); else db.plans.push({ ...pl, id: uid() }); save(); return wait(null); },
+    requestPass(planId) {
+      const sid = store.get(SKEY, null), pl = db.plans.find(x => x.id === planId);
+      if (!sid) return fail('Entrá con tu cuenta para pedir un abono');
+      if (db.passes.some(x => x.student_id === sid && x.status === 'pending')) return fail('Ya tenés un pedido de abono pendiente');
+      db.passes.push({ id: uid(), student_id: sid, plan_id: pl.id, name: pl.name, price: pl.price, classes_total: pl.classes, days_valid: pl.days_valid, status: 'pending', created_at: new Date().toISOString() });
+      save(); return wait(null);
+    },
+    myPasses() { const sid = store.get(SKEY, null); return wait(db.passes.filter(x => x.student_id === sid && x.status !== 'cancelled').map(x => ({ ...x, used: demoUsed(x.id) })).reverse()); },
+    adminPasses() { return wait(db.passes.map(x => { const st2 = db.students.find(y => y.id === x.student_id) || {}; return { ...x, used: demoUsed(x.id), student_name: st2.name, student_avatar: st2.avatar_url, student_phone: st2.phone }; }).reverse()); },
+    activatePass(id, method) { const x = db.passes.find(y => y.id === id); Object.assign(x, demoActive(x.days_valid), { status: 'active', payment_method: method }); save(); return wait(null); },
+    grantPass(studentId, planId, method) { const pl = db.plans.find(y => y.id === planId);
+      db.passes.push({ id: uid(), student_id: studentId, plan_id: pl.id, name: pl.name, price: pl.price, classes_total: pl.classes, days_valid: pl.days_valid, status: 'active', payment_method: method, created_at: new Date().toISOString(), ...demoActive(pl.days_valid) }); save(); return wait(null); },
+    cancelPass(id) { db.passes.find(y => y.id === id).status = 'cancelled'; save(); return wait(null); },
     me: () => wait(meP()),
     classTypes: () => wait(db.class_types.slice().sort((a, b) => a.sort - b.sort)),
     publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null }))),
@@ -649,7 +684,7 @@ function demoApi() {
       const s = db.slots.find(x => x.id === b.slot_id);
       return wait({ code: b.code, first_name: b.customer_name.split(' ')[0], title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location,
         profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: b.amount, paid: b.paid, status: b.status, slot_status: s.status,
-        profe_whatsapp: (pp => pp && pp.public_whatsapp !== false ? pp.phone || null : null)(db.profiles.find(p => p.id === s.profe_id)) });
+        profe_whatsapp: (pp => pp && pp.public_whatsapp !== false ? pp.phone || null : null)(db.profiles.find(p => p.id === s.profe_id)), payment_method: b.payment_method });
     },
     async book(b) {
       const s = db.slots.find(x => x.id === b.slot_id);
@@ -663,11 +698,20 @@ function demoApi() {
       if (b.people > left) return fail(`Quedan ${Math.max(left, 0)} lugares en ese horario`);
       if (db.bookings.some(x => x.slot_id === s.id && x.status !== 'cancelled' && x.customer_phone.replace(/\D/g, '').slice(-10) === digits.slice(-10)))
         return fail('Ya hay una reserva con ese WhatsApp en este horario');
+      let amount = s.price * b.people, pass = null;
+      if (b.usePass) {
+        const day = dayKey(s.starts_at);
+        pass = db.passes.filter(x => x.student_id === store.get(SKEY, null) && x.status === 'active' && x.starts_on <= day && day <= x.expires_on).sort((a, c) => a.expires_on.localeCompare(c.expires_on))[0];
+        if (!pass) return fail('No tenés un abono activo para esa fecha');
+        const left = pass.classes_total - demoUsed(pass.id);
+        if (left < b.people) return fail(`Te quedan ${left} clases en tu abono`);
+        amount = Math.round(pass.price / pass.classes_total) * b.people;
+      }
       const code = Math.random().toString(16).slice(2, 8).toUpperCase();
       db.bookings.push({ id: uid(), code, slot_id: s.id, customer_name: name, customer_phone: b.phone.trim(), customer_email: b.email || null,
-        people: b.people, amount: s.price * b.people, status: 'confirmed', paid: false, payment_method: null, notes: null, source: 'web', student_id: store.get(SKEY, null), created_at: new Date().toISOString() });
+        people: b.people, amount, status: 'confirmed', paid: !!pass, payment_method: pass ? 'abono' : null, pass_id: pass?.id || null, notes: null, source: 'web', student_id: store.get(SKEY, null), created_at: new Date().toISOString() });
       save();
-      return wait({ code, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: s.price * b.people });
+      return wait({ code, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount });
     },
     staffSlots(from, to) {
       const m = meP(); if (!m?.approved) return wait([]);
@@ -790,7 +834,9 @@ function demoSeed() {
     { id: 'st-2', email: 'mateo@gmail.com', name: 'Mateo Díaz', phone: '3415554321', avatar_url: null, bio: null, instagram: null, level: 'seguido', training: 'requested', training_note: 'Entreno con Lucas martes y jueves a la noche' },
     { id: 'st-3', email: 'cata@gmail.com', name: 'Catalina Sosa', phone: '3415551212', avatar_url: null, bio: null, instagram: null, level: 'seguido', training: 'approved' }];
   bookings.forEach(b => { if (b.customer_name === 'Sofía Gómez') b.student_id = 'st-demo'; });
-  return { profiles, class_types, slots, bookings, students };
+  const plans = [{ id: 'pl-1', name: 'Abono mensual', description: '1 clase por semana durante un mes', price: 90000, classes: 4, days_valid: 30, active: true, sort: 1 }];
+  const passes = [{ id: 'ps-demo', student_id: 'st-3', plan_id: 'pl-1', name: 'Abono mensual', price: 90000, classes_total: 4, days_valid: 30, status: 'pending', created_at: new Date().toISOString() }];
+  return { profiles, class_types, slots, bookings, students, plans, passes };
 }
 
 /* ════════════════════════════ ESTADO + RUTEO ════════════════════════════ */
@@ -834,7 +880,7 @@ async function renderPublic() {
     </div>`;
   try {
     const from = startOfDay(new Date()), to = addDays(from, CONFIG.DAYS_AHEAD);
-    [st.types, st.profes, st.pub] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to)]);
+    [st.types, st.profes, st.pub, st.plans] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => [])]);
     if ($('pub')) drawPublic();
   } catch (e) {
     if ($('pub')) $('pub').innerHTML = `<div class="card empty" style="margin-top:14px">No pudimos cargar los horarios. ${esc(errMsg(e))}</div>`;
@@ -859,8 +905,10 @@ function drawPublic() {
   if (activeTypes[0] && $('hero-facts') && !$('hero-facts').innerHTML) $('hero-facts').innerHTML = heroFacts(activeTypes[0]);
   const prof = st.profes.find(p => p.id === st.fProfe);
 
-  const mine = myUpcoming();
+  const mine = myUpcoming(), myPass = (st.myPasses || []).find(p => p.status === 'active' && p.expires_on >= dayKey(new Date()) && p.classes_total - p.used > 0) || (st.myPasses || []).find(p => p.status === 'pending');
+  const plans = (st.plans || []).filter(p => p.active);
   $('pub').innerHTML = `
+    ${myPass ? myPassCard(myPass, true) : plans.map(planCard).join('')}
     ${mine.length ? `<div class="section"><div class="label">Tus próximas clases</div><div class="mine" style="margin-top:0">${mine.map(m => `<a href="#r-${esc(m.code)}">
         <span class="t num">${hhmm(m.starts_at)}</span><span class="who"><b>${esc(fmtDayLong(m.starts_at))}</b><br><span class="muted">Reserva ${esc(m.code)}</span></span><span aria-hidden="true">›</span></a>`).join('')}</div></div>` : ''}
     ${activeTypes.length > 1 ? `<div class="section"><div class="label">Clase</div><div class="chips">
@@ -913,6 +961,8 @@ function openBooking(id) {
   const s = st.pub.find(x => x.id === id); if (!s) return;
   if (s.members_only && st.student?.training !== 'approved') return trainingInfo(s);
   const left = Math.min(s.capacity - s.booked, 10), me = st.student;
+  const pass = me ? activePassFor(s.starts_at) : null, passLeft = pass ? pass.classes_total - pass.used : 0;
+  st.bk = { price: s.price, left, pass, passLeft, perClass: pass ? Math.round(pass.price / pass.classes_total) : 0 };
   openModal(`
     <h2>Reservar</h2>
     <div class="sum">${(() => { const pr = st.profes.find(x => x.id === s.profe_id), link = profeWa(s.profe_name, pr?.whatsapp, `por la clase del ${fmtDayShort(s.starts_at)} ${hhmm(s.starts_at)}`);
@@ -923,26 +973,30 @@ function openBooking(id) {
     ${me ? `<div class="as-me">${avatarHtml(me)}<span>Reservás como <b>${esc(me.name)}</b></span></div>`
       : `<div class="quick-login"><span>¿Tenés cuenta? Reservá más rápido</span><button type="button" class="btn google sm" onclick="loginWithGoogle({ book: '${s.id}' })">${ICON.google} Google</button></div>`}
     <form onsubmit="submitBooking(event,'${s.id}')" id="bk-form">
+      ${pass ? `<label class="use-pass"><input type="checkbox" name="usePass" checked onchange="stepPeople(0)"><span><b>Usar mi abono</b><br><span class="small">Te ${passLeft === 1 ? 'queda 1 clase' : `quedan ${passLeft} clases`} · vence el ${fmtDate(pass.expires_on)}</span></span></label>` : ''}
       ${me ? `<input type="hidden" name="name" value="${esc(me.name)}">`
         : `<div class="field"><label for="bk-name">Nombre y apellido</label><input class="input" id="bk-name" name="name" required minlength="2" maxlength="80" autocomplete="name" autocapitalize="words"></div>`}
       <div class="field"><label for="bk-phone">WhatsApp</label><input class="input" id="bk-phone" name="phone" required type="tel" inputmode="tel" placeholder="341 555 1234" autocomplete="tel" maxlength="30" value="${esc(me?.phone || '')}">
         ${me && !me.phone ? '<div class="tiny muted" style="margin-top:4px">Lo guardamos en tu perfil para la próxima.</div>' : ''}</div>
       <div class="field"><span class="flabel">¿Cuántos son?</span>
-        <div class="row between"><div class="stepper"><button type="button" onclick="stepPeople(-1,${left},${s.price})" aria-label="Menos">−</button><output id="bk-people">1</output><button type="button" onclick="stepPeople(1,${left},${s.price})" aria-label="Más">+</button></div>
+        <div class="row between"><div class="stepper"><button type="button" onclick="stepPeople(-1)" aria-label="Menos">−</button><output id="bk-people">1</output><button type="button" onclick="stepPeople(1)" aria-label="Más">+</button></div>
         <span class="tiny muted">quedan ${s.capacity - s.booked}</span></div>
         <input type="hidden" name="people" value="1"></div>
       ${me ? `<input type="hidden" name="email" value="${esc(me.email || '')}">` : `<details class="field"><summary class="small muted" style="cursor:pointer">Agregar email (opcional)</summary>
         <input class="input" style="margin-top:8px" name="email" type="email" autocomplete="email" maxlength="120" aria-label="Email"></details>`}
       <p class="tiny muted">${MP_ON ? 'Después de confirmar podés pagar online con Mercado Pago, o abonar en la base el día de la clase.' : 'Se abona en la base el día de la clase (efectivo o transferencia).'} Si hay mal clima, te avisamos para reprogramar.</p>
       <div class="sheet-foot">
-        <div class="total"><span>Total</span><b class="num" id="bk-total">${money(s.price)}</b></div>
+        <div class="total"><span id="bk-total-l">${pass ? 'Con tu abono' : 'Total'}</span><b class="num" id="bk-total">${pass ? money(0) : money(s.price)}</b></div>
         <button class="btn coral block" id="bk-btn">Confirmar reserva</button>
       </div>
     </form>`);
 }
-function stepPeople(d, max, price) {
-  const f = $('bk-form'), n = Math.min(max, Math.max(1, +f.people.value + d));
-  f.people.value = n; $('bk-people').textContent = n; $('bk-total').textContent = money(price * n);
+function stepPeople(d) {
+  const f = $('bk-form'), b = st.bk, usePass = !!f.usePass?.checked;
+  const max = usePass ? Math.min(b.left, b.passLeft) : b.left, n = Math.min(max, Math.max(1, +f.people.value + d));
+  f.people.value = n; $('bk-people').textContent = n;
+  $('bk-total-l').textContent = usePass ? `Con tu abono (${n} ${n === 1 ? 'clase' : 'clases'})` : 'Total';
+  $('bk-total').textContent = money(usePass ? 0 : b.price * n);
 }
 
 async function submitBooking(ev, id) {
@@ -950,7 +1004,9 @@ async function submitBooking(ev, id) {
   const f = ev.target, btn = $('bk-btn');
   btn.disabled = true; btn.textContent = 'Reservando…';
   try {
-    const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value });
+    const usePass = !!f.usePass?.checked;
+    const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value, usePass });
+    if (usePass) st.myPasses = await api.myPasses().catch(() => st.myPasses);
     rememberBooking(r.code, r.starts_at);
     if (st.student && f.phone.value.trim() !== (st.student.phone || '')) {      // guarda el WhatsApp en su perfil
       api.updateStudent(st.student.id, { phone: f.phone.value.trim() }).then(() => { st.student.phone = f.phone.value.trim(); }).catch(() => {});
@@ -1006,7 +1062,7 @@ async function renderTicket(code) {
           <div><span>Profe</span><b>${esc(r.profe_name)}</b></div>
           <div><span>Lugar</span><b>${esc(r.location || CONFIG.LOCATION)}</b></div>
           <div><span>Personas</span><b class="num">${r.people}</b></div>
-          <div><span>Total</span><b class="num">${money(r.amount)} ${r.paid ? '· pagado ✓' : '· se paga en la base'}</b></div>
+          <div><span>Total</span><b class="num">${r.payment_method === 'abono' ? `${r.people} ${r.people > 1 ? 'clases' : 'clase'} de tu abono ✓` : `${money(r.amount)} ${r.paid ? '· pagado ✓' : '· se paga en la base'}`}</b></div>
         </div>
         <div class="code" style="margin-bottom:0">${esc(r.code)}</div>
       </div>
@@ -1053,7 +1109,7 @@ async function saveTicketImage(btn) {
     g.lineWidth = 6; g.strokeStyle = '#1f1d1e'; g.stroke();
     g.fillStyle = '#1f1d1e'; g.font = `600 52px ${disp}`; g.fillText(fmtDayLong(r.starts_at), 120, 490);
     g.font = `700 120px ${disp}`; g.fillText(`${hhmm(r.starts_at)} hs`, 116, 620);
-    const rows = [['Profe', r.profe_name], ['Lugar', r.location || CONFIG.LOCATION], ['Personas', String(r.people)], ['Total', money(r.amount) + (r.paid ? ' · pagado' : '')]];
+    const rows = [['Profe', r.profe_name], ['Lugar', r.location || CONFIG.LOCATION], ['Personas', String(r.people)], ['Total', r.payment_method === 'abono' ? `${r.people} ${r.people > 1 ? 'clases' : 'clase'} de tu abono` : money(r.amount) + (r.paid ? ' · pagado' : '')]];
     rows.forEach(([k, v], i) => {
       const y = 710 + i * 78; g.strokeStyle = '#bcd8cb'; g.lineWidth = 3; g.setLineDash([12, 10]); g.beginPath(); g.moveTo(120, y - 48); g.lineTo(W - 136, y - 48); g.stroke(); g.setLineDash([]);
       g.fillStyle = '#4a5a56'; g.font = `500 38px ${body}`; g.fillText(k, 120, y);
@@ -1113,6 +1169,55 @@ function demoMpResult(code, result) {
   showPayResult(result, code);
 }
 
+/* ── Abonos ── */
+const singlePrice = () => +(st.types.find(t => t.active && !t.members_only)?.price || 0);
+// Abono del alumno que cubre una fecha y todavía tiene clases.
+function activePassFor(dateIso) {
+  const day = dayKey(dateIso || new Date());
+  return (st.myPasses || []).filter(p => p.status === 'active' && p.starts_on <= day && day <= p.expires_on && p.classes_total - p.used > 0)
+    .sort((a, b) => a.expires_on.localeCompare(b.expires_on))[0] || null;
+}
+const fmtDate = d => new Date(d + 'T12:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
+function planCard(pl) {
+  const full = singlePrice() * pl.classes, save = full - pl.price;
+  return `<div class="plan-card rise"><span class="pc-ic" aria-hidden="true">💳</span><div class="pc-body">
+      <b class="t">${esc(pl.name)} · ${money(pl.price)}</b>
+      <div class="small">${pl.classes} clases${pl.description ? ' · ' + esc(pl.description) : ''} · ${money(Math.round(pl.price / pl.classes))} c/u</div>
+      ${save > 0 ? `<span class="save">Ahorrás ${money(save)}</span>` : ''}</div>
+    <button class="btn dark sm" onclick="wantPass('${pl.id}')">Lo quiero</button></div>`;
+}
+function myPassCard(p, compact) {
+  const left = p.classes_total - p.used;
+  if (p.status === 'pending') return `<div class="plan-card"><span class="pc-ic">⏳</span><div class="pc-body"><b class="t">${esc(p.name)}: pedido</b>
+      <div class="small">Pagalo (${money(p.price)}) y la escuela lo activa.</div></div>
+      ${CONFIG.WHATSAPP ? `<a class="btn dark sm" href="${waLink(CONFIG.WHATSAPP, `Hola! Pedí el ${p.name} (${money(p.price)}). Soy ${st.student?.name || ''}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">Pagar</a>` : ''}</div>`;
+  return `<div class="plan-card"><span class="pc-ic">💳</span><div class="pc-body"><b class="t">${esc(p.name)}: ${left} ${left === 1 ? 'clase' : 'clases'}</b>
+      <div class="pass-bar"><i style="width:${(left / p.classes_total) * 100}%"></i></div>
+      <div class="small">Usaste ${p.used} de ${p.classes_total} · vence el ${fmtDate(p.expires_on)}</div></div>
+      ${compact ? '' : '<a class="btn dark sm" href="#">Reservar</a>'}</div>`;
+}
+async function wantPass(planId) {
+  if (!st.student) return loginWithGoogle({ hash: '#perfil', plan: planId });
+  const pl = (st.plans || []).find(x => x.id === planId); if (!pl) return;
+  if ((st.myPasses || []).some(p => p.status === 'pending')) return toast('Ya tenés un pedido de abono pendiente');
+  openModal(`<h2>${esc(pl.name)}</h2>
+    <div class="sum"><div class="total" style="margin:0"><span>${pl.classes} clases para usar en ${pl.days_valid} días</span><b class="num">${money(pl.price)}</b></div></div>
+    <p class="small muted" style="margin-bottom:14px">Pedilo y pagalo por transferencia o en la base. Cuando la escuela confirme el pago, se activan tus clases y reservás con un toque, sin pagar cada vez.</p>
+    <div id="ps-err"></div>
+    <button class="btn coral block" id="ps-btn" onclick="sendPassRequest('${pl.id}')">Pedir abono</button>`);
+}
+async function sendPassRequest(planId) {
+  const pl = st.plans.find(x => x.id === planId), btn = $('ps-btn'); btn.disabled = true;
+  try {
+    await api.requestPass(planId); st.myPasses = await api.myPasses();
+    openModal(`<div style="text-align:center"><div class="big-emoji">💳</div><h2>¡Pedido enviado!</h2>
+      <p class="muted">Coordiná el pago (${money(pl.price)}) y la escuela activa tu abono.</p></div>
+      <div class="choice" style="margin-top:14px">
+        ${CONFIG.WHATSAPP ? `<a class="btn wa block" href="${waLink(CONFIG.WHATSAPP, `Hola! Pedí el ${pl.name} (${money(pl.price)}) desde la página. Soy ${st.student.name}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Coordinar el pago por WhatsApp</a>` : ''}
+        <button class="btn ghost block" onclick="closeModal();route()">Listo</button></div>`);
+  } catch (e) { $('ps-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+
 /* ── Entrenamiento: clases solo para alumnos aprobados ── */
 // En la web solo se promociona: el grupo se arma y se maneja por WhatsApp con la admin.
 function trainingPromo(t) {
@@ -1159,7 +1264,9 @@ async function cancelTrainingRequest() {
 const LEVELS = { nunca: 'Primera vez', pocas: 'Ya remé algunas veces', seguido: 'Remo seguido' };
 async function refreshAccount() {
   try { [st.student, st.me] = await Promise.all([api.student(), api.me()]); } catch { st.student = null; }
+  st.myPasses = st.student ? await api.myPasses().catch(() => []) : [];
   drawNav();
+  if ($('pub') && st.pub?.length) drawPublic();          // muestra "Tu abono" en vez de la oferta
 }
 function drawNav() {
   const a = $('nav-acct');
@@ -1178,6 +1285,7 @@ async function finishLogin() {
   await refreshAccount();
   if (!st.student && !st.me) { toast('No se pudo entrar. Probá de nuevo.'); return route(); }
   if (st.student) toast(`¡Hola, ${st.student.name.split(' ')[0]}! 👋`);
+  if (after.plan) st.resumePlan = after.plan;
   if (after.book) { st.resumeBook = after.book; history.replaceState(null, '', location.pathname); }
   else history.replaceState(null, '', location.pathname + (st.student ? after.hash || '#perfil' : '#staff'));
   route();
@@ -1199,7 +1307,7 @@ async function renderStudent() {
     return;
   }
   let list = [];
-  try { list = await api.myBookings(); } catch (e) { toast(errMsg(e)); }
+  try { [list, st.myPasses, st.plans] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans()]); } catch (e) { toast(errMsg(e)); }
   if (!$('sp')) return;
   const now = new Date(), ok = b => b.status !== 'cancelled' && b.slot_status !== 'cancelled';
   const past = list.filter(b => ok(b) && b.status !== 'no_show' && new Date(b.starts_at) < now);
@@ -1225,6 +1333,8 @@ async function renderStudent() {
       <div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost sm" onclick="editStudent()">Editar perfil</button><a class="btn coral sm" href="#">Reservar clase</a></div>
     </div>
     <div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>
+    ${(() => { const ps = (st.myPasses || []).filter(p => p.status === 'pending' || (p.status === 'active' && p.expires_on >= dayKey(new Date())));
+        return ps.length ? ps.map(p => myPassCard(p)).join('') : (st.plans || []).filter(p => p.active).map(planCard).join(''); })()}
     ${me.training === 'approved' ? '' : `<div class="train-card"><i>🏅</i><div style="flex:1">${me.training === 'requested'
         ? `<b>Pedido de entrenamiento enviado</b><div class="small">Un admin lo tiene que aprobar.</div></div><button class="btn ghost sm" style="background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px #fff" onclick="cancelTrainingRequest()">Cancelar</button>`
         : `<b>¿Entrenás con nosotros?</b><div class="small">Si ya sos del grupo, pedí tu insignia 🏅. Si te querés sumar, escribile a ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')}.</div>
@@ -1236,6 +1346,7 @@ async function renderStudent() {
       ${next.length ? `<div class="card" style="padding:4px 14px">${next.map(row).join('')}</div>` : `<div class="card empty" style="padding:18px">No tenés clases reservadas.<div style="margin-top:10px"><a class="btn coral sm" href="#">Reservar una clase</a></div></div>`}</div>
     ${list.length > next.length ? `<div class="section"><div class="label">Historial</div><div class="card" style="padding:4px 14px">${list.filter(b => !next.includes(b)).map(row).join('')}</div></div>` : ''}
     <div style="text-align:center;margin:22px 0 30px"><button class="btn ghost sm" onclick="logoutStudent()">Salir</button></div>`;
+  if (st.resumePlan) { const id = st.resumePlan; st.resumePlan = null; wantPass(id); }
 }
 function editStudent() {
   const me = st.student; st.pendingPhoto = null;
@@ -1278,20 +1389,21 @@ async function renderStaff() {
   const tabs = admin
     ? [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['resumen', 'Resumen', ICON.chart], ['profes', 'Equipo', ICON.team], ['mas', 'Más', ICON.more]]
     : [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['numeros', 'Mis números', ICON.chart], ['perfil', 'Perfil', ICON.user]];
-  const all = [...tabs.map(t => t[0]), 'clases', 'perfil'];
+  const all = [...tabs.map(t => t[0]), 'clases', 'perfil', ...(admin ? ['abonos'] : [])];
   if (!all.includes(st.tab)) st.tab = 'agenda';
-  const onTab = ['clases', 'perfil'].includes(st.tab) && admin ? 'mas' : st.tab;
+  const onTab = ['clases', 'perfil', 'abonos'].includes(st.tab) && admin ? 'mas' : st.tab;
   $('staff').innerHTML = `
     <div class="hello"><div><div class="tiny muted">${ROLES[roleKey(st.me)]} · Nativo</div><b>Hola, ${esc(st.me.name.split(' ')[0])} 👋</b></div>
       <button class="btn ghost sm" onclick="logout()">Salir</button></div>
     <div id="pane" class="pane"><div class="loading">Cargando…</div></div>
     <nav class="tabbar" aria-label="Secciones">${tabs.map(([k, l, ic]) => `<button class="${onTab === k ? 'on' : ''} ${k === 'cargar' ? 'plus' : ''}" onclick="setTab('${k}')" aria-current="${onTab === k ? 'page' : 'false'}">${ic}<span>${l}</span></button>`).join('')}</nav>`;
-  ({ resumen: paneStats, numeros: paneStats, agenda: paneAgenda, cargar: paneCreate, profes: paneProfes, clases: paneTypes, perfil: paneProfile, mas: paneMore })[st.tab]();
+  ({ resumen: paneStats, numeros: paneStats, agenda: paneAgenda, cargar: paneCreate, profes: paneProfes, clases: paneTypes, perfil: paneProfile, mas: paneMore, abonos: paneAbonos })[st.tab]();
 }
 function setTab(t) { st.tab = t; renderStaff(); window.scrollTo({ top: 0 }); }
 async function logout() { await api.signOut(); st.me = null; st.student = null; st.tab = null; drawNav(); renderStaff(); }
 function paneMore() {
   paneEl().innerHTML = `<div class="menu">
+    <button class="btn ghost block" onclick="setTab('abonos')"><span>💳 Abonos</span><span>›</span></button>
     <button class="btn ghost block" onclick="setTab('clases')"><span>Precio y cupo de la clase</span><span>›</span></button>
     <button class="btn ghost block" onclick="setTab('perfil')"><span>Mi perfil</span><span>›</span></button>
     <a class="btn ghost block" href="#"><span>Ver la página de reservas</span><span>›</span></a>
@@ -1300,7 +1412,7 @@ function paneMore() {
 
 function drawLogin(mode = 'in') {
   if (api.demo) {
-    const db = store.get('nativo_demo_v7', { profiles: [] });
+    const db = store.get('nativo_demo_v8', { profiles: [] });
     $('staff').innerHTML = `<div class="card" style="max-width:440px;margin:24px auto">
       <h2>Entrar (demo)</h2><p class="small muted" style="margin-bottom:12px">En la versión real cada profe entra con su email y contraseña. Acá elegí con quién probar:</p>
       <div style="display:grid;gap:8px">${db.profiles.map(p => `<button class="btn ghost" style="justify-content:space-between" onclick="api.loginAs('${p.id}')">
@@ -1428,7 +1540,7 @@ function bookingRow(s, b) {
       <button class="tog ${b.paid ? 'yes' : 'pay'}" onclick="payMenu('${b.id}')">${b.paid ? '✓ ' + esc(PAY_SHORT[b.payment_method] || 'Pagó') : 'Cobrar'}</button></div>`}
   </div>`;
 }
-const PAY_SHORT = { efectivo: 'Efectivo', transferencia: 'Transf.', mercadopago: 'MP' };
+const PAY_SHORT = { efectivo: 'Efectivo', transferencia: 'Transf.', mercadopago: 'MP', abono: 'Abono' };
 const cap = w => String(w).charAt(0).toUpperCase() + String(w).slice(1);
 const findBooking = id => { for (const s of [...st.staffSlots, ...(st.unpaidSlots || [])]) { const b = s.bookings.find(x => x.id === id); if (b) return { s, b }; } return {}; };
 // Asistencia: un toque cicla  sin marcar → vino → faltó → sin marcar
@@ -1439,6 +1551,8 @@ function toggleCame(id) {
 }
 function payMenu(id) {
   const { s, b } = findBooking(id); if (!b) return;
+  if (b.payment_method === 'abono') return openModal(`<h2>Pagada con abono 💳</h2><p class="muted">${esc(b.customer_name)} usó ${b.people} ${b.people > 1 ? 'clases' : 'clase'} de su abono (${money(b.amount)}). No hay que cobrarle. Si se cancela la reserva, la clase vuelve a su abono.</p>
+    <button class="btn ghost block" style="margin-top:14px" onclick="closeModal()">Listo</button>`);
   openModal(`<h2>Cobro</h2>
     <div class="sum"><b>${esc(b.customer_name)}</b>${b.people > 1 ? ` ×${b.people}` : ''} · ${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)}
       <div class="total" style="margin:6px 0 0"><span>Monto</span><b class="num">${money(b.amount)}</b></div></div>
@@ -1699,7 +1813,8 @@ async function paneStats() {
   const [y, m] = st.month.split('-').map(Number);
   const from = new Date(y, m - 1, 1), to = new Date(y, m, 1);
   let past = [];
-  try { [st.staffSlots, past] = await Promise.all([api.staffSlots(from, to), api.staffSlots(addDays(new Date(), -120), new Date())]); }
+  let soldPasses = [];
+  try { [st.staffSlots, past, soldPasses] = await Promise.all([api.staffSlots(from, to), api.staffSlots(addDays(new Date(), -120), new Date()), isAdmin ? api.adminPasses().catch(() => []) : []]); }
   catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const { tot, by, byType, bySrc } = computeStats(st.staffSlots);
   // No cobrados: clases que ya pasaron, alumno que vino (o no se marcó), sin pago marcado.
@@ -1722,7 +1837,8 @@ async function paneStats() {
       <button class="icon-btn" onclick="shiftMonth(1)" aria-label="Mes siguiente">›</button>
     </div>
     <div class="kpis">${isAdmin
-      ? k('Cobrado', money(tot.cobrado), 1) + (mine ? k('Tu parte como profe', money(mine.profe)) : '') + k('A pagar a profes', money(tot.profe)) + k('Neto escuela', money(tot.cobrado - tot.profe)) + k('Por cobrar', money(tot.porCobrar))
+      ? k('Cobrado', money(tot.cobrado), 1) + (soldPasses.some(p => p.paid_at && new Date(p.paid_at) >= from && new Date(p.paid_at) < to)
+          ? k('Abonos vendidos', money(soldPasses.filter(p => p.paid_at && new Date(p.paid_at) >= from && new Date(p.paid_at) < to && p.status !== 'cancelled').reduce((a, p) => a + +p.price, 0))) : '') + (mine ? k('Tu parte como profe', money(mine.profe)) : '') + k('A pagar a profes', money(tot.profe)) + k('Neto escuela', money(tot.cobrado - tot.profe)) + k('Por cobrar', money(tot.porCobrar))
         + k('Clases dadas', tot.clases) + k('Alumnos', tot.alumnos) + k('Ocupación', pct(tot.alumnos / tot.cupo)) + k('Ausentes', tot.noShow)
       : k(`Mi parte (${myPct})`, money(tot.profe), 1) + k('Cobrado en mis clases', money(tot.cobrado)) + k('Por cobrar', money(tot.porCobrar))
         + k('Clases dadas', tot.clases) + k('Alumnos', tot.alumnos) + k('Ocupación', pct(tot.alumnos / tot.cupo))}</div>
@@ -1909,6 +2025,77 @@ async function saveProfileForm(ev, id, admin) {
     st.pendingPhoto = null; toast('Perfil guardado ✓');
     if (admin) { closeModal(); if (id === st.me.id) renderStaff(); else paneProfes(); } else renderStaff();
   } catch (e) { $('pf-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; btn.textContent = 'Guardar'; }
+}
+
+/* ── Abonos (admin) ── */
+async function paneAbonos() {
+  let passes = [], plans = [], students = [];
+  try { [passes, plans, students] = await Promise.all([api.adminPasses(), api.plans(), api.students()]); }
+  catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  st.adminPasses = passes; st.plans = plans;
+  const today = dayKey(new Date());
+  const pend = passes.filter(p => p.status === 'pending');
+  const act = passes.filter(p => p.status === 'active' && p.expires_on >= today && p.used < p.classes_total);
+  const done = passes.filter(p => p.status === 'cancelled' || (p.status === 'active' && (p.expires_on < today || p.used >= p.classes_total)));
+  const who = p => `${avatarHtml({ name: p.student_name, avatar_url: p.student_avatar })}<span class="who"><b>${esc(p.student_name)}</b>`;
+  const planRow = pl => `<tr data-id="${pl.id || ''}">
+    <td><input class="input sm" style="min-width:140px;width:100%" data-k="name" value="${esc(pl.name || '')}" placeholder="Nombre"></td>
+    <td><input class="input sm" style="width:100px" data-k="price" type="number" min="0" step="1000" value="${+pl.price || 0}"></td>
+    <td><input class="input sm" style="width:60px" data-k="classes" type="number" min="1" value="${pl.classes || 4}"></td>
+    <td><input class="input sm" style="width:60px" data-k="days_valid" type="number" min="1" value="${pl.days_valid || 30}"></td>
+    <td><input class="input sm" style="min-width:160px;width:100%" data-k="description" value="${esc(pl.description || '')}" placeholder="1 clase por semana"></td>
+    <td><input type="checkbox" data-k="active" ${pl.active !== false ? 'checked' : ''}></td>
+    <td><button class="btn sm" onclick="savePlanRow(this)">Guardar</button></td></tr>`;
+  paneEl().innerHTML = `
+    ${pend.length ? `<div class="card unpaid"><h2>Pedidos <span class="pill warn">${pend.length}</span></h2>
+      <p class="small muted" style="margin-bottom:4px">Confirmá cuando te paguen: el abono se activa desde hoy.</p>
+      ${pend.map(p => `<div class="prow" style="cursor:default;flex-wrap:wrap">${who(p)}<span>${esc(p.name)} · ${money(p.price)}</span></span>
+        <span class="row" style="flex:none">${p.student_phone ? contactBtn(p.student_phone, `Hola ${p.student_name.split(' ')[0]}! Te escribo de Nativo por tu ${p.name}.`) : ''}
+          <button class="btn sm" onclick="confirmPass('${p.id}')">Cobrado</button><button class="btn ghost sm" onclick="dropPass('${p.id}')" aria-label="Rechazar">✕</button></span></div>`).join('')}</div>` : ''}
+    <div class="card"><h2>Abonos activos (${act.length})</h2>
+      ${act.length ? act.map(p => `<div class="prow" style="cursor:default">${who(p)}<span>${p.classes_total - p.used} de ${p.classes_total} clases · vence ${fmtDate(p.expires_on)}</span>
+          <span class="pass-bar" style="margin:6px 0 0;height:6px"><i style="width:${((p.classes_total - p.used) / p.classes_total) * 100}%"></i></span></span>
+        <button class="btn ghost sm" onclick="dropPass('${p.id}', true)">Anular</button></div>`).join('') : '<p class="muted small">Todavía no hay abonos activos.</p>'}
+      ${students.length && plans.length ? `<div class="label" style="margin-top:14px">Dar un abono a un alumno</div>
+        <div class="grid2"><select class="input" id="gp-student"><option value="">Alumno…</option>${students.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
+          <select class="input" id="gp-plan">${plans.filter(x => x.active).map(x => `<option value="${x.id}">${esc(x.name)} · ${money(x.price)}</option>`).join('')}</select></div>
+        <div class="seg" style="margin:10px 0">${METHODS.map((m, i) => `<label><input type="radio" name="gp-method" value="${m}" ${i ? '' : 'checked'}>${cap(m)}</label>`).join('')}</div>
+        <button class="btn coral block" onclick="givePass()">Dar abono (ya pagó)</button>
+        <p class="tiny muted" style="margin-top:6px">Aparecen los alumnos que ya entraron con Google.</p>` : ''}
+    </div>
+    ${done.length ? `<details class="card more"><summary>Vencidos, usados o anulados (${done.length})</summary>
+      ${done.map(p => `<div class="prow" style="cursor:default">${who(p)}<span>${esc(p.name)} · ${p.used}/${p.classes_total} · ${p.status === 'cancelled' ? 'anulado' : p.used >= p.classes_total ? 'usado completo' : 'venció ' + fmtDate(p.expires_on)}</span></span></div>`).join('')}</details>` : ''}
+    <div class="card"><h2>Planes</h2>
+      <p class="small muted" style="margin-bottom:10px">Lo que se ofrece en la página. Cada clase del abono vale precio ÷ clases (ej. ${money(90000)} ÷ 4 = ${money(22500)}), y con eso se calcula la parte del profe. Cambiar un plan no modifica abonos ya vendidos.</p>
+      <div class="tbl-wrap"><table><tr><th>Nombre</th><th>Precio</th><th>Clases</th><th>Días</th><th>Descripción</th><th>Activo</th><th></th></tr>
+      ${plans.map(planRow).join('')}${planRow({ sort: plans.length + 1 })}</table></div></div>`;
+}
+async function savePlanRow(btn) {
+  const tr = btn.closest('tr'), g = k => tr.querySelector(`[data-k=${k}]`);
+  const pl = { name: g('name').value.trim(), price: +g('price').value, classes: +g('classes').value, days_valid: +g('days_valid').value, description: g('description').value.trim() || null, active: g('active').checked };
+  if (!pl.name) return toast('Poné un nombre');
+  if (!(pl.classes > 0) || !(pl.days_valid > 0)) return toast('Revisá clases y días');
+  if (tr.dataset.id) pl.id = tr.dataset.id; else pl.sort = (st.plans || []).length + 1;
+  try { await api.savePlan(pl); toast('Plan guardado ✓'); paneAbonos(); } catch (e) { toast(errMsg(e)); }
+}
+function confirmPass(id) {
+  const p = st.adminPasses.find(x => x.id === id);
+  openModal(`<h2>Cobrar ${esc(p.name)}</h2><div class="sum"><b>${esc(p.student_name)}</b><div class="total" style="margin:6px 0 0"><span>Monto</span><b class="num">${money(p.price)}</b></div></div>
+    <div class="label">¿Cómo pagó?</div>
+    <div class="choice">${METHODS.map(m => `<button class="btn ghost block" onclick="doConfirmPass('${id}','${m}')">${cap(m)}</button>`).join('')}</div>`);
+}
+async function doConfirmPass(id, m) {
+  try { await api.activatePass(id, m); closeModal(); toast('Abono activado ✓'); paneAbonos(); } catch (e) { toast(errMsg(e)); }
+}
+async function dropPass(id, active) {
+  const p = st.adminPasses.find(x => x.id === id);
+  if (!await askConfirm(active ? `¿Anular el abono de ${p.student_name}? Le quedan ${p.classes_total - p.used} clases sin usar.` : `¿Rechazar el pedido de ${p.student_name}?`, active ? 'Anular' : 'Rechazar')) return;
+  try { await api.cancelPass(id); toast('Listo'); paneAbonos(); } catch (e) { toast(errMsg(e)); }
+}
+async function givePass() {
+  const sid = $('gp-student').value, pid = $('gp-plan').value, m = document.querySelector('[name=gp-method]:checked')?.value || 'efectivo';
+  if (!sid) return toast('Elegí un alumno');
+  try { await api.grantPass(sid, pid, m); toast('Abono dado ✓'); paneAbonos(); } catch (e) { toast(errMsg(e)); }
 }
 
 /* ── Tipos de clase (admin) ── */

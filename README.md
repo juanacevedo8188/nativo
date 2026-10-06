@@ -39,6 +39,12 @@ Configuración (una vez):
 4. Supabase → *Authentication → Sign In / Providers* → **"Allow new users to sign up" activado** (si no, los alumnos no pueden crear su cuenta).
 5. Supabase → *Authentication → URL Configuration → Redirect URLs* → agregá `https://tu-sitio.vercel.app/**`.
 
+## Abonos (paquete de clases)
+- *Más → 💳 Abonos → Planes*: nombre, precio, clases y días de vigencia (arranca con "Abono mensual · $90.000 · 4 clases · 30 días"). La oferta se muestra en la página con lo que se ahorra frente a clases sueltas.
+- El alumno (con cuenta de Google) lo pide desde la página o su perfil y coordina el pago por WhatsApp; el admin lo confirma en *Abonos → Pedidos → Cobrado* (se activa desde ese día) o lo da directo a un alumno.
+- Al reservar, el alumno con abono ve "Usar mi abono (te quedan N)" y paga $0. Cada clase del abono vale precio ÷ clases (ej. $22.500) y con eso se calcula la parte del profe y el "Cobrado". Cancelar la reserva devuelve la clase al abono. El Resumen muestra aparte "Abonos vendidos".
+- Todo lo controla la base: `request_pass`, `activate_pass`, `grant_pass`, `cancel_pass`, `my_passes`, `admin_passes` y `book_slot(..., p_use_pass)`.
+
 ## Entrenamiento
 - En *Más → Precio y cupo* marcá el tipo de clase como **Solo entren.** y usá la descripción para días y horarios. Esas clases **no se publican en la web** (`public_slots` las excluye): se ven solo en la agenda de los profes, que anotan a los chicos con "+ Anotar alumno".
 - En la página aparece una tarjeta de promoción con el WhatsApp de contacto (`CONFIG.TRAINING_CONTACT`, hoy Torita) para pedir info y sumarse.

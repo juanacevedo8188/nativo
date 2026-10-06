@@ -109,6 +109,37 @@ alter table public.students    add column if not exists training text not null d
 alter table public.students    add column if not exists training_note text;
 alter table public.students    drop constraint if exists students_training_check;
 alter table public.students    add constraint students_training_check check (training in ('none', 'requested', 'approved'));
+
+-- Abonos: el alumno paga un plan (ej. $90.000 = 4 clases en 30 días) y reserva con esas clases.
+create table if not exists public.plans (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  description text,
+  price       numeric(12,2) not null default 0 check (price >= 0),
+  classes     int not null default 4 check (classes > 0),
+  days_valid  int not null default 30 check (days_valid > 0),
+  active      boolean not null default true,
+  sort        int not null default 0,
+  created_at  timestamptz not null default now()
+);
+create table if not exists public.passes (
+  id             uuid primary key default gen_random_uuid(),
+  student_id     uuid not null references public.students(id) on delete cascade,
+  plan_id        uuid references public.plans(id) on delete set null,
+  name           text not null,                      -- copia del plan al momento de comprarlo
+  price          numeric(12,2) not null,
+  classes_total  int not null check (classes_total > 0),
+  days_valid     int not null default 30,
+  status         text not null default 'pending' check (status in ('pending', 'active', 'cancelled')),
+  starts_on      date,
+  expires_on     date,
+  payment_method text,
+  paid_at        timestamptz,
+  created_at     timestamptz not null default now()
+);
+create index if not exists passes_student_idx on public.passes (student_id);
+-- La reserva hecha con abono queda vinculada (cancelarla devuelve la clase al abono).
+alter table public.bookings add column if not exists pass_id uuid references public.passes(id) on delete set null;
 create index if not exists bookings_student_idx on public.bookings (student_id);
 -- Pago online: id del pago de Mercado Pago (lo completa el webhook, nunca el navegador).
 alter table public.bookings add column if not exists mp_payment_id text;
@@ -249,8 +280,10 @@ language sql stable security definer set search_path = public as $fn$
 $fn$;
 
 -- Reserva: valida datos y cupo con el horario bloqueado (FOR UPDATE).
+-- p_use_pass: el alumno con cuenta paga con su abono (descuenta clases, queda pagada).
+drop function if exists public.book_slot(uuid, text, text, text, int);
 create or replace function public.book_slot(
-  p_slot uuid, p_name text, p_phone text, p_email text default null, p_people int default 1
+  p_slot uuid, p_name text, p_phone text, p_email text default null, p_people int default 1, p_use_pass boolean default false
 )
 returns table (code text, starts_at timestamptz, title text, profe_name text, people int, amount numeric)
 language plpgsql security definer set search_path = public as $fn$
@@ -260,6 +293,10 @@ declare
   v_booked int;
   v_code   text;
   v_digits text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  v_pass   passes;
+  v_left   int;
+  v_amount numeric;
+  v_day    date;
 begin
   p_name  := btrim(coalesce(p_name, ''));
   p_phone := btrim(coalesce(p_phone, ''));
@@ -302,15 +339,28 @@ begin
     raise exception 'Ya hay una reserva con ese WhatsApp en este horario';
   end if;
 
-  insert into bookings (slot_id, customer_name, customer_phone, customer_email, people, amount, student_id)
-  values (p_slot, p_name, p_phone, p_email, p_people, s.price * p_people,
-          (select st.id from students st where st.id = auth.uid()))   -- si reservó con su cuenta
+  v_amount := s.price * p_people;
+  if p_use_pass then
+    v_day := (s.starts_at at time zone 'America/Argentina/Buenos_Aires')::date;
+    select ps.* into v_pass from passes ps
+    where ps.student_id = auth.uid() and ps.status = 'active' and v_day between ps.starts_on and ps.expires_on
+    order by ps.expires_on limit 1 for update;
+    if not found then raise exception 'No tenés un abono activo para esa fecha'; end if;
+    v_left := v_pass.classes_total - coalesce((select sum(b.people) from bookings b where b.pass_id = v_pass.id and b.status <> 'cancelled'), 0);
+    if v_left < p_people then raise exception 'Te quedan % clases en tu abono', v_left; end if;
+    v_amount := round(v_pass.price / v_pass.classes_total) * p_people;   -- valor de cada clase del abono
+  end if;
+
+  insert into bookings (slot_id, customer_name, customer_phone, customer_email, people, amount, student_id, pass_id, paid, payment_method)
+  values (p_slot, p_name, p_phone, p_email, p_people, v_amount,
+          (select st.id from students st where st.id = auth.uid()),   -- si reservó con su cuenta
+          v_pass.id, p_use_pass, case when p_use_pass then 'abono' end)
   returning bookings.code into v_code;
 
   return query
     select v_code, s.starts_at, s.title,
            (select pr.name from profiles pr where pr.id = s.profe_id),
-           p_people, s.price * p_people;
+           p_people, v_amount;
 end $fn$;
 
 -- "Mi reserva": el alumno ve su reserva con el código (link nativo…/#r-CÓDIGO).
@@ -320,12 +370,12 @@ create or replace function public.booking_by_code(p_code text)
 returns table (
   code text, first_name text, title text, starts_at timestamptz, duration_min int,
   location text, profe_name text, people int, amount numeric, paid boolean,
-  status text, slot_status text, profe_whatsapp text
+  status text, slot_status text, profe_whatsapp text, payment_method text
 )
 language sql stable security definer set search_path = public as $fn$
   select b.code, split_part(btrim(b.customer_name), ' ', 1), s.title, s.starts_at, s.duration_min,
          s.location, p.name, b.people, b.amount, b.paid, b.status, s.status,
-         case when p.public_whatsapp then nullif(btrim(p.phone), '') end
+         case when p.public_whatsapp then nullif(btrim(p.phone), '') end, b.payment_method
   from bookings b
   join slots s on s.id = b.slot_id
   join profiles p on p.id = s.profe_id
@@ -393,15 +443,98 @@ end $fn$;
 revoke all on function public.delete_slot(uuid, boolean) from public;
 grant execute on function public.delete_slot(uuid, boolean) to authenticated;
 
+-- ── Abonos ──
+-- Clases usadas de un abono = personas de sus reservas no canceladas.
+create or replace function public.pass_used(p_pass uuid) returns int
+language sql stable security definer set search_path = public as $fn$
+  select coalesce(sum(b.people), 0)::int from bookings b where b.pass_id = p_pass and b.status <> 'cancelled';
+$fn$;
+
+-- El alumno pide un abono (queda pendiente hasta que un admin confirme el pago).
+create or replace function public.request_pass(p_plan uuid) returns uuid
+language plpgsql security definer set search_path = public as $fn$
+declare pl plans; v_id uuid;
+begin
+  if not exists (select 1 from students where id = auth.uid()) then raise exception 'Entrá con tu cuenta para pedir un abono'; end if;
+  select * into pl from plans where id = p_plan and active;
+  if not found then raise exception 'Ese abono ya no está disponible'; end if;
+  if exists (select 1 from passes where student_id = auth.uid() and status = 'pending') then
+    raise exception 'Ya tenés un pedido de abono pendiente';
+  end if;
+  insert into passes (student_id, plan_id, name, price, classes_total, days_valid)
+  values (auth.uid(), pl.id, pl.name, pl.price, pl.classes, pl.days_valid) returning id into v_id;
+  return v_id;
+end $fn$;
+
+-- Abonos del alumno logueado (perfil y reserva).
+create or replace function public.my_passes()
+returns table (id uuid, name text, price numeric, classes_total int, used int, status text, starts_on date, expires_on date)
+language sql stable security definer set search_path = public as $fn$
+  select ps.id, ps.name, ps.price, ps.classes_total, pass_used(ps.id), ps.status, ps.starts_on, ps.expires_on
+  from passes ps where ps.student_id = auth.uid() and ps.status <> 'cancelled'
+  order by ps.created_at desc;
+$fn$;
+
+-- Admin: todos los abonos con alumno y clases usadas.
+create or replace function public.admin_passes()
+returns table (id uuid, student_id uuid, student_name text, student_avatar text, student_phone text, name text, price numeric,
+               classes_total int, used int, status text, starts_on date, expires_on date, payment_method text, paid_at timestamptz, created_at timestamptz)
+language plpgsql stable security definer set search_path = public as $fn$
+begin
+  if not is_admin() then raise exception 'Solo un admin puede ver los abonos'; end if;
+  return query
+    select ps.id, ps.student_id, st.name, st.avatar_url, st.phone, ps.name, ps.price, ps.classes_total, pass_used(ps.id),
+           ps.status, ps.starts_on, ps.expires_on, ps.payment_method, ps.paid_at, ps.created_at
+    from passes ps join students st on st.id = ps.student_id
+    order by ps.created_at desc;
+end $fn$;
+
+-- Admin: confirmar el pago (activa el abono desde hoy) o dar uno directo a un alumno.
+create or replace function public.activate_pass(p_pass uuid, p_method text) returns void
+language plpgsql security definer set search_path = public as $fn$
+declare v_today date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+begin
+  if not is_admin() then raise exception 'Solo un admin puede confirmar abonos'; end if;
+  update passes set status = 'active', payment_method = p_method, paid_at = now(),
+                    starts_on = v_today, expires_on = v_today + days_valid - 1
+  where id = p_pass and status = 'pending';
+  if not found then raise exception 'Ese pedido ya no está pendiente'; end if;
+end $fn$;
+
+create or replace function public.grant_pass(p_student uuid, p_plan uuid, p_method text) returns uuid
+language plpgsql security definer set search_path = public as $fn$
+declare pl plans; v_id uuid; v_today date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+begin
+  if not is_admin() then raise exception 'Solo un admin puede dar abonos'; end if;
+  select * into pl from plans where id = p_plan;
+  if not found then raise exception 'Ese plan no existe'; end if;
+  insert into passes (student_id, plan_id, name, price, classes_total, days_valid, status, starts_on, expires_on, payment_method, paid_at)
+  values (p_student, pl.id, pl.name, pl.price, pl.classes, pl.days_valid, 'active', v_today, v_today + pl.days_valid - 1, p_method, now())
+  returning id into v_id;
+  return v_id;
+end $fn$;
+
+create or replace function public.cancel_pass(p_pass uuid) returns void
+language plpgsql security definer set search_path = public as $fn$
+begin
+  if not is_admin() then raise exception 'Solo un admin puede anular abonos'; end if;
+  update passes set status = 'cancelled' where id = p_pass;
+end $fn$;
+
+revoke all on function public.pass_used(uuid), public.request_pass(uuid), public.my_passes(), public.admin_passes(),
+                       public.activate_pass(uuid, text), public.grant_pass(uuid, uuid, text), public.cancel_pass(uuid) from public;
+grant execute on function public.request_pass(uuid), public.my_passes(), public.admin_passes(),
+                          public.activate_pass(uuid, text), public.grant_pass(uuid, uuid, text), public.cancel_pass(uuid) to authenticated;
+
 revoke all on function public.delete_suspended_slot(uuid) from public;
 grant execute on function public.delete_suspended_slot(uuid) to authenticated;
 
 revoke all on function public.public_slots(timestamptz, timestamptz) from public;
 revoke all on function public.public_profes() from public;
-revoke all on function public.book_slot(uuid, text, text, text, int) from public;
+revoke all on function public.book_slot(uuid, text, text, text, int, boolean) from public;
 grant execute on function public.public_slots(timestamptz, timestamptz) to anon, authenticated;
 grant execute on function public.public_profes() to anon, authenticated;
-grant execute on function public.book_slot(uuid, text, text, text, int) to anon, authenticated;
+grant execute on function public.book_slot(uuid, text, text, text, int, boolean) to anon, authenticated;
 
 -- ───────────────────────────── 5) Permisos (RLS) ─────────────────────────────
 
@@ -445,6 +578,17 @@ end $fn$;
 drop trigger if exists students_guard on public.students;
 create trigger students_guard before update on public.students
   for each row execute function public.students_guard();
+
+-- plans: lectura pública de los activos (la oferta en la página); solo admin edita.
+alter table public.plans  enable row level security;
+alter table public.passes enable row level security;
+drop policy if exists "plans select" on public.plans;
+create policy "plans select" on public.plans for select to anon, authenticated using (active or is_admin());
+drop policy if exists "plans admin" on public.plans;
+create policy "plans admin" on public.plans for all to authenticated using (is_admin()) with check (is_admin());
+-- passes: el alumno ve los suyos; todo lo demás pasa por las funciones de arriba.
+drop policy if exists "passes select" on public.passes;
+create policy "passes select" on public.passes for select to authenticated using (student_id = auth.uid() or is_admin());
 
 -- class_types: lectura pública de las activas; solo admin edita.
 drop policy if exists "class_types select" on public.class_types;
@@ -515,6 +659,11 @@ select * from (values
   ('Clase de iniciación', 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', 60, 30000, 4, 1)
 ) v(name, description, duration_min, price, capacity, sort)
 where not exists (select 1 from public.class_types);
+
+-- Abono de ejemplo (editable en la página: Más → Abonos).
+insert into public.plans (name, description, price, classes, days_valid, sort)
+select 'Abono mensual', '1 clase por semana durante un mes', 90000, 4, 30, 1
+where not exists (select 1 from public.plans);
 
 -- ───────────────────────────── 7) Primer admin ─────────────────────────────
 -- Después de crear tu cuenta desde la página (Profes → pedí acceso acá),
