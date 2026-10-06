@@ -317,7 +317,8 @@ const CONFIG = {
   SUPABASE_URL: 'https://teoqnlebaglaewbbuyai.supabase.co',
   SUPABASE_KEY: 'sb_publishable_BvtrAZgX3iBzmlldYITJLQ_Q3PqTKXz',
   WHATSAPP: '5493364386564',        // WhatsApp de la escuela: 549 + característica + número, sin 15 (vacío = no se muestra)
-  LOCATION: 'Base Nativo',          // lugar por defecto de las clases
+  LOCATION: 'Guardería Barlovento, Rosario',  // lugar por defecto de las clases
+  MAPS: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Guardería Barlovento Rosario'),  // botón "Cómo llegar"
   DAYS_AHEAD: 21,                   // cuántos días hacia adelante se pueden reservar
   // Pago online con Mercado Pago (Checkout Pro). Requiere las funciones de /api (Vercel)
   // y sus variables de entorno (ver README). En modo demo se simula.
@@ -764,7 +765,7 @@ function openBooking(id) {
     <h2>Reservar</h2>
     <div class="sum"><b>${esc(s.title)}</b> con ${esc(s.profe_name)}<br>
       <span>${esc(fmtDayLong(s.starts_at))}</span> · <b class="num">${hhmm(s.starts_at)}</b> a ${hhmm(addMin(s.starts_at, s.duration_min))}
-      ${s.location ? `<br><span class="muted">${esc(s.location)}</span>` : ''}</div>
+      ${s.location ? `<br><span class="muted">${esc(s.location)}</span>${CONFIG.MAPS ? ` · <a href="${CONFIG.MAPS}" target="_blank" rel="noopener">Ver mapa</a>` : ''}` : ''}</div>
     <div id="bk-err"></div>
     <form onsubmit="submitBooking(event,'${s.id}')" id="bk-form">
       <div class="field"><label for="bk-name">Nombre y apellido</label><input class="input" id="bk-name" name="name" required minlength="2" maxlength="80" autocomplete="name" autocapitalize="words"></div>
@@ -804,6 +805,7 @@ async function submitBooking(ev, id) {
       <div style="display:grid;gap:8px;margin-top:16px">
         ${MP_ON && r.amount > 0 ? `<button class="btn mp" onclick="payBooking('${r.code}', this)">Pagar ahora con Mercado Pago</button><div id="pay-err"></div>` : ''}
         <a class="btn ${MP_ON ? 'ghost' : ''}" href="${cal}" target="_blank" rel="noopener">Agregar a mi calendario</a>
+        ${CONFIG.MAPS ? `<a class="btn ghost" href="${CONFIG.MAPS}" target="_blank" rel="noopener">Cómo llegar · ${esc(CONFIG.LOCATION)}</a>` : ''}
         ${CONFIG.WHATSAPP ? `<a class="btn ghost" href="${waLink(CONFIG.WHATSAPP, `Hola! Reservé ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}. Código ${r.code}`)}" target="_blank" rel="noopener">Avisar o cambiar por WhatsApp</a>` : ''}
         <button class="btn ghost" onclick="closeModal();renderPublic()">Listo</button>
       </div>`);
