@@ -1332,7 +1332,7 @@ function bookingRow(s, b) {
     ${contactBtn(b.customer_phone, msg)}
     <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${b.student?.avatar_url ? `<img class="mini-av" src="${esc(b.student.avatar_url)}" alt="">` : ''}${esc(b.customer_name)}${b.people > 1 ? ` ×${b.people}` : ''}</b>
       <span>${x ? 'Cancelada' : money(b.amount)}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</span></div>
-    ${x ? '' : `<div class="acts">
+    ${x ? (b.paid ? `<div class="acts"><button class="tog yes" onclick="payMenu('${b.id}')">✓ Cobrada · ¿devolver?</button></div>` : '') : `<div class="acts">
       ${isPast(s) ? `<button class="tog ${came ? 'yes' : miss ? 'no' : ''}" onclick="toggleCame('${b.id}')">${came ? '✓ Vino' : miss ? 'Faltó' : 'Vino?'}</button>` : ''}
       <button class="tog ${b.paid ? 'yes' : 'pay'}" onclick="payMenu('${b.id}')">${b.paid ? '✓ ' + esc(PAY_SHORT[b.payment_method] || 'Pagó') : 'Cobrar'}</button></div>`}
   </div>`;
@@ -1390,16 +1390,32 @@ async function cancelSlot(id) {
   catch (e) { toast(errMsg(e)); }
 }
 async function deleteSuspended(id) {
-  if (!await askConfirm('¿Borrar esta clase suspendida? Se borran también sus reservas canceladas.', 'Borrar')) return;
-  try { await api.deleteSuspended(id); toast('Clase borrada'); paneAgenda(); } catch (e) { toast(errMsg(e)); }
+  const s = st.staffSlots.find(x => x.id === id); if (!s) return;
+  const paid = s.bookings.filter(b => b.paid);
+  const total = paid.reduce((a, b) => a + +b.amount, 0);
+  const msg = paid.length
+    ? `Esta clase tiene ${paid.length} ${paid.length === 1 ? 'reserva cobrada' : 'reservas cobradas'} (${money(total)}): ${paid.map(b => b.customer_name).join(', ')}.\n\nSi ya les devolviste la plata, la marcamos como devuelta y borramos la clase.`
+    : '¿Borrar esta clase suspendida? Se borran también sus reservas canceladas.';
+  if (!await askConfirm(msg, paid.length ? 'Ya devolví, borrar' : 'Borrar')) return;
+  try {
+    for (const b of paid) await api.updateBooking(b.id, { paid: false, payment_method: null, notes: `Devuelto ${money(b.amount)} (clase suspendida)` });
+    await api.deleteSuspended(id); toast('Clase borrada'); paneAgenda();
+  } catch (e) { toast(errMsg(e)); paneAgenda(); }
 }
 async function deleteAllSuspended() {
-  const ids = st.staffSlots.filter(s => s.status === 'cancelled' && (!st.agendaProfe || s.profe_id === st.agendaProfe)).map(s => s.id);
-  if (!ids.length || !await askConfirm(`¿Borrar ${ids.length} ${ids.length === 1 ? 'clase suspendida' : 'clases suspendidas'}? Se borran también sus reservas canceladas.`, 'Borrar todas')) return;
-  let ok = 0, skipped = 0;
-  for (const id of ids) { try { await api.deleteSuspended(id); ok++; } catch { skipped++; } }
+  const slots = st.staffSlots.filter(s => s.status === 'cancelled' && (!st.agendaProfe || s.profe_id === st.agendaProfe));
+  const paid = slots.flatMap(s => s.bookings.filter(b => b.paid));
+  if (!slots.length || !await askConfirm(`¿Borrar ${slots.length} ${slots.length === 1 ? 'clase suspendida' : 'clases suspendidas'}? Se borran también sus reservas canceladas.`
+    + (paid.length ? `\n\nOjo: ${paid.length} ${paid.length === 1 ? 'reserva estaba cobrada' : 'reservas estaban cobradas'} (${money(paid.reduce((a, b) => a + +b.amount, 0))}). Borrá solo si ya devolviste la plata.` : ''), paid.length ? 'Ya devolví, borrar todas' : 'Borrar todas')) return;
+  let ok = 0, fail = '';
+  for (const s of slots) {
+    try {
+      for (const b of s.bookings.filter(x => x.paid)) await api.updateBooking(b.id, { paid: false, payment_method: null, notes: `Devuelto ${money(b.amount)} (clase suspendida)` });
+      await api.deleteSuspended(s.id); ok++;
+    } catch (e) { fail = errMsg(e); }
+  }
   st.showSusp = false;
-  toast(`${ok} borradas${skipped ? ` · ${skipped} con reservas cobradas quedaron` : ''}`);
+  toast(fail ? `${ok} borradas · error: ${fail}` : `${ok} ${ok === 1 ? 'clase borrada' : 'clases borradas'} ✓`);
   paneAgenda();
 }
 async function delSlot(id) {
