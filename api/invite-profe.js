@@ -2,14 +2,12 @@
 // Crea la cuenta del profe en Supabase Auth y le manda el mail de invitación para que
 // elija su contraseña. Su perfil queda aprobado, con su WhatsApp y su %.
 // Necesita la service role key: por eso vive en el servidor y nunca en el HTML.
-const { send, readBody, siteUrl } = require('../lib/common');
-const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const { SB_URL, keyHeaders, keyProblem, send, readBody, siteUrl } = require('../lib/common');
 
 async function call(path, opts = {}) {
   const r = await fetch(`${SB_URL}${path}`, {
     ...opts,
-    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation', ...(opts.headers || {}) },
+    headers: { ...keyHeaders(), 'Content-Type': 'application/json', Prefer: 'return=representation', ...(opts.headers || {}) },
   });
   return { ok: r.ok, status: r.status, data: await r.json().catch(() => null) };
 }
@@ -17,7 +15,8 @@ async function call(path, opts = {}) {
 module.exports = async (req, res) => {
   const json = (status, body) => send(res, status, body);
   if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
-  if (!SB_URL || !SB_KEY) return json(500, { error: 'Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en Vercel' });
+  const bad = keyProblem();
+  if (bad) return json(500, { error: bad });
 
   // 1) ¿Quién llama? Validamos su token con Supabase y que sea admin aprobado.
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -25,6 +24,10 @@ module.exports = async (req, res) => {
   const who = await call('/auth/v1/user', { headers: { Authorization: `Bearer ${token}` } });
   if (!who.ok || !who.data?.id) return json(401, { error: 'Tu sesión venció. Salí y volvé a entrar.' });
   const me = await call(`/rest/v1/profiles?id=eq.${who.data.id}&select=role,approved`);
+  if (!me.ok) {
+    console.error('profiles', me.status, me.data);
+    return json(500, { error: `El servidor no pudo leer la base (error ${me.status}). Revisá que SUPABASE_SERVICE_ROLE_KEY en Vercel sea la clave secreta del mismo proyecto y hacé Redeploy.` });
+  }
   if (!me.data?.[0] || me.data[0].role !== 'admin' || !me.data[0].approved) return json(403, { error: 'Solo un admin puede agregar profes' });
 
   // 2) Datos del profe nuevo.
