@@ -487,14 +487,16 @@ function supabaseApi() {
     cancelSlotBookings: slotId => q(c.from('bookings').update({ status: 'cancelled' }).eq('slot_id', slotId).neq('status', 'cancelled')),
     profiles: () => q(c.from('profiles').select('*').order('approved', { ascending: true }).order('name')),
     // Crear la cuenta de otro usuario necesita la clave secreta → lo hace una función del servidor que verifica que seas admin.
-    async inviteProfe(p) {
+    async adminCall(body) {
       const { data: { session } } = await c.auth.getSession();
       const r = await fetch('/api/invite-profe', { method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` }, body: JSON.stringify(p) });
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || 'No se pudo agregar al profe');
+      if (!r.ok) throw new Error(j.error || 'No se pudo completar. Probá de nuevo.');
       return j;
     },
+    inviteProfe(p) { return this.adminCall(p); },                       // → { password } para mandarle por WhatsApp
+    resetProfePassword(id) { return this.adminCall({ action: 'reset', id }); },
     async resetPassword(email) {
       await q(c.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname + '?staff=1' }));
     },
@@ -613,8 +615,10 @@ function demoApi() {
     inviteProfe(p) {
       if (db.profiles.some(x => x.email === p.email)) return fail('Ya hay un profe con ese email');
       db.profiles.push({ id: uid(), name: p.name, email: p.email, phone: p.phone, bio: '', role: 'profe', teaches: true, approved: true, commission_pct: p.pct });
-      save(); return wait(null);
+      save(); return wait({ created: true, password: 'Tabla-4827-ola' });
     },
+    resetProfePassword() { return wait({ password: 'Remo-5190-sol' }); },
+    async setPassword() {},
     updateProfile(id, patch) {
       if (!isAdmin()) { delete patch.role; delete patch.approved; delete patch.commission_pct; delete patch.teaches; }
       Object.assign(db.profiles.find(p => p.id === id), patch); save(); return wait(null);
@@ -1033,8 +1037,8 @@ function drawLogin(mode = 'in') {
       <div class="field"><label>Contraseña</label><input class="input" name="pw" type="password" required minlength="6" autocomplete="${up ? 'new-password' : 'current-password'}"></div>
       <button class="btn block" id="lg-btn">${up ? 'Crear cuenta' : 'Entrar'}</button>
     </form>
-    ${up ? '' : '<p class="small" style="margin-top:10px;text-align:center"><a href="#staff" onclick="forgotPassword();return false">Me olvidé la contraseña</a></p>'}
-    <p class="small muted" style="margin-top:12px;text-align:center">${up ? '¿Ya tenés cuenta? <a href="#staff" onclick="drawLogin(\'in\');return false">Entrar</a>' : '¿Sos profe nuevo? Pedile a la escuela que te agregue, o <a href="#staff" onclick="drawLogin(\'up\');return false">pedí acceso acá</a>'}</p></div>`;
+    <p class="small muted" style="margin-top:14px;text-align:center">${up ? '¿Ya tenés cuenta? <a href="#staff" onclick="drawLogin(\'in\');return false">Entrar</a>'
+      : `¿Sos profe nuevo o te olvidaste la contraseña? Pedile a la escuela tus datos de acceso${CONFIG.WHATSAPP ? ` <a href="${waLink(CONFIG.WHATSAPP, 'Hola! Necesito mis datos de acceso a Nativo')}" target="_blank" rel="noopener">por WhatsApp</a>` : ''}.`}</p></div>`;
 }
 async function doAuth(ev, mode) {
   ev.preventDefault();
@@ -1450,7 +1454,7 @@ async function paneProfes() {
   const pending = st.allProfiles.filter(p => !p.approved);
   paneEl().innerHTML = `
     <details class="card more" style="max-width:560px" ${st.allProfiles.length <= 1 ? 'open' : ''}><summary><h2 style="margin:0">Agregar profe</h2></summary><div style="margin-top:10px">
-      <p class="small muted" style="margin-bottom:12px">${api.demo ? 'En la versión real le llega un mail para que elija su contraseña. En la demo aparece directo en la lista de "Entrar".' : 'Le llega un mail para que elija su contraseña. Después entra en "Profes" con su email.'}</p>
+      <p class="small muted" style="margin-bottom:12px">${api.demo ? 'Se le crea la cuenta con una contraseña provisoria para mandarle por WhatsApp. En la demo aparece en la lista de "Entrar".' : 'Se le crea la cuenta con una contraseña provisoria y te damos el mensaje listo para mandarle por WhatsApp. Sin mails.'}</p>
       <div id="ap-err"></div>
       <form onsubmit="addProfe(event)">
         <div class="grid2"><div class="field"><label for="ap-name">Nombre</label><input class="input" id="ap-name" name="name" required maxlength="60" placeholder="Ej: Tomi"></div>
@@ -1474,9 +1478,36 @@ async function addProfe(ev) {
   const f = ev.target, btn = $('ap-btn'); btn.disabled = true; $('ap-err').innerHTML = '';
   try {
     const r = await api.inviteProfe({ name: f.name.value.trim(), email: f.email.value.trim().toLowerCase(), phone: f.phone.value.trim() || null, pct: Math.min(100, Math.max(0, +f.pct.value || 0)) });
-    toast(api.demo ? `${f.name.value.trim()} agregado ✓` : r?.alreadyExisted ? `${f.name.value.trim()} ya tenía cuenta: quedó aprobado ✓` : `Invitación enviada a ${f.email.value.trim()} ✓`);
-    paneProfes();
+    const name = f.name.value.trim(), email = f.email.value.trim().toLowerCase(), phone = f.phone.value.trim();
+    await paneProfes();
+    if (r?.password) showCredentials({ name, email, phone, password: r.password, nuevo: true });
+    else toast(`${name} ya tenía cuenta: quedó aprobado ✓. Si no sabe su contraseña, generale una nueva desde su perfil.`);
   } catch (e) { $('ap-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+// Datos de acceso para mandarle al profe por WhatsApp (en vez de mails).
+function showCredentials({ name, email, phone, password, nuevo }) {
+  const site = location.origin + location.pathname;
+  const msg = `Hola ${name.split(' ')[0]}! ${nuevo ? 'Te sumé a Nativo 🏄 para que cargues tus clases y veas tu agenda.' : 'Te generé una contraseña nueva para Nativo.'}\n\nEntrá a ${site}#staff con:\nEmail: ${email}\nContraseña: ${password}\n\nDespués cambiala por una tuya en Perfil.`;
+  st.credMsg = msg;
+  openModal(`<h2>${nuevo ? `Listo, ${esc(name.split(' ')[0])} ya tiene cuenta` : 'Contraseña nueva'}</h2>
+    <p class="small muted" style="margin-bottom:12px">Mandale estos datos. ${nuevo ? 'Con eso entra directo a su agenda.' : 'La anterior ya no sirve.'}</p>
+    <div class="sum"><div class="row between"><span class="muted">Email</span><b>${esc(email)}</b></div>
+      <div class="row between" style="margin-top:6px"><span class="muted">Contraseña</span><b style="font-family:var(--f-display);font-size:20px;user-select:all">${esc(password)}</b></div></div>
+    <div class="choice">
+      ${phone ? `<a class="btn wa block" href="${waLink(phone, msg)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Mandárselo por WhatsApp</a>` : ''}
+      <button class="btn ${phone ? 'ghost' : 'coral'} block" onclick="copyCred(this)">Copiar mensaje</button>
+      <button class="btn ghost block" onclick="closeModal()">Listo</button></div>
+    <p class="tiny muted" style="margin-top:10px">Esta contraseña no se vuelve a mostrar. Si se pierde, generá una nueva desde su perfil en Equipo.</p>`);
+}
+async function copyCred(btn) {
+  try { await navigator.clipboard.writeText(st.credMsg); btn.textContent = 'Copiado ✓'; }
+  catch { toast('No se pudo copiar: seleccioná el texto a mano'); }
+}
+async function newPasswordFor(id) {
+  const p = st.allProfiles.find(x => x.id === id); if (!p) return;
+  if (!await askConfirm(`¿Generar una contraseña nueva para ${p.name}? La que tiene deja de funcionar.`, 'Generar')) return;
+  try { const r = await api.resetProfePassword(id); showCredentials({ name: p.name, email: p.email, phone: p.phone, password: r.password }); }
+  catch (e) { toast(errMsg(e)); }
 }
 async function approveProfe(id) {
   try { await api.updateProfile(id, { approved: true }); toast('Profe aprobado ✓'); paneProfes(); } catch (e) { toast(errMsg(e)); }
@@ -1512,6 +1543,7 @@ function editProfe(id) {
   st.pendingPhoto = null;
   openModal(`<h2>Editar perfil</h2><div id="pf-err"></div>
     <form onsubmit="saveProfileForm(event,'${id}',true)">${profileFields(p, true)}
+      ${id !== st.me.id ? `<button type="button" class="btn ghost block" style="margin-top:4px" onclick="closeModal();newPasswordFor('${id}')">Se olvidó la contraseña: generar una nueva</button>` : ''}
       <div class="sheet-foot"><button class="btn coral block" id="pf-btn">Guardar</button></div></form>`);
 }
 async function saveProfileForm(ev, id, admin) {
@@ -1563,7 +1595,20 @@ function paneProfile() {
   paneEl().innerHTML = `<div class="card" style="max-width:520px"><h2>Mi perfil</h2><div id="pf-err"></div>
     <form onsubmit="saveProfileForm(event,'${st.me.id}',false)">${profileFields(st.me, false)}
       ${teaches(st.me) ? `<p class="tiny muted" style="margin:-6px 0 12px">Tu parte: ${+st.me.commission_pct}% de lo cobrado.</p>` : ''}
-      <button class="btn coral block" id="pf-btn">Guardar</button></form></div>`;
+      <button class="btn coral block" id="pf-btn">Guardar</button></form></div>
+    <details class="card more" style="max-width:520px"><summary>Cambiar mi contraseña</summary>
+      <form onsubmit="changeMyPassword(event)" style="margin-top:12px"><div id="cp-err"></div>
+        <div class="field"><label for="cp-1">Contraseña nueva</label><input class="input" id="cp-1" name="pw" type="password" required minlength="6" autocomplete="new-password"></div>
+        <div class="field"><label for="cp-2">Repetila</label><input class="input" id="cp-2" name="pw2" type="password" required minlength="6" autocomplete="new-password"></div>
+        <button class="btn block" id="cp-btn">Cambiar contraseña</button></form></details>`;
+}
+async function changeMyPassword(ev) {
+  ev.preventDefault(); const f = ev.target;
+  if (f.pw.value !== f.pw2.value) { $('cp-err').innerHTML = '<div class="err">Las contraseñas no coinciden</div>'; return; }
+  $('cp-btn').disabled = true;
+  try { await api.setPassword(f.pw.value); f.reset(); $('cp-err').innerHTML = ''; toast('Contraseña cambiada ✓'); }
+  catch (e) { $('cp-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; }
+  finally { $('cp-btn').disabled = false; }
 }
 
 /* ════════════════════════════ ARRANQUE ════════════════════════════ */

@@ -22,10 +22,10 @@ En **Profes** podés entrar como admin, como profe o como profe pendiente de apr
    ```sql
    update public.profiles set role = 'admin', approved = true, teaches = false where email = 'tu-email@ejemplo.com';
    ```
-7. Para sumar profes: **Profes → Agregar profe** (nombre, email, WhatsApp, %). Al profe le llega un mail, elige su contraseña y ya entra a su agenda.
-   Para esto, en Vercel tienen que estar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (paso 5). La función `api/invite-profe` verifica que quien lo pide sea admin.
-   Si un profe pide acceso por su cuenta, aparece en "Pidieron acceso" para aprobarlo con un toque.
-9. Perfiles: cada profe edita su nombre, WhatsApp, presentación y **foto** en *Perfil*. El admin edita a cualquiera tocándolo en *Equipo* (también rol, % y acceso). Las fotos se guardan achicadas (~20 KB) en Supabase Storage, bucket `avatars`.
+7. Para sumar profes: **Equipo → Agregar profe** (nombre, email, WhatsApp, %). Se le crea la cuenta con una **contraseña provisoria** y aparece el mensaje listo para mandárselo **por WhatsApp**: no se usan mails, así que no hay límite de envíos. El profe la cambia en *Perfil → Cambiar mi contraseña*.
+   Si alguien se olvida la contraseña: *Equipo →* tocarlo *→ "Se olvidó la contraseña: generar una nueva"*.
+   Necesita `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en Vercel (paso 5). La función `api/invite-profe` verifica que quien lo pide sea admin.
+   Recomendado: en Supabase → *Authentication → Sign In / Providers* desactivá **"Allow new users to sign up"**, así solo el admin crea cuentas.
 8. Roles (Equipo → Rol): **Profe** da clases; **Admin** maneja la escuela y no aparece como profe; **Admin y profe** hace las dos cosas (crea clases a su nombre, ve "Mis clases" en la agenda y "Tu parte como profe" en el Resumen).
 
 ## Comprobante para el alumno
