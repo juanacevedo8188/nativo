@@ -57,7 +57,8 @@ module.exports = async (req, res) => {
     if (next.data.length) return json(409, { error: `Tiene ${next.data.length} ${next.data.length === 1 ? 'clase próxima' : 'clases próximas'}. Borralas o suspendelas desde la Agenda y volvé a intentar.` });
     const hist = await call(`/rest/v1/slots?profe_id=eq.${id}&select=id&limit=1`);
     if (hist.data?.length) {
-      const r = await call(`/rest/v1/profiles?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ approved: false, archived: true, teaches: false }) });
+      let r = await call(`/rest/v1/profiles?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ approved: false, archived: true, teaches: false }) });
+      if (!r.ok && r.status === 400) r = await call(`/rest/v1/profiles?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ approved: false, teaches: false }) });
       if (!r.ok) { console.error('archive', r.status, r.data); return json(500, { error: 'No se pudo dar de baja. Probá de nuevo.' }); }
       return json(200, { ok: true, result: 'archived' });
     }
@@ -93,16 +94,20 @@ module.exports = async (req, res) => {
 
   // Perfil aprobado con sus datos, exista o no de antes (alumno de Google, profe dado de baja,
   // o un perfil que se borró a mano de la tabla y dejó la cuenta suelta).
-  const up = await call('/rest/v1/rpc/staff_account', {
-    method: 'POST', body: JSON.stringify({ p_email: email, p_name: name, p_phone: phone, p_pct: pct }),
-  });
-  const row = Array.isArray(up.data) ? up.data[0] : null;
-  if (!up.ok || !row?.profile_id) {
-    console.error('staff_account', up.status, up.data);
-    return json(500, { error: up.status === 404
-      ? 'Falta actualizar la base: corré de nuevo supabase/setup.sql en Supabase → SQL Editor.'
-      : 'Se creó la cuenta pero no se pudo aprobar el perfil. Probá agregarlo de nuevo.' });
+  const uid = cr.ok && cr.data?.id ? cr.data.id : await findUser(email);
+  if (!uid) return json(500, { error: 'No se encontró la cuenta. Probá agregarlo de nuevo.' });
+  const fields = { id: uid, email, name, phone, commission_pct: pct, approved: true, teaches: true };
+  const upsert = body => call('/rest/v1/profiles?on_conflict=id', {
+    method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(body) });
+  let up = await upsert({ ...fields, archived: false });
+  if (!up.ok && up.status === 400) up = await upsert(fields);          // base sin la columna "archived" todavía
+  if (!up.ok || !up.data?.length) {
+    console.error('profile', up.status, up.data);
+    return json(500, { error: 'Se creó la cuenta pero no se pudo aprobar el perfil. Probá agregarlo de nuevo.' });
   }
+  await call(`/auth/v1/admin/users/${uid}`, { method: 'PUT', body: JSON.stringify({ app_metadata: { staff: true } }) });
+  const stu = await call(`/rest/v1/students?id=eq.${uid}&select=id`);
+  const row = { profile_id: uid, is_student: !!stu.data?.length };
   // Ya existía: si es solo de staff le damos contraseña nueva; si es alumno (Google) no se la tocamos.
   if (exists) {
     if (row.is_student) password = null;
@@ -113,6 +118,18 @@ module.exports = async (req, res) => {
   }
   return json(200, { ok: true, created: cr.ok, alreadyExisted: exists, id: row.profile_id, password });
 };
+
+// Busca la cuenta por email (cuando ya existía y Supabase no devuelve el id al crearla).
+async function findUser(email) {
+  for (let page = 1; page <= 20; page++) {
+    const r = await call(`/auth/v1/admin/users?page=${page}&per_page=200`);
+    const users = r.data?.users || [];
+    const u = users.find(x => String(x.email || '').toLowerCase() === email);
+    if (u) return u.id;
+    if (!r.ok || users.length < 200) return null;
+  }
+  return null;
+}
 
 // Contraseña provisoria fácil de dictar por WhatsApp, ej. "Tabla-4827-ola".
 function tempPassword() {
