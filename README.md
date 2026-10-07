@@ -46,6 +46,13 @@ Configuración (una vez):
 - Al reservar, el alumno con abono ve "Usar mi abono (te quedan N)" y paga $0. Cada clase del abono vale precio ÷ clases (ej. $22.500) y con eso se calcula la parte del profe y el "Cobrado". Cancelar la reserva devuelve la clase al abono. El Resumen muestra aparte "Abonos vendidos".
 - Todo lo controla la base: `request_pass`, `activate_pass`, `grant_pass`, `cancel_pass`, `my_passes`, `admin_passes` y `book_slot(..., p_use_pass)`.
 
+## Kayak (y otras disciplinas)
+- SUP y kayak comparten página y agenda. Si hay clases publicadas de las dos, arriba aparecen las pestañas **🏄 SUP / 🛶 Kayak**; cada una muestra sus horarios, profes, precio y abono.
+- Cada tipo de clase tiene **disciplina** y **tipo**: iniciación, **travesía** (se resalta con otro color y la etiqueta 🧭 Travesía) u otra.
+- En *Equipo → tocar al profe*: **Da clases de** (qué disciplinas puede cargar) y **Configura tipos de clase de** (ej. Mati: Kayak en las dos). Un profe solo puede crear clases de sus disciplinas (lo controla la base).
+- El profe que configura kayak lo hace desde *Crear → ⚙️ Tus tipos de clase*: precio, cupo, duración, tipo y activa. `setup.sql` deja dos tipos de ejemplo de kayak **inactivos y en $0** para completar.
+- Los abonos tienen disciplina (*Abonos → Planes → Para*): el de SUP no sirve para kayak.
+
 ## Entrenamiento
 - En *Más → Precio y cupo* marcá el tipo de clase como **Solo entren.** y usá la descripción para días y horarios. Esas clases **no se publican en la web** (`public_slots` las excluye): se ven solo en la agenda de los profes, que anotan a los chicos con "+ Anotar alumno".
 - En la página aparece una tarjeta de promoción con el WhatsApp de contacto (`CONFIG.TRAINING_CONTACT`, hoy Torita) para pedir info y sumarse.

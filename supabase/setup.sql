@@ -32,6 +32,10 @@ create table if not exists public.profiles (
 -- Un admin puede ser solo admin (no da clases) o admin y profe a la vez.
 -- teaches = da clases: aparece en la página de reservas y en la lista de profes.
 alter table public.profiles add column if not exists teaches boolean not null default true;
+-- Disciplinas: qué da cada profe (sports) y de cuáles configura tipos de clase, precios y cupos (manages).
+-- Ej.: Mati → sports {kayak}, manages {kayak}. Los admins manejan todo.
+alter table public.profiles add column if not exists sports  text[] not null default '{sup}';
+alter table public.profiles add column if not exists manages text[] not null default '{}';
 -- Dado de baja: ya no entra ni aparece, pero sus clases y números quedan en el historial.
 alter table public.profiles add column if not exists archived boolean not null default false;
 -- Foto del profe (link público al archivo en Storage → bucket "avatars").
@@ -106,6 +110,13 @@ alter table public.bookings add column if not exists student_id uuid references 
 --   class_types.members_only / slots.members_only → la clase es "Solo entrenamiento".
 --   students.training: none (nada) → requested (lo pidió) → approved (lo aprobó un admin).
 alter table public.class_types add column if not exists members_only boolean not null default false;
+-- Disciplina (SUP o kayak) y tipo: iniciación, travesía (se resalta en la página) u otra.
+alter table public.class_types add column if not exists sport text not null default 'sup';
+alter table public.class_types add column if not exists kind  text not null default 'iniciacion';
+alter table public.class_types drop constraint if exists class_types_sport_check;
+alter table public.class_types add constraint class_types_sport_check check (sport in ('sup', 'kayak'));
+alter table public.class_types drop constraint if exists class_types_kind_check;
+alter table public.class_types add constraint class_types_kind_check check (kind in ('iniciacion', 'travesia', 'otra'));
 alter table public.slots       add column if not exists members_only boolean not null default false;
 alter table public.students    add column if not exists training text not null default 'none';
 alter table public.students    add column if not exists training_note text;
@@ -124,6 +135,8 @@ create table if not exists public.plans (
   sort        int not null default 0,
   created_at  timestamptz not null default now()
 );
+-- El abono sirve para clases de su disciplina (el actual es de SUP).
+alter table public.plans add column if not exists sport text not null default 'sup';
 create table if not exists public.passes (
   id             uuid primary key default gen_random_uuid(),
   student_id     uuid not null references public.students(id) on delete cascade,
@@ -162,6 +175,12 @@ $fn$;
 create or replace function public.is_staff() returns boolean
 language sql stable security definer set search_path = public as $fn$
   select exists (select 1 from profiles where id = auth.uid() and approved);
+$fn$;
+
+-- ¿Puede configurar tipos de clase / precios de esta disciplina? (admin, o profe con esa disciplina en manages)
+create or replace function public.can_manage_sport(p_sport text) returns boolean
+language sql stable security definer set search_path = public as $fn$
+  select is_admin() or exists (select 1 from profiles where id = auth.uid() and approved and p_sport = any(manages));
 $fn$;
 
 create or replace function public.owns_slot(p_slot uuid) returns boolean
@@ -210,6 +229,8 @@ begin
     new.teaches := old.teaches;
     new.email := old.email;
     new.archived := old.archived;
+    new.sports := old.sports;
+    new.manages := old.manages;
   end if;
   return new;
 end $fn$;
@@ -227,6 +248,11 @@ begin
   if tg_op = 'INSERT' then
     if auth.uid() is not null and not is_admin() then
       new.profe_id := auth.uid();
+      -- un profe solo crea clases de las disciplinas que da (ej. Mati: kayak)
+      if not coalesce((select ct.sport from class_types ct where ct.id = new.class_type_id), 'sup')
+             = any(coalesce((select sports from profiles where id = new.profe_id), '{}'::text[])) then
+        raise exception 'No das clases de esa disciplina. Pedile a un admin que te la habilite.';
+      end if;
     end if;
     new.profe_pct := coalesce((select commission_pct from profiles where id = new.profe_id), 0);
   elsif auth.uid() is not null and not is_admin() then
@@ -345,10 +371,11 @@ begin
   v_amount := s.price * p_people;
   if p_use_pass then
     v_day := (s.starts_at at time zone 'America/Argentina/Buenos_Aires')::date;
-    select ps.* into v_pass from passes ps
+    select ps.* into v_pass from passes ps left join plans pl on pl.id = ps.plan_id
     where ps.student_id = auth.uid() and ps.status = 'active' and v_day between ps.starts_on and ps.expires_on
-    order by ps.expires_on limit 1 for update;
-    if not found then raise exception 'No tenés un abono activo para esa fecha'; end if;
+      and coalesce(pl.sport, 'sup') = coalesce((select ct.sport from class_types ct where ct.id = s.class_type_id), 'sup')
+    order by ps.expires_on limit 1 for update of ps;
+    if not found then raise exception 'No tenés un abono activo para esa fecha y esa disciplina'; end if;
     v_left := v_pass.classes_total - coalesce((select sum(b.people) from bookings b where b.pass_id = v_pass.id and b.status <> 'cancelled'), 0);
     if v_left < p_people then raise exception 'Te quedan % clases en tu abono', v_left; end if;
     v_amount := round(v_pass.price / v_pass.classes_total) * p_people;   -- valor de cada clase del abono
@@ -506,11 +533,12 @@ begin
 end $fn$;
 
 -- Abonos del alumno logueado (perfil y reserva).
+drop function if exists public.my_passes();   -- cambió lo que devuelve (disciplina)
 create or replace function public.my_passes()
-returns table (id uuid, name text, price numeric, classes_total int, used int, status text, starts_on date, expires_on date)
+returns table (id uuid, name text, price numeric, classes_total int, used int, status text, starts_on date, expires_on date, sport text)
 language sql stable security definer set search_path = public as $fn$
-  select ps.id, ps.name, ps.price, ps.classes_total, pass_used(ps.id), ps.status, ps.starts_on, ps.expires_on
-  from passes ps where ps.student_id = auth.uid() and ps.status <> 'cancelled'
+  select ps.id, ps.name, ps.price, ps.classes_total, pass_used(ps.id), ps.status, ps.starts_on, ps.expires_on, coalesce(pl.sport, 'sup')
+  from passes ps left join plans pl on pl.id = ps.plan_id where ps.student_id = auth.uid() and ps.status <> 'cancelled'
   order by ps.created_at desc;
 $fn$;
 
@@ -779,10 +807,11 @@ create policy "passes select" on public.passes for select to authenticated using
 -- class_types: lectura pública de las activas; solo admin edita.
 drop policy if exists "class_types select" on public.class_types;
 create policy "class_types select" on public.class_types for select to anon, authenticated
-  using (active or is_admin());
+  using (active or can_manage_sport(sport));
+-- edita el admin, o el profe que maneja esa disciplina (ej. Mati los de kayak)
 drop policy if exists "class_types admin" on public.class_types;
 create policy "class_types admin" on public.class_types for all to authenticated
-  using (is_admin()) with check (is_admin());
+  using (can_manage_sport(sport)) with check (can_manage_sport(sport));
 
 -- slots: el profe maneja los suyos; el admin, todos.
 drop policy if exists "slots select" on public.slots;
@@ -878,6 +907,15 @@ select * from (values
   ('Clase de iniciación', 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', 60, 30000, 4, 1)
 ) v(name, description, duration_min, price, capacity, sort)
 where not exists (select 1 from public.class_types);
+
+-- Kayak: dos tipos de ejemplo, inactivos y sin precio. Los completa y activa el profe de kayak
+-- (o un admin) desde la página: Crear → "Tipos de clase de Kayak".
+insert into public.class_types (name, description, duration_min, price, capacity, sort, sport, kind, active)
+select * from (values
+  ('Kayak · Iniciación', 'Primera vez en kayak. Incluye kayak, pala y chaleco.', 60, 0, 6, 10, 'kayak', 'iniciacion', false),
+  ('Travesía en kayak', 'Salida guiada por el río. Contá el recorrido acá.', 180, 0, 8, 11, 'kayak', 'travesia', false)
+) v(name, description, duration_min, price, capacity, sort, sport, kind, active)
+where not exists (select 1 from public.class_types where sport = 'kayak');
 
 -- Abono de ejemplo (editable en la página: Más → Abonos).
 insert into public.plans (name, description, price, classes, days_valid, sort)

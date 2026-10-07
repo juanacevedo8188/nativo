@@ -242,6 +242,14 @@ img.avatar.xl{border:4px solid var(--ink)}
 .slot .t{font-size:24px;font-weight:700;line-height:1;min-width:66px}
 .slot .t small{display:block;font-family:var(--f-body);font-size:12px;font-weight:500;color:var(--ink2);margin-top:4px}
 .slot .mid{flex:1;min-width:0}
+.sports{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px;background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:6px}
+.sports button{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:13px;padding:11px 8px;font:700 17px var(--f-display);color:var(--ink2);background:transparent}
+.sports button i{font-style:normal;font-size:22px}
+.sports button.on{background:var(--ink);color:var(--sun)}
+.slot .ttl{font:700 15px var(--f-display);margin-bottom:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.slot.trav{border:2px solid var(--sea2);background:linear-gradient(135deg,#fffbe0 0%,#e3f7f4 100%);box-shadow:0 6px 18px rgba(24,179,182,.18)}
+.slot.trav .go{background:var(--sea2);color:#fff;box-shadow:inset 0 0 0 2px var(--ink)}
+.pill.trav-p{margin:0;background:var(--sea2);color:#fff}
 .slot .who{font-weight:700;font-size:16px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .avatar.xs{width:28px;height:28px;font-size:11px;box-shadow:inset 0 0 0 1.5px var(--ink)}
 .slot .meta{font-size:13px;color:var(--ink2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -789,7 +797,7 @@ function demoApi() {
       db.passes.push({ id: uid(), student_id: sid, plan_id: pl.id, name: pl.name, price: pl.price, classes_total: pl.classes, days_valid: pl.days_valid, status: 'pending', created_at: new Date().toISOString() });
       save(); return wait(null);
     },
-    myPasses() { const sid = store.get(SKEY, null); return wait(db.passes.filter(x => x.student_id === sid && x.status !== 'cancelled').map(x => ({ ...x, used: demoUsed(x.id) })).reverse()); },
+    myPasses() { const sid = store.get(SKEY, null); return wait(db.passes.filter(x => x.student_id === sid && x.status !== 'cancelled').map(x => ({ ...x, used: demoUsed(x.id), sport: (db.plans || []).find(p => p.id === x.plan_id)?.sport || 'sup' })).reverse()); },
     adminPasses() { return wait(db.passes.map(x => { const st2 = db.students.find(y => y.id === x.student_id) || {}; return { ...x, used: demoUsed(x.id), student_name: st2.name, student_avatar: st2.avatar_url, student_phone: st2.phone }; }).reverse()); },
     activatePass(id, method) { const x = db.passes.find(y => y.id === id); Object.assign(x, demoActive(x.days_valid), { status: 'active', payment_method: method }); save(); return wait(null); },
     grantPass(studentId, planId, method) { const pl = db.plans.find(y => y.id === planId);
@@ -842,8 +850,9 @@ function demoApi() {
       let amount = s.price * b.people, pass = null;
       if (b.usePass) {
         const day = dayKey(s.starts_at);
-        pass = db.passes.filter(x => x.student_id === store.get(SKEY, null) && x.status === 'active' && x.starts_on <= day && day <= x.expires_on).sort((a, c) => a.expires_on.localeCompare(c.expires_on))[0];
-        if (!pass) return fail('No tenés un abono activo para esa fecha');
+        const sp = db.class_types.find(t => t.id === s.class_type_id)?.sport || 'sup', psp = x => (db.plans || []).find(p => p.id === x.plan_id)?.sport || 'sup';
+        pass = db.passes.filter(x => x.student_id === store.get(SKEY, null) && x.status === 'active' && x.starts_on <= day && day <= x.expires_on && psp(x) === sp).sort((a, c) => a.expires_on.localeCompare(c.expires_on))[0];
+        if (!pass) return fail('No tenés un abono activo para esa fecha y esa disciplina');
         const left = pass.classes_total - demoUsed(pass.id);
         if (left < b.people) return fail(`Te quedan ${left} clases en tu abono`);
         amount = Math.round(pass.price / pass.classes_total) * b.people;
@@ -939,7 +948,7 @@ function demoApi() {
     },
     async setPassword() {},
     updateProfile(id, patch) {
-      if (!isAdmin()) { delete patch.role; delete patch.approved; delete patch.commission_pct; delete patch.teaches; }
+      if (!isAdmin()) { delete patch.role; delete patch.approved; delete patch.commission_pct; delete patch.teaches; delete patch.sports; delete patch.manages; }
       Object.assign(db.profiles.find(p => p.id === id), patch); save(); return wait(null);
     },
     saveClassType(ct) {
@@ -958,10 +967,13 @@ function demoSeed() {
     { id: 'u-tomi', name: 'Tomi', email: 'tomi@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550101', bio: 'Instructor certificado. 8 años remando en el Paraná.' },
     { id: 'u-flor', name: 'Flor', email: 'flor@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550102', bio: 'Paciencia infinita para la primera remada.' },
     { id: 'u-lucas', name: 'Lucas', email: 'lucas@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550103', bio: 'Guardavidas. Te para arriba de la tabla en 10 minutos.' },
+    { id: 'u-mati', name: 'Mati', email: 'mati@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550104', bio: 'Escuela de kayak de Nativo. Travesías por las islas.', sports: ['kayak'], manages: ['kayak'] },
     { id: 'u-marti', name: 'Martina', email: 'marti@nativo.demo', role: 'profe', approved: false, commission_pct: 50, phone: '', bio: '' },
   ];
   const class_types = [
     { id: 'ct-ini', name: 'Clase de iniciación', description: 'Primera vez arriba de la tabla. Incluye tabla, remo y chaleco.', duration_min: 60, price: 30000, capacity: 4, active: true, sort: 1 },
+    { id: 'ct-kay', name: 'Kayak · Iniciación', description: 'Primera vez en kayak. Incluye kayak, pala y chaleco.', duration_min: 60, price: 25000, capacity: 6, active: true, sort: 10, sport: 'kayak', kind: 'iniciacion' },
+    { id: 'ct-trav', name: 'Travesía a la isla', description: 'Cruzamos a la isla en kayak, 3 horas con parada en la playa.', duration_min: 180, price: 45000, capacity: 8, active: true, sort: 11, sport: 'kayak', kind: 'travesia' },
     { id: 'ct-ent', name: 'Entrenamiento', description: 'Martes y jueves 19 hs. Técnica, resistencia y remada larga para los que ya se paran en la tabla.', duration_min: 90, price: 25000, capacity: 8, active: true, sort: 2, members_only: true },
   ];
   // [profe, día de semana, hora, tipo]
@@ -970,6 +982,7 @@ function demoSeed() {
     ['u-flor', 1, '10:00', 'ct-ini'], ['u-flor', 3, '10:00', 'ct-ini'], ['u-flor', 5, '17:30', 'ct-ini'], ['u-flor', 0, '10:00', 'ct-ini'],
     ['u-lucas', 6, '08:30', 'ct-ini'], ['u-lucas', 0, '08:30', 'ct-ini'], ['u-lucas', 3, '18:00', 'ct-ini'],
     ['u-lucas', 2, '19:00', 'ct-ent'], ['u-lucas', 4, '19:00', 'ct-ent'],
+    ['u-mati', 3, '17:00', 'ct-kay'], ['u-mati', 5, '17:00', 'ct-kay'], ['u-mati', 6, '09:00', 'ct-trav'], ['u-mati', 0, '15:00', 'ct-kay'],
   ];
   const names = ['Sofía Gómez', 'Mateo Díaz', 'Valentina Ruiz', 'Benjamín López', 'Catalina Sosa', 'Joaquín Romero', 'Martina Álvarez', 'Lautaro Torres', 'Julieta Benítez', 'Facundo Medina', 'Agustina Herrera', 'Nicolás Castro', 'Camila Suárez', 'Tomás Rojas', 'Lucía Molina'];
   const slots = [], bookings = [], today = startOfDay(new Date());
@@ -1040,7 +1053,7 @@ async function renderPublic() {
     <section class="hero"><div class="wrap">
       <img class="badge" src="img/logo.webp" alt="Nativo · Sup, Windsurf &amp; Kayak" width="150" height="182" fetchpriority="high">
       <div class="copy"><div class="tag">Escuela de SUP</div>
-        <h1>Reservá tu clase de SUP</h1>
+        <h1 id="hero-h1">Reservá tu clase</h1>
         <div class="facts" id="hero-facts">${t ? heroFacts(t) : ''}</div></div>
     </div>
     <svg class="waves" viewBox="0 0 2400 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18C150 4 300 4 450 16S750 32 900 18 1050 4 1200 18 1500 32 1650 18 1950 4 2100 16 2250 30 2400 18V34H0Z"/></svg>
@@ -1058,10 +1071,19 @@ async function renderPublic() {
     if ($('pub')) $('pub').innerHTML = `<div class="card empty" style="margin-top:14px">No pudimos cargar los horarios. ${esc(errMsg(e))}</div>`;
   }
 }
-const heroFacts = t => `<span><b>${t.duration_min}</b> min</span><span><b>${money(t.price)}</b> por persona</span><span>tabla, remo y chaleco incluidos</span>`;
+const heroFacts = t => `<span><b>${t.duration_min}</b> min</span><span><b>${money(t.price)}</b> por persona</span><span>${(t.sport || 'sup') === 'kayak' ? 'kayak, pala y chaleco incluidos' : 'tabla, remo y chaleco incluidos'}</span>`;
 
+/* Disciplinas: SUP y kayak comparten página y agenda; se eligen con pestañas arriba. */
+const SPORTS = { sup: { label: 'SUP', em: '🏄', long: 'stand up paddle' }, kayak: { label: 'Kayak', em: '🛶', long: 'kayak' } };
+const KINDS = { iniciacion: 'Iniciación', travesia: 'Travesía', otra: 'Otra' };
+const typeOf = s => st.types.find(t => t.id === s.class_type_id);
+const sportOf = s => typeOf(s)?.sport || 'sup';
+const kindOf = s => typeOf(s)?.kind || 'iniciacion';
+const pubSports = () => Object.keys(SPORTS).filter(k => st.pub.some(s => !s.members_only && sportOf(s) === k));
+function curSport() { const av = pubSports(); if (!av.includes(st.fSport)) st.fSport = av[0] || 'sup'; return st.fSport; }
 function filteredPub() {
-  return st.pub.filter(s => (!st.fType || s.class_type_id === st.fType) && (!st.fProfe || s.profe_id === st.fProfe));
+  const sp = curSport();
+  return st.pub.filter(s => sportOf(s) === sp && (!st.fType || s.class_type_id === st.fType) && (!st.fProfe || s.profe_id === st.fProfe));
 }
 
 function drawPublic() {
@@ -1072,15 +1094,21 @@ function drawPublic() {
   const today = startOfDay(new Date());
   const days = Array.from({ length: CONFIG.DAYS_AHEAD }, (_, i) => addDays(today, i));
   const daySlots = list.filter(s => dayKey(s.starts_at) === st.day);
-  const activeTypes = st.types.filter(t => t.active && !t.members_only);
+  const sp = curSport(), sports = pubSports();
+  const activeTypes = st.types.filter(t => t.active && !t.members_only && (t.sport || 'sup') === sp);
   const trainType = st.types.find(t => t.active && t.members_only);
-  if (activeTypes[0] && $('hero-facts') && !$('hero-facts').innerHTML) $('hero-facts').innerHTML = heroFacts(activeTypes[0]);
-  const prof = st.profes.find(p => p.id === st.fProfe);
+  const heroT = activeTypes.find(t => (t.kind || 'iniciacion') === 'iniciacion') || activeTypes[0];
+  if ($('hero-h1')) $('hero-h1').textContent = `Reservá tu clase de ${SPORTS[sp].label}`;
+  if (heroT && $('hero-facts')) $('hero-facts').innerHTML = heroFacts(heroT);
+  // profes de esta disciplina (los que tienen clases publicadas de ella)
+  const profes = sports.length > 1 ? st.profes.filter(p => st.pub.some(s => s.profe_id === p.id && sportOf(s) === sp)) : st.profes;
+  const prof = profes.find(p => p.id === st.fProfe);
 
   const mine = myUpcoming(), myPass = (st.myPasses || []).find(p => p.status === 'active' && p.expires_on >= dayKey(new Date()) && p.classes_total - p.used > 0) || (st.myPasses || []).find(p => p.status === 'pending');
-  const plans = (st.plans || []).filter(p => p.active);
+  const plans = (st.plans || []).filter(p => p.active && (p.sport || 'sup') === sp);
   $('pub').innerHTML = `
-    ${myPass ? myPassCard(myPass, true) : plans.map(planCard).join('')}
+    ${sports.length > 1 ? `<div class="sports" role="tablist">${sports.map(k => `<button role="tab" aria-selected="${k === sp}" class="${k === sp ? 'on' : ''}" onclick="setPub('fSport','${k}')"><i>${SPORTS[k].em}</i>${SPORTS[k].label}</button>`).join('')}</div>` : ''}
+    ${myPass && (passSport(myPass) === sp) ? myPassCard(myPass, true) : plans.map(planCard).join('')}
     ${st.student?.training === 'approved' ? (() => { const t = trainStats(st.myDays || []);
         return `<div class="card checkin-card"><div style="flex:1;min-width:0"><b>${t.today ? '✓ Hoy entrenaste 💪' : '¿Entrenaste hoy?'}</b><div class="small" style="opacity:.8">${t.streak ? `🔥 ${t.streak} ${t.streak === 1 ? 'semana seguida' : 'semanas seguidas'}` : 'Sumá tu entreno y arrancá la racha'} · <a href="#team" style="color:var(--sun)">Ver el team</a></div></div>
           ${t.today ? '' : '<button class="btn coral" onclick="checkIn()">💪 Hoy entrené</button>'}</div>`; })() : ''}
@@ -1094,11 +1122,11 @@ function drawPublic() {
         <button class="chip plain ${!st.fType ? 'on' : ''}" onclick="setPub('fType','')">Todas</button>
         ${activeTypes.map(t => `<button class="chip plain ${st.fType === t.id ? 'on' : ''}" onclick="setPub('fType','${t.id}')">${esc(t.name)}</button>`).join('')}
       </div></div>` : ''}
-    ${st.profes.length > 1 ? `<div class="section"><div class="label">¿Con quién?</div><div class="chips">
+    ${profes.length > 1 ? `<div class="section"><div class="label">¿Con quién?</div><div class="chips">
         <button class="chip plain ${!st.fProfe ? 'on' : ''}" onclick="setPub('fProfe','')">Cualquier profe</button>
-        ${st.profes.map(p => `<button class="chip ${st.fProfe === p.id ? 'on' : ''}" onclick="setPub('fProfe','${p.id}')">${avatarHtml(p)}${esc(p.name)}</button>`).join('')}
+        ${profes.map(p => `<button class="chip ${st.fProfe === p.id ? 'on' : ''}" onclick="setPub('fProfe','${p.id}')">${avatarHtml(p)}${esc(p.name)}</button>`).join('')}
       </div>${prof ? `<div class="prof-card card">${avatarHtml(prof)}<div class="pc-txt"><b>${esc(prof.name)}</b>${prof.bio ? `<div class="small muted">${esc(prof.bio)}</div>` : ''}</div>
-        ${profeWa(prof.name, prof.whatsapp) ? `<a class="btn wa sm pc-wa" href="${profeWa(prof.name, prof.whatsapp, 'por una clase de SUP')}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} Escribile</a>` : ''}</div>` : ''}</div>` : ''}
+        ${profeWa(prof.name, prof.whatsapp) ? `<a class="btn wa sm pc-wa" href="${profeWa(prof.name, prof.whatsapp, `por una clase de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} Escribile</a>` : ''}</div>` : ''}</div>` : ''}
 
     <div class="daybar" id="daybar"><div class="label" style="margin-bottom:6px">¿Qué día?</div>
       <div class="days" id="days">
@@ -1110,10 +1138,10 @@ function drawPublic() {
     <div class="dayttl">${esc(fmtDayLong(st.day + 'T12:00'))}</div>
     <div class="slots">
       ${daySlots.length ? daySlots.map(s => {
-        const left = s.capacity - s.booked, full = left <= 0;
-        return `<button class="slot rise ${full ? 'full' : ''}" ${full ? 'disabled' : ''} onclick="openBooking('${s.id}')">
-          <div class="t num">${hhmm(s.starts_at)}<small>${s.duration_min} min</small></div>
-          <div class="mid"><div class="who">${avatarHtml(st.profes.find(p => p.id === s.profe_id) || { name: s.profe_name }, 'xs')}<span>con ${esc(s.profe_name)}</span>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅 Entrenamiento</span>' : ''}</div>
+        const left = s.capacity - s.booked, full = left <= 0, trav = kindOf(s) === 'travesia';
+        return `<button class="slot rise ${full ? 'full' : ''} ${trav ? 'trav' : ''}" ${full ? 'disabled' : ''} onclick="openBooking('${s.id}')">
+          <div class="t num">${hhmm(s.starts_at)}<small>${s.duration_min >= 120 ? `${String(Math.round(s.duration_min / 6) / 10).replace('.', ',')} h` : `${s.duration_min} min`}</small></div>
+          <div class="mid">${trav || activeTypes.length > 1 ? `<div class="ttl">${trav ? '<span class="pill trav-p">🧭 Travesía</span>' : ''}${esc(s.title)}</div>` : ''}<div class="who">${avatarHtml(st.profes.find(p => p.id === s.profe_id) || { name: s.profe_name }, 'xs')}<span>con ${esc(s.profe_name)}</span>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅 Entrenamiento</span>' : ''}</div>
             <div class="meta">${s.location ? esc(s.location) + ' · ' : ''}${money(s.price)}</div>
             ${full ? '<span class="pill gray">Completo</span>' : left <= 2 && s.capacity > 2 ? `<span class="pill warn">¡Quedan ${left}!</span>` : `<span class="pill ok">${left} ${left === 1 ? 'lugar libre' : 'lugares libres'}</span>`}</div>
           <span class="go" aria-hidden="true">${full ? '–' : '→'}</span>
@@ -1126,6 +1154,7 @@ function drawPublic() {
 }
 function setPub(k, v) {
   st[k] = v; if (k !== 'day') st.day = null;
+  if (k === 'fSport') { st.fType = ''; st.fProfe = ''; }
   drawPublic();
   if (k === 'day') { const t = document.querySelector('.dayttl'); if (t && t.getBoundingClientRect().top < 120) t.scrollIntoView({ block: 'start' }); }
 }
@@ -1140,7 +1169,7 @@ function openBooking(id) {
   const s = st.pub.find(x => x.id === id); if (!s) return;
   if (s.members_only && st.student?.training !== 'approved') return trainingInfo(s);
   const left = Math.min(s.capacity - s.booked, 10), me = st.student;
-  const pass = me ? activePassFor(s.starts_at) : null, passLeft = pass ? pass.classes_total - pass.used : 0;
+  const pass = me ? activePassFor(s.starts_at, sportOf(s)) : null, passLeft = pass ? pass.classes_total - pass.used : 0;
   st.bk = { price: s.price, left, pass, passLeft, perClass: pass ? Math.round(pass.price / pass.classes_total) : 0 };
   openModal(`
     <h2>Reservar</h2>
@@ -1400,9 +1429,11 @@ function demoMpResult(code, result) {
 /* ── Abonos ── */
 const singlePrice = () => +(st.types.find(t => t.active && !t.members_only)?.price || 0);
 // Abono del alumno que cubre una fecha y todavía tiene clases.
-function activePassFor(dateIso) {
+// Disciplina del abono (la del plan; los viejos o sin plan son de SUP).
+const passSport = p => p.sport || (st.plans || []).find(x => x.id === p.plan_id)?.sport || 'sup';
+function activePassFor(dateIso, sport = 'sup') {
   const day = dayKey(dateIso || new Date());
-  return (st.myPasses || []).filter(p => p.status === 'active' && p.starts_on <= day && day <= p.expires_on && p.classes_total - p.used > 0)
+  return (st.myPasses || []).filter(p => p.status === 'active' && p.starts_on <= day && day <= p.expires_on && p.classes_total - p.used > 0 && passSport(p) === sport)
     .sort((a, b) => a.expires_on.localeCompare(b.expires_on))[0] || null;
 }
 const fmtDate = d => new Date(d + 'T12:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
@@ -1957,6 +1988,7 @@ async function paneAgenda() {
   const isAdmin = st.me.role === 'admin';
   try {
     st.staffSlots = await api.staffSlots(from, to);
+    if (!st.types?.length) st.types = await api.classTypes().catch(() => []);
     if (isAdmin && !st.allProfiles.length) st.allProfiles = await api.profiles();
   } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   let list = st.staffSlots.filter(s => !st.agendaProfe || s.profe_id === st.agendaProfe);
@@ -1993,7 +2025,7 @@ function slotCard(s) {
   const mine = st.me.role === 'admin' ? 'profe' : 'para vos';
   return `<div class="card sslot rise ${cancelled ? 'cancelled' : ''}">
     <div class="hd"><div class="t num">${hhmm(s.starts_at)}</div>
-      <div class="info"><b>${esc(s.title)}</b>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅</span>' : ''}<div>${st.me.role === 'admin' ? `con ${esc(s.profe?.name)} · ` : ''}${s.duration_min} min${s.location ? ' · ' + esc(s.location) : ''}</div></div>
+      <div class="info"><b>${(st.types || []).some(t => (t.sport || 'sup') !== 'sup') ? SPORTS[sportOf(s)].em + ' ' : ''}${esc(s.title)}</b>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅</span>' : ''}${kindOf(s) === 'travesia' ? ' <span class="pill trav-p" style="margin:0 0 0 4px">🧭</span>' : ''}<div>${st.me.role === 'admin' ? `con ${esc(s.profe?.name)} · ` : ''}${s.duration_min} min${s.location ? ' · ' + esc(s.location) : ''}</div></div>
       ${cancelled ? '<span class="pill bad" style="margin:0">Suspendida</span>' : `<span class="cap num ${people >= s.capacity ? 'full' : ''}">${people}/${s.capacity}</span>`}</div>
     ${!cancelled && (share > 0 || pend > 0) ? `<div class="money-line num">${share > 0 ? `<span class="ok">${mine}: ${money(share)}</span>` : ''}${pend > 0 ? `<span class="warn">${past ? 'falta marcar pago' : 'a cobrar'}: ${money(pend)}</span>` : ''}</div>` : ''}
     ${bks.map(b => bookingRow(s, b)).join('')}
@@ -2157,7 +2189,8 @@ async function paneCreate() {
     st.types = await api.classTypes();
     if (isAdmin) st.allProfiles = await api.profiles();
   } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
-  const types = st.types.filter(t => t.active), t0 = types[0] || {};
+  const mySports = st.me.sports?.length ? st.me.sports : ['sup'];
+  const types = st.types.filter(t => t.active && (isAdmin || mySports.includes(t.sport || 'sup'))), t0 = types[0] || {};
   const today = dayKey(new Date()), tomorrow = dayKey(addDays(new Date(), 1)), until = dayKey(addDays(new Date(), 27));
   const profes = isAdmin ? st.allProfiles.filter(p => p.approved) : [];
   // Por defecto, el admin que da clases las crea a su nombre; si no da clases, para el primer profe.
@@ -2181,7 +2214,7 @@ async function paneCreate() {
       </div>
 
       ${types.length > 1 ? `<div class="field"><label for="cf-type">Tipo de clase</label><select class="input" id="cf-type" name="type" onchange="fillType(this.value)">
-        ${types.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}<option value="">Otra (personalizada)</option></select></div>
+        ${types.map(t => `<option value="${t.id}">${Object.keys(SPORTS).some(k => types.some(x => (x.sport || 'sup') !== (t.sport || 'sup'))) ? SPORTS[t.sport || 'sup'].em + ' ' : ''}${esc(t.name)}${t.kind === 'travesia' ? ' · travesía' : ''}</option>`).join('')}${isAdmin || mySports.includes('sup') ? '<option value="">Otra (personalizada)</option>' : ''}</select></div>
       <div class="field"><label for="cf-title">Título que ve el alumno</label><input class="input" id="cf-title" name="title" required value="${esc(t0.name || '')}"></div>`
       : `<input type="hidden" name="type" value="${t0.id || ''}"><input type="hidden" name="title" value="${esc(t0.name || 'Clase de iniciación')}">`}
       <details style="margin-bottom:12px"><summary class="small" style="cursor:pointer;margin-bottom:10px"><b>${esc(t0.name || 'Clase')}</b> · ${t0.duration_min || 60} min · cupo ${t0.capacity || 1} · ${money(t0.price)} · ${esc(CONFIG.LOCATION)} <span class="muted">(cambiar)</span></summary>
@@ -2195,6 +2228,9 @@ async function paneCreate() {
       </details>
       <div class="row between wrapf"><span id="cf-prev" class="small muted"></span><button class="btn coral" id="cf-btn">Crear clase</button></div>
     </form></div>
+    ${!isAdmin && st.me.manages?.length ? `<div class="card" style="max-width:560px"><h2>⚙️ Tus tipos de clase</h2>
+      <p class="small muted" style="margin-bottom:10px">Configurá precio, cupo, duración y si es iniciación o travesía de las clases de ${st.me.manages.map(k => SPORTS[k]?.label || k).join(' y ')}.</p>
+      <button class="btn block" onclick="setTab('clases')">Configurar tipos de clase</button></div>` : ''}
     <div id="board-ed"></div>`;
   if ($('cf')) previewCreate();                 // si cambió de pestaña mientras cargaba, no hay formulario
   boardEditor();
@@ -2510,7 +2546,10 @@ function profileFields(p, admin) {
     ${admin ? `<div class="field"><span class="flabel">Rol</span><div class="seg">${Object.entries(ROLES).map(([k, l]) => `<label><input type="radio" name="role" value="${k}" ${roleKey(p) === k ? 'checked' : ''}>${l}</label>`).join('')}</div></div>
       <div class="grid2"><div class="field"><label for="pf-pct">% de cada alumno</label><input class="input" id="pf-pct" name="pct" type="number" inputmode="numeric" min="0" max="100" value="${+p.commission_pct}"></div>
         <div class="field"><span class="flabel">Acceso</span><label class="check" style="min-height:48px"><input type="checkbox" name="approved" ${p.approved ? 'checked' : ''}> Activo</label></div></div>
-      <p class="tiny muted" style="margin-bottom:10px">El % nuevo aplica a las clases que se creen desde ahora. Sacarle "Activo" le quita el acceso.</p>` : ''}
+      <p class="tiny muted" style="margin-bottom:10px">El % nuevo aplica a las clases que se creen desde ahora. Sacarle "Activo" le quita el acceso.</p>
+      <div class="field"><span class="flabel">Da clases de</span><div class="row wrapf">${Object.entries(SPORTS).map(([k, x]) => `<label class="check"><input type="checkbox" name="sp_${k}" ${(p.sports?.length ? p.sports : ['sup']).includes(k) ? 'checked' : ''}> ${x.em} ${x.label}</label>`).join('')}</div></div>
+      <div class="field"><span class="flabel">Configura tipos de clase, precios y cupos de</span><div class="row wrapf">${Object.entries(SPORTS).map(([k, x]) => `<label class="check"><input type="checkbox" name="mg_${k}" ${(p.manages || []).includes(k) ? 'checked' : ''}> ${x.em} ${x.label}</label>`).join('')}</div>
+        <p class="tiny muted" style="margin-top:4px">Ej.: Mati da y configura Kayak. Los admins configuran todo igual.</p></div>` : ''}
     <p class="tiny muted">${isUserLogin(p.email) ? 'Usuario' : 'Email'}: ${esc(userLabel(p.email))}</p>`;
 }
 function pickPhoto(input) {
@@ -2548,7 +2587,9 @@ async function saveProfileForm(ev, id, admin) {
   if (admin) {
     const r = f.role.value;
     if (id === st.me.id && (!f.approved.checked || r === 'profe') && !await askConfirm('Te estás sacando el acceso de admin a vos mismo. ¿Seguro?')) return;
-    Object.assign(patch, { role: r === 'profe' ? 'profe' : 'admin', teaches: r !== 'admin', commission_pct: Math.min(100, Math.max(0, +f.pct.value || 0)), approved: f.approved.checked });
+    Object.assign(patch, { role: r === 'profe' ? 'profe' : 'admin', teaches: r !== 'admin', commission_pct: Math.min(100, Math.max(0, +f.pct.value || 0)), approved: f.approved.checked,
+      sports: Object.keys(SPORTS).filter(k => f['sp_' + k]?.checked), manages: Object.keys(SPORTS).filter(k => f['mg_' + k]?.checked) });
+    if (!patch.sports.length) patch.sports = ['sup'];
   }
   btn.disabled = true; btn.textContent = st.pendingPhoto ? 'Subiendo foto…' : 'Guardando…';
   try {
@@ -2603,6 +2644,7 @@ async function paneAbonos() {
     <td><input class="input sm" style="width:60px" data-k="classes" type="number" min="1" value="${pl.classes || 4}"></td>
     <td><input class="input sm" style="width:60px" data-k="days_valid" type="number" min="1" value="${pl.days_valid || 30}"></td>
     <td><input class="input sm" style="min-width:160px;width:100%" data-k="description" value="${esc(pl.description || '')}" placeholder="1 clase por semana"></td>
+    <td><select class="input sm" data-k="sport">${Object.entries(SPORTS).map(([k, x]) => `<option value="${k}" ${(pl.sport || 'sup') === k ? 'selected' : ''}>${x.em} ${x.label}</option>`).join('')}</select></td>
     <td><input type="checkbox" data-k="active" ${pl.active !== false ? 'checked' : ''}></td>
     <td><button class="btn sm" onclick="savePlanRow(this)">Guardar</button></td></tr>`;
   paneEl().innerHTML = `
@@ -2628,12 +2670,12 @@ async function paneAbonos() {
         ${p.status === 'cancelled' ? `<button class="btn ghost sm" onclick="undoPass('${p.id}')">Reactivar</button>` : ''}</div>`).join('')}</details>` : ''}
     <div class="card"><h2>Planes</h2>
       <p class="small muted" style="margin-bottom:10px">Lo que se ofrece en la página. Cada clase del abono vale precio ÷ clases (ej. ${money(90000)} ÷ 4 = ${money(22500)}), y con eso se calcula la parte del profe. Cambiar un plan no modifica abonos ya vendidos.</p>
-      <div class="tbl-wrap"><table><tr><th>Nombre</th><th>Precio</th><th>Clases</th><th>Días</th><th>Descripción</th><th>Activo</th><th></th></tr>
+      <div class="tbl-wrap"><table><tr><th>Nombre</th><th>Precio</th><th>Clases</th><th>Días</th><th>Descripción</th><th>Para</th><th>Activo</th><th></th></tr>
       ${plans.map(planRow).join('')}${planRow({ sort: plans.length + 1 })}</table></div></div>`;
 }
 async function savePlanRow(btn) {
   const tr = btn.closest('tr'), g = k => tr.querySelector(`[data-k=${k}]`);
-  const pl = { name: g('name').value.trim(), price: +g('price').value, classes: +g('classes').value, days_valid: +g('days_valid').value, description: g('description').value.trim() || null, active: g('active').checked };
+  const pl = { name: g('name').value.trim(), price: +g('price').value, classes: +g('classes').value, days_valid: +g('days_valid').value, description: g('description').value.trim() || null, active: g('active').checked, sport: g('sport').value };
   if (!pl.name) return toast('Poné un nombre');
   if (!(pl.classes > 0) || !(pl.days_valid > 0)) return toast('Revisá clases y días');
   if (tr.dataset.id) pl.id = tr.dataset.id; else pl.sort = (st.plans || []).length + 1;
@@ -2673,24 +2715,30 @@ async function givePass() {
 /* ── Tipos de clase (admin) ── */
 async function paneTypes() {
   try { st.types = await api.classTypes(); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  const admin = st.me.role === 'admin', can = admin ? Object.keys(SPORTS) : (st.me.manages || []);
+  const mine = st.types.filter(t => can.includes(t.sport || 'sup'));
   const row = t => `<tr data-id="${t.id || ''}">
     <td><input class="input sm" style="width:100%;min-width:150px" data-k="name" value="${esc(t.name || '')}" placeholder="Nombre"></td>
+    <td><select class="input sm" data-k="sport" ${can.length < 2 ? 'disabled' : ''}>${can.map(k => `<option value="${k}" ${(t.sport || can[0]) === k ? 'selected' : ''}>${SPORTS[k].em} ${SPORTS[k].label}</option>`).join('')}</select></td>
+    <td><select class="input sm" data-k="kind">${Object.entries(KINDS).map(([k, l]) => `<option value="${k}" ${(t.kind || 'iniciacion') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
     <td><input class="input sm" style="width:100%;min-width:180px" data-k="description" value="${esc(t.description || '')}"></td>
     <td><input class="input sm" style="width:70px" data-k="duration_min" type="number" min="15" step="15" value="${t.duration_min || 60}"></td>
     <td><input class="input sm" style="width:60px" data-k="capacity" type="number" min="1" value="${t.capacity || 1}"></td>
     <td><input class="input sm" style="width:100px" data-k="price" type="number" min="0" step="500" value="${+t.price || 0}"></td>
     <td><input type="checkbox" data-k="active" ${t.active !== false ? 'checked' : ''}></td>
-    <td><input type="checkbox" data-k="members_only" ${t.members_only ? 'checked' : ''} aria-label="Solo entrenamiento"></td>
+    <td>${admin ? `<input type="checkbox" data-k="members_only" ${t.members_only ? 'checked' : ''} aria-label="Solo entrenamiento">` : '–'}</td>
     <td><button class="btn sm" onclick="saveType(this)">Guardar</button></td></tr>`;
-  paneEl().innerHTML = `<div class="card"><h2>Precio y cupo de la clase</h2>
+  paneEl().innerHTML = `${!admin ? '<div style="margin-bottom:10px"><a href="#" class="small" onclick="setTab(\'cargar\');return false">‹ Volver a Crear</a></div>' : ''}<div class="card"><h2>Tipos de clase, precio y cupo</h2>
     <p class="small muted" style="margin-bottom:12px">Son los valores sugeridos al cargar horarios. Cambiar un precio acá no modifica horarios ya cargados. <b>Solo entren.</b>: esas clases no se publican en la web (solo se ven en la agenda) y en la página aparece una tarjeta para pedir info por WhatsApp a ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')}. Usá la descripción para contar días y horarios.</p>
-    <div class="tbl-wrap"><table id="tt"><tr><th>Nombre</th><th>Descripción</th><th>Min</th><th>Cupo</th><th>Precio</th><th>Activa</th><th>Solo entren.</th><th></th></tr>
-    ${st.types.map(row).join('')}${row({ sort: st.types.length + 1 })}</table></div></div>`;
+    <p class="small muted" style="margin:-4px 0 12px"><b>Travesía</b>: en la página se resalta con otro color y la etiqueta 🧭 Travesía.</p>
+    <div class="tbl-wrap"><table id="tt"><tr><th>Nombre</th><th>Disciplina</th><th>Tipo</th><th>Descripción</th><th>Min</th><th>Cupo</th><th>Precio</th><th>Activa</th><th>Solo entren.</th><th></th></tr>
+    ${mine.map(row).join('')}${row({ sort: st.types.length + 1 })}</table></div></div>`;
 }
 async function saveType(btn) {
   const tr = btn.closest('tr'), g = k => tr.querySelector(`[data-k=${k}]`);
   const ct = { name: g('name').value.trim(), description: g('description').value.trim() || null, duration_min: +g('duration_min').value,
-    capacity: +g('capacity').value, price: +g('price').value, active: g('active').checked, members_only: g('members_only').checked };
+    capacity: +g('capacity').value, price: +g('price').value, active: g('active').checked, sport: g('sport').value, kind: g('kind').value };
+  if (g('members_only')) ct.members_only = g('members_only').checked;
   if (!ct.name) return toast('Poné un nombre');
   if (tr.dataset.id) ct.id = tr.dataset.id; else ct.sort = st.types.length + 1;
   try { await api.saveClassType(ct); toast('Guardado ✓'); paneTypes(); } catch (e) { toast(errMsg(e)); }
