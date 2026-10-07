@@ -296,11 +296,11 @@ language sql stable security definer set search_path = public as $fn$
 $fn$;
 
 -- Profes para mostrar en la página pública.
-drop function if exists public.public_profes();   -- cambió lo que devuelve (foto y WhatsApp)
+drop function if exists public.public_profes();   -- cambió lo que devuelve (disciplinas)
 create or replace function public.public_profes()
-returns table (id uuid, name text, bio text, avatar_url text, whatsapp text)
+returns table (id uuid, name text, bio text, avatar_url text, whatsapp text, sports text[])
 language sql stable security definer set search_path = public as $fn$
-  select p.id, p.name, p.bio, p.avatar_url, case when p.public_whatsapp then nullif(btrim(p.phone), '') end
+  select p.id, p.name, p.bio, p.avatar_url, case when p.public_whatsapp then nullif(btrim(p.phone), '') end, p.sports
   from profiles p
   where p.approved
     and (p.teaches

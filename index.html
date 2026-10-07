@@ -103,6 +103,8 @@ h2{font-size:20px;margin-bottom:10px} h3{font-size:16px;margin-bottom:8px}
 .hero .facts{margin-top:10px}
 .waves{position:absolute;left:0;bottom:-1px;width:200%;height:34px;animation:drift 14s linear infinite}
 .waves path{fill:var(--bg)}
+/* En compu no hay "deslizar con el dedo": profes y días se acomodan en varias filas. */
+@media(min-width:760px){.chips{flex-wrap:wrap;overflow:visible;margin:0;padding:2px 0 4px}.days{flex-wrap:wrap;overflow:visible;margin:0;padding:0}}
 @media(min-width:700px){.hero{padding:30px 0 60px}.hero .badge{width:150px}.hero .wrap{gap:28px}}
 
 .facts{display:flex;gap:6px;flex-wrap:wrap}
@@ -243,7 +245,7 @@ img.avatar.xl{border:4px solid var(--ink)}
 .slot .t small{display:block;font-family:var(--f-body);font-size:12px;font-weight:500;color:var(--ink2);margin-top:4px}
 .slot .mid{flex:1;min-width:0}
 .sports{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px;background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:6px}
-.sports button{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:13px;padding:11px 8px;font:700 17px var(--f-display);color:var(--ink2);background:transparent}
+.sports button{border:0;box-shadow:none;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:13px;padding:11px 8px;font:700 17px var(--f-display);color:var(--ink2);background:transparent}
 .sports button i{font-style:normal;font-size:22px}
 .sports button.on{background:var(--ink);color:var(--sun)}
 .slot .ttl{font:700 15px var(--f-display);margin-bottom:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
@@ -812,7 +814,7 @@ function demoApi() {
     passFutureBookings(id) { return wait(db.bookings.filter(b => b.pass_id === id && b.status !== 'cancelled' && new Date(db.slots.find(x => x.id === b.slot_id).starts_at) > new Date()).length); },
     me: () => wait(meP()),
     classTypes: () => wait(db.class_types.slice().sort((a, b) => a.sort - b.sort)),
-    publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null }))),
+    publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp, sports }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null, sports: sports || ['sup'] }))),
     publicSlots(from, to) {
       const lo = Math.max(+from, Date.now());
       return wait(db.slots.filter(s => s.status === 'open' && !s.members_only && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
@@ -1052,7 +1054,7 @@ async function renderPublic() {
   $('app').innerHTML = `
     <section class="hero"><div class="wrap">
       <img class="badge" src="img/logo.webp" alt="Nativo · Sup, Windsurf &amp; Kayak" width="150" height="182" fetchpriority="high">
-      <div class="copy"><div class="tag">Escuela de SUP</div>
+      <div class="copy"><div class="tag" id="hero-tag">Escuela de SUP</div>
         <h1 id="hero-h1">Reservá tu clase</h1>
         <div class="facts" id="hero-facts">${t ? heroFacts(t) : ''}</div></div>
     </div>
@@ -1099,9 +1101,10 @@ function drawPublic() {
   const trainType = st.types.find(t => t.active && t.members_only);
   const heroT = activeTypes.find(t => (t.kind || 'iniciacion') === 'iniciacion') || activeTypes[0];
   if ($('hero-h1')) $('hero-h1').textContent = `Reservá tu clase de ${SPORTS[sp].label}`;
+  if ($('hero-tag')) $('hero-tag').textContent = `Escuela de ${SPORTS[sp].label}`;
   if (heroT && $('hero-facts')) $('hero-facts').innerHTML = heroFacts(heroT);
   // profes de esta disciplina (los que tienen clases publicadas de ella)
-  const profes = sports.length > 1 ? st.profes.filter(p => st.pub.some(s => s.profe_id === p.id && sportOf(s) === sp)) : st.profes;
+  const profes = st.profes.filter(p => (p.sports?.length ? p.sports : ['sup']).includes(sp) || st.pub.some(s => s.profe_id === p.id && sportOf(s) === sp));
   const prof = profes.find(p => p.id === st.fProfe);
 
   const mine = myUpcoming(), myPass = (st.myPasses || []).find(p => p.status === 'active' && p.expires_on >= dayKey(new Date()) && p.classes_total - p.used > 0) || (st.myPasses || []).find(p => p.status === 'pending');
@@ -2232,7 +2235,7 @@ async function paneCreate() {
       <p class="small muted" style="margin-bottom:10px">Configurá precio, cupo, duración y si es iniciación o travesía de las clases de ${st.me.manages.map(k => SPORTS[k]?.label || k).join(' y ')}.</p>
       <button class="btn block" onclick="setTab('clases')">Configurar tipos de clase</button></div>` : ''}
     <div id="board-ed"></div>`;
-  if ($('cf')) previewCreate();                 // si cambió de pestaña mientras cargaba, no hay formulario
+  if ($('cf')) { profeOptions(t0.sport || 'sup'); previewCreate(); }   // si cambió de pestaña mientras cargaba, no hay formulario
   boardEditor();
 }
 
@@ -2272,7 +2275,16 @@ function setCreateMode() {
 }
 function fillType(id) {
   const t = st.types.find(x => x.id === id), f = $('cf'); if (!t) return;
-  f.title.value = t.name; f.dur.value = t.duration_min; f.cap.value = t.capacity; f.price.value = t.price; previewCreate();
+  f.title.value = t.name; f.dur.value = t.duration_min; f.cap.value = t.capacity; f.price.value = t.price;
+  profeOptions(t.sport || 'sup'); previewCreate();
+}
+// Admin: en "Profe" aparecen los que dan esa disciplina, y los admins (pueden cargar de todo).
+function profeOptions(sport) {
+  const sel = $('cf-profe'); if (!sel) return;
+  const prev = sel.value, list = st.allProfiles.filter(p => p.approved && teaches(p) && (p.role === 'admin' || (p.sports?.length ? p.sports : ['sup']).includes(sport)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = list.map(p => `<option value="${p.id}">${esc(p.name)}${p.id === st.me.id ? ' (yo)' : ''}</option>`).join('');
+  sel.value = list.some(p => p.id === prev) ? prev : (list.find(p => p.id === st.me.id) || list[0])?.id || '';
 }
 function buildSlots() {
   const f = $('cf'), now = new Date();
@@ -2644,7 +2656,7 @@ async function paneAbonos() {
     <td><input class="input sm" style="width:60px" data-k="classes" type="number" min="1" value="${pl.classes || 4}"></td>
     <td><input class="input sm" style="width:60px" data-k="days_valid" type="number" min="1" value="${pl.days_valid || 30}"></td>
     <td><input class="input sm" style="min-width:160px;width:100%" data-k="description" value="${esc(pl.description || '')}" placeholder="1 clase por semana"></td>
-    <td><select class="input sm" data-k="sport">${Object.entries(SPORTS).map(([k, x]) => `<option value="${k}" ${(pl.sport || 'sup') === k ? 'selected' : ''}>${x.em} ${x.label}</option>`).join('')}</select></td>
+    <td style="display:none"><input data-k="sport" value="${pl.sport || 'sup'}"></td>
     <td><input type="checkbox" data-k="active" ${pl.active !== false ? 'checked' : ''}></td>
     <td><button class="btn sm" onclick="savePlanRow(this)">Guardar</button></td></tr>`;
   paneEl().innerHTML = `
@@ -2668,10 +2680,11 @@ async function paneAbonos() {
     ${done.length ? `<details class="card more"><summary>Vencidos, usados o anulados (${done.length})</summary>
       ${done.map(p => `<div class="prow" style="cursor:default">${who(p)}<span>${esc(p.name)} · ${p.used}/${p.classes_total} · ${p.status === 'cancelled' ? 'anulado' : p.used >= p.classes_total ? 'usado completo' : 'venció ' + fmtDate(p.expires_on)}</span></span>
         ${p.status === 'cancelled' ? `<button class="btn ghost sm" onclick="undoPass('${p.id}')">Reactivar</button>` : ''}</div>`).join('')}</details>` : ''}
-    <div class="card"><h2>Planes</h2>
-      <p class="small muted" style="margin-bottom:10px">Lo que se ofrece en la página. Cada clase del abono vale precio ÷ clases (ej. ${money(90000)} ÷ 4 = ${money(22500)}), y con eso se calcula la parte del profe. Cambiar un plan no modifica abonos ya vendidos.</p>
-      <div class="tbl-wrap"><table><tr><th>Nombre</th><th>Precio</th><th>Clases</th><th>Días</th><th>Descripción</th><th>Para</th><th>Activo</th><th></th></tr>
-      ${plans.map(planRow).join('')}${planRow({ sort: plans.length + 1 })}</table></div></div>`;
+    ${Object.entries(SPORTS).map(([k, x]) => { const ps = plans.filter(pl => (pl.sport || 'sup') === k);
+      return `<div class="card"><h2>${x.em} Abonos de ${x.label}</h2>
+      <p class="small muted" style="margin-bottom:10px">${k === 'sup' ? `Lo que se ofrece en la pestaña SUP. Cada clase del abono vale precio ÷ clases (ej. ${money(90000)} ÷ 4 = ${money(22500)}), y con eso se calcula la parte del profe. Cambiar un plan no modifica abonos ya vendidos.` : `Solo para clases de ${x.label}: se ofrecen en su pestaña y no sirven para las otras clases (ni los de SUP para estas).`}</p>
+      <div class="tbl-wrap"><table><tr><th>Nombre</th><th>Precio</th><th>Clases</th><th>Días</th><th>Descripción</th><th>Activo</th><th></th></tr>
+      ${ps.map(planRow).join('')}${planRow({ sort: plans.length + 1, sport: k, ...(k === 'sup' ? {} : { name: '', description: '' }) })}</table></div></div>`; }).join('')}`;
 }
 async function savePlanRow(btn) {
   const tr = btn.closest('tr'), g = k => tr.querySelector(`[data-k=${k}]`);
