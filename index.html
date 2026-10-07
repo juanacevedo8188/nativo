@@ -380,6 +380,40 @@ textarea.input{min-height:80px;resize:vertical}
 .alias-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 6px;background:#fff;border:1.5px dashed var(--sea2);border-radius:12px;padding:10px 12px}
 .alias-row .alias{font:700 18px var(--f-display);overflow-wrap:anywhere;user-select:all}
 .alias-row .btn{flex:none}
+.wx{display:inline-block;font-size:12px;color:var(--ink2);background:#eef6f3;border-radius:999px;padding:2px 8px;margin-top:5px}
+.wx.warn{background:#fff1dc;color:#9a5300;font-weight:700}
+.wait-free{border:2px solid var(--ok);background:var(--ok-soft);margin-top:14px}
+.wl{border-top:1px dashed var(--line2);padding:8px 14px 10px;background:#fbfdfc}
+.wl-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:14px}
+.wl-row span{flex:1;min-width:0}
+.psec{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);margin-top:12px;overflow:hidden}
+.psec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:14px 16px;font:600 17px var(--f-display)}
+.psec>summary::-webkit-details-marker{display:none}
+.psec>summary::after{content:'›';margin-left:auto;font-size:22px;color:var(--ink3);transition:transform .2s}
+.psec[open]>summary::after{transform:rotate(90deg)}
+.psec>summary .pill{margin:0}
+.psec-b{padding:0 14px 14px}
+.psec-b>.team,.psec-b>.section:first-child{margin-top:0}
+.psec-b .plan-card{margin-top:0;margin-bottom:10px}
+.waiver-warn{border:2px solid var(--warn);background:var(--warn-soft);margin-top:14px}
+.review{margin-top:12px;text-align:center}
+.stars{display:flex;justify-content:center;gap:6px;margin:8px 0 10px}
+.stars button{font-size:34px;line-height:1;color:#d5dcd9;background:none;border:0;padding:0 2px;cursor:pointer}
+.stars button.on{color:#f5b301}
+.reviews{display:grid;gap:10px}
+@media(min-width:700px){.reviews{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.rv{margin:0;padding:14px}
+.rv p{margin:6px 0;font-size:15px}
+.rv-st{color:#f5b301;letter-spacing:2px}
+.rv-st span{color:#d5dcd9}
+.cta2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+.cta{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;margin:0;cursor:pointer;color:inherit;font-family:inherit;border:1.5px solid var(--line)}
+.cta i{font-style:normal;font-size:28px}
+.cta b{font:600 16px var(--f-display)}
+.giftcard{background:linear-gradient(135deg,#ffc928 0%,#8cc36b 50%,#18b3b6 100%);border-radius:22px;padding:22px;color:#1f1d1e;box-shadow:0 10px 30px rgba(0,0,0,.15);margin-top:16px;position:relative;overflow:hidden}
+.giftcard .gc-big{font:700 30px var(--f-display);line-height:1.1;margin:8px 0}
+.giftcard .gc-code{display:inline-block;background:#1f1d1e;color:var(--sun);font:700 20px var(--f-display);letter-spacing:2px;border-radius:12px;padding:8px 14px;margin-top:10px}
+.giftcard img{position:absolute;right:-18px;top:-18px;width:120px;opacity:.9}
 .live-bar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 32px);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:45;background:var(--sun);color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:10px 18px;font:600 15px var(--f-body);box-shadow:0 4px 0 var(--ink);white-space:nowrap;animation:pop .3s var(--ease) both;cursor:pointer}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 18px rgba(0,0,0,.12)}
 .tabbar button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:#b9c7c3;font-size:11.5px;font-weight:600;padding:6px 2px;border-radius:12px;transition:color .2s,background .2s}
@@ -480,6 +514,12 @@ const CONFIG = {
   LOCATION: 'Guardería Barlovento, Rosario',  // lugar por defecto de las clases
   MAPS: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Guardería Barlovento Rosario'),  // botón "Cómo llegar"
   DAYS_AHEAD: 21,
+  // Pronóstico en cada clase (Open-Meteo, gratis y sin clave). Aviso si el viento o las ráfagas pasan estos km/h.
+  WEATHER: { lat: -32.905, lon: -60.672, windWarn: 25, gustWarn: 40 },
+  // Link para dejar reseña en Google (Google Maps → tu negocio → "Pedir reseñas"). Vacío = no se muestra.
+  GOOGLE_REVIEW_URL: '',
+  // Texto del deslinde que acepta cada alumno (revisalo con un abogado y cambialo acá).
+  WAIVER_TEXT: 'Declaro que estoy en condiciones de salud para realizar actividades náuticas (SUP / kayak), que la información que doy es verdadera y que voy a respetar las indicaciones del instructor y usar chaleco salvavidas. Entiendo que son actividades al aire libre en el río, con riesgos propios (caídas al agua, viento, corriente, cambios de clima), y los asumo voluntariamente. Libero a Nativo y a sus instructores de responsabilidad por accidentes que no se deban a su culpa o negligencia. Autorizo a que me presten primeros auxilios y llamen a mi contacto de emergencia si hiciera falta.',
   // El alumno puede cancelar solo su reserva hasta estas horas antes (igual que en setup.sql → cancel_my_booking).
   CANCEL_HOURS: 12,
   // Profes con nombre de usuario (sin mail): por dentro la cuenta es usuario@USER_DOMAIN.
@@ -729,6 +769,35 @@ function supabaseApi() {
     createBooking: row => q(c.from('bookings').insert(row)),
     // Tablón del team (entrenamiento)
     logTraining: undo => q(c.rpc('log_training', { p_undo: !!undo })),
+    // Lista de espera
+    joinWaitlist: (slot, name, phone) => q(c.rpc('join_waitlist', { p_slot: slot, p_name: name, p_phone: phone })),
+    myWaitlist: () => q(c.rpc('my_waitlist')),
+    slotWaitlist: ids => ids.length ? q(c.from('waitlist').select('*').in('slot_id', ids).order('created_at')) : Promise.resolve([]),
+    updateWaitlist: (id, patch) => q(c.from('waitlist').update(patch).eq('id', id)),
+    deleteWaitlist: id => q(c.from('waitlist').delete().eq('id', id)),
+    // Ficha y deslinde
+    waiverStatus: code => q(c.rpc('waiver_status', { p_code: code })),
+    submitWaiver: (code, w) => q(c.rpc('submit_waiver', { p_code: code, p_name: w.name, p_birth: w.birth || null, p_swims: w.swims, p_health: w.health, p_em_name: w.emName, p_em_phone: w.emPhone })),
+    myWaiver: async () => (await q(c.rpc('my_waiver')))[0] || null,
+    submitMyWaiver: w => q(c.rpc('submit_my_waiver', { p_name: w.name, p_phone: w.phone, p_birth: w.birth || null, p_swims: w.swims, p_health: w.health, p_em_name: w.emName, p_em_phone: w.emPhone })),
+    waivers: keys => keys.length ? q(c.from('waivers').select('*').in('phone_key', keys).order('accepted_at', { ascending: false })) : Promise.resolve([]),
+    // Reseñas
+    leaveReview: (code, stars, comment) => q(c.rpc('leave_review', { p_code: code, p_stars: stars, p_comment: comment || null })),
+    reviewByCode: async code => (await q(c.rpc('review_by_code', { p_code: code })))[0] || null,
+    publicReviews: () => q(c.rpc('public_reviews')),
+    reviews: () => q(c.from('reviews').select('*, profe:profe_id(name), slot:slot_id(starts_at, title, class_type_id), booking:booking_id(customer_name)').order('created_at', { ascending: false }).limit(200)),
+    hideReview: (id, hidden) => q(c.from('reviews').update({ hidden }).eq('id', id)),
+    // Gift cards
+    requestGift: g => q(c.rpc('request_gift', { p_kind: g.kind, p_sport: g.sport || null, p_plan: g.plan || null, p_buyer: g.buyer, p_buyer_phone: g.buyerPhone, p_recipient: g.recipient, p_message: g.message || null })),
+    giftByCode: async code => (await q(c.rpc('gift_by_code', { p_code: code })))[0] || null,
+    redeemGiftBooking: (gift, code) => q(c.rpc('redeem_gift_booking', { p_gift: gift, p_booking: code })),
+    redeemGiftPass: gift => q(c.rpc('redeem_gift_pass', { p_gift: gift })),
+    giftCards: () => q(c.from('gift_cards').select('*').order('created_at', { ascending: false }).limit(200)),
+    updateGift: (id, patch) => q(c.from('gift_cards').update(patch).eq('id', id)),
+    // Clases privadas y grupales
+    requestGroup: g => q(c.rpc('request_group', { p_name: g.name, p_phone: g.phone, p_kind: g.kind, p_sport: g.sport, p_people: g.people || null, p_preferred: g.preferred || null, p_message: g.message || null })),
+    groupRequests: () => q(c.from('group_requests').select('*').order('created_at', { ascending: false }).limit(200)),
+    updateGroup: (id, patch) => q(c.from('group_requests').update(patch).eq('id', id)),
     studentProfile: id => q(c.rpc('student_profile', { p_id: id })),
     teamMembers: () => q(c.rpc('team_members')),
     teamPosts: () => q(c.from('team_posts').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(30)),
@@ -792,6 +861,7 @@ function demoApi() {
   const demoUsed = pid => db.bookings.filter(b => b.pass_id === pid && b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
   const demoActive = days => { const t = dayKey(new Date()); return { starts_on: t, expires_on: dayKey(addDays(new Date(), days - 1)), paid_at: new Date().toISOString() }; };
   const fail = m => Promise.reject(new Error(m));
+  const pk = p => String(p || '').replace(/\D/g, '').slice(-10);
   const demoDays = sid => [...new Set([...(db.training_logs || []).filter(x => x.student_id === sid).map(x => x.day),
     ...db.bookings.filter(b => b.student_id === sid && !['cancelled', 'no_show'].includes(b.status)).map(b => db.slots.find(x => x.id === b.slot_id))
       .filter(s => s?.members_only && s.status !== 'cancelled' && new Date(s.starts_at) < new Date()).map(s => dayKey(s.starts_at))])].sort();
@@ -929,6 +999,75 @@ function demoApi() {
       if (db.bookings.some(b => b.slot_id === id)) return fail('Ese horario tiene reservas: cancelalo en vez de borrarlo');
       db.slots = db.slots.filter(s => s.id !== id); save(); return wait(null);
     },
+    joinWaitlist(slot, name, phone) {
+      const s = db.slots.find(x => x.id === slot), k = pk(phone); db.waitlist ||= [];
+      if (String(name || '').trim().length < 2) return fail('Ingresá tu nombre y apellido');
+      if (k.length < 8) return fail('Ingresá un WhatsApp válido (con característica)');
+      const booked = db.bookings.filter(b => b.slot_id === slot && b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
+      if (booked < s.capacity) return fail('Hay lugar: reservá directamente');
+      if (db.bookings.some(b => b.slot_id === slot && b.status !== 'cancelled' && pk(b.customer_phone) === k)) return fail('Ya tenés una reserva en esta clase');
+      if (!db.waitlist.some(w => w.slot_id === slot && pk(w.phone) === k)) db.waitlist.push({ id: uid(), slot_id: slot, name: name.trim(), phone, student_id: store.get(SKEY, null), created_at: new Date().toISOString() });
+      save(); return wait(db.waitlist.filter(w => w.slot_id === slot).findIndex(w => pk(w.phone) === k) + 1);
+    },
+    myWaitlist() { const sid = store.get(SKEY, null); return wait((db.waitlist || []).filter(w => sid && w.student_id === sid).map(w => { const s = db.slots.find(x => x.id === w.slot_id);
+      return { slot_id: s.id, title: s.title, starts_at: s.starts_at, free: Math.max(0, s.capacity - db.bookings.filter(b => b.slot_id === s.id && b.status !== 'cancelled').reduce((a, b) => a + b.people, 0)) }; })); },
+    slotWaitlist: ids => wait((db.waitlist || []).filter(w => ids.includes(w.slot_id))),
+    updateWaitlist(id, patch) { Object.assign((db.waitlist || []).find(w => w.id === id) || {}, patch); save(); return wait(null); },
+    deleteWaitlist(id) { db.waitlist = (db.waitlist || []).filter(w => w.id !== id); save(); return wait(null); },
+    waiverStatus(code) { const b = db.bookings.find(x => x.code === String(code).toUpperCase()); return wait(!!b && (db.waivers || []).some(w => w.phone_key === pk(b.customer_phone) || (b.student_id && w.student_id === b.student_id))); },
+    submitWaiver(code, w) { const b = db.bookings.find(x => x.code === String(code).toUpperCase()); if (!b) return fail('No encontramos esa reserva');
+      if (!['si', 'poco', 'no'].includes(w.swims)) return fail('Contanos si sabés nadar');
+      if (pk(w.emPhone).length < 8 || String(w.emName || '').trim().length < 2) return fail('Poné un contacto de emergencia con teléfono');
+      (db.waivers ||= []).push({ id: uid(), phone_key: pk(b.customer_phone), student_id: b.student_id || null, name: w.name, birth_date: w.birth || null, swims: w.swims, health: w.health || null, emergency_name: w.emName, emergency_phone: w.emPhone, accepted_at: new Date().toISOString() }); save(); return wait(null); },
+    myWaiver() { const sid = store.get(SKEY, null); return wait([...(db.waivers || [])].reverse().find(w => sid && w.student_id === sid) || null); },
+    submitMyWaiver(w) { const sid = store.get(SKEY, null);
+      if (!['si', 'poco', 'no'].includes(w.swims)) return fail('Contanos si sabés nadar');
+      if (pk(w.phone).length < 8) return fail('Poné tu WhatsApp');
+      if (pk(w.emPhone).length < 8 || String(w.emName || '').trim().length < 2) return fail('Poné un contacto de emergencia con teléfono');
+      (db.waivers ||= []).push({ id: uid(), phone_key: pk(w.phone), student_id: sid, name: w.name, birth_date: w.birth || null, swims: w.swims, health: w.health || null, emergency_name: w.emName, emergency_phone: w.emPhone, accepted_at: new Date().toISOString() });
+      const s0 = db.students.find(x => x.id === sid); if (s0 && !s0.phone) s0.phone = w.phone; save(); return wait(null); },
+    waivers: keys => wait([...(db.waivers || [])].reverse().filter(w => keys.includes(w.phone_key))),
+    leaveReview(code, stars, comment) { const b = db.bookings.find(x => x.code === String(code).toUpperCase()); if (!b) return fail('No encontramos esa reserva');
+      const s = db.slots.find(x => x.id === b.slot_id); if (addMin(s.starts_at, s.duration_min) > new Date()) return fail('Podés calificar cuando termine la clase');
+      db.reviews ||= []; const r = db.reviews.find(x => x.booking_id === b.id);
+      const row = { booking_id: b.id, slot_id: s.id, profe_id: s.profe_id, stars, comment: comment || null, created_at: new Date().toISOString(), hidden: false };
+      if (r) Object.assign(r, row); else db.reviews.push({ id: uid(), ...row }); save(); return wait(null); },
+    reviewByCode(code) { const b = db.bookings.find(x => x.code === String(code).toUpperCase()); return wait((db.reviews || []).find(r => b && r.booking_id === b.id) || null); },
+    publicReviews: () => wait((db.reviews || []).filter(r => r.stars >= 4 && r.comment && !r.hidden).reverse().slice(0, 12).map(r => { const b = db.bookings.find(x => x.id === r.booking_id), s = db.slots.find(x => x.id === r.slot_id);
+      return { first_name: b?.customer_name.split(' ')[0], profe_name: db.profiles.find(p => p.id === r.profe_id)?.name, stars: r.stars, comment: r.comment, sport: db.class_types.find(t => t.id === s?.class_type_id)?.sport || 'sup', created_at: r.created_at }; })),
+    reviews: () => wait((db.reviews || []).filter(r => isAdmin() || r.profe_id === meId()).reverse().map(r => { const b = db.bookings.find(x => x.id === r.booking_id), s = db.slots.find(x => x.id === r.slot_id);
+      return { ...r, profe: { name: db.profiles.find(p => p.id === r.profe_id)?.name }, slot: { starts_at: s?.starts_at, title: s?.title, class_type_id: s?.class_type_id }, booking: { customer_name: b?.customer_name } }; })),
+    hideReview(id, hidden) { Object.assign((db.reviews || []).find(r => r.id === id), { hidden }); save(); return wait(null); },
+    requestGift(g) { db.gift_cards ||= [];
+      if (String(g.buyer || '').trim().length < 2 || String(g.recipient || '').trim().length < 2) return fail('Poné tu nombre y el de quien lo recibe');
+      if (pk(g.buyerPhone).length < 8) return fail('Ingresá tu WhatsApp para coordinar el pago');
+      let value, sport = g.sport || 'sup';
+      if (g.kind === 'abono') { const pl = (db.plans || []).find(x => x.id === g.plan); if (!pl) return fail('Ese abono no está disponible'); value = pl.price; sport = pl.sport || 'sup'; }
+      else value = db.class_types.filter(t => t.active && !t.members_only && (t.sport || 'sup') === sport).sort((a, b) => a.price - b.price)[0]?.price || 0;
+      if (!value) return fail('Todavía no hay clases de esa disciplina para regalar');
+      const code = 'NAT-' + Math.random().toString(16).slice(2, 8).toUpperCase();
+      db.gift_cards.push({ id: uid(), code, kind: g.kind, sport, plan_id: g.kind === 'abono' ? g.plan : null, value, buyer_name: g.buyer, buyer_phone: g.buyerPhone, recipient_name: g.recipient, message: g.message || null, status: 'pending', created_at: new Date().toISOString() });
+      save(); return wait(code); },
+    giftByCode(code) { const g = (db.gift_cards || []).find(x => x.code === String(code).toUpperCase()); if (!g) return wait(null); const pl = (db.plans || []).find(x => x.id === g.plan_id);
+      return wait({ code: g.code, kind: g.kind, sport: g.sport, plan_name: pl?.name, classes: pl?.classes || 1, value: g.value, from_name: g.buyer_name.split(' ')[0], recipient_name: g.recipient_name, message: g.message, status: g.status }); },
+    redeemGiftBooking(gift, code) { const g = (db.gift_cards || []).find(x => x.code === String(gift).toUpperCase()), b = db.bookings.find(x => x.code === String(code).toUpperCase());
+      if (!g) return fail('Ese código de regalo no existe'); if (g.status === 'pending') return fail('Ese regalo todavía no está pago: avisale a quien te lo regaló');
+      if (g.status !== 'active') return fail('Ese regalo ya se usó'); if (g.kind !== 'clase') return fail('Ese regalo es un abono: canjealo desde tu perfil');
+      if (!b || b.paid) return fail('Esa reserva ya está paga'); if (b.people > 1) return fail('El regalo cubre 1 persona: reservá para 1 y canjealo');
+      const sp = db.class_types.find(t => t.id === db.slots.find(s => s.id === b.slot_id)?.class_type_id)?.sport || 'sup'; if (sp !== g.sport) return fail(`Ese regalo es para clases de ${g.sport === 'kayak' ? 'kayak' : 'SUP'}`);
+      Object.assign(b, { paid: true, payment_method: 'regalo', pay_pref: null, notes: [b.notes, 'Gift card ' + g.code].filter(Boolean).join(' · ') }); Object.assign(g, { status: 'redeemed', redeemed_at: new Date().toISOString(), redeemed_booking: b.id }); save(); return wait(null); },
+    redeemGiftPass(gift) { const sid = store.get(SKEY, null); if (!sid) return fail('Entrá con Google para canjear el abono');
+      const g = (db.gift_cards || []).find(x => x.code === String(gift).toUpperCase()); if (!g) return fail('Ese código de regalo no existe');
+      if (g.status === 'pending') return fail('Ese regalo todavía no está pago: avisale a quien te lo regaló'); if (g.status !== 'active') return fail('Ese regalo ya se usó');
+      if (g.kind !== 'abono') return fail('Ese regalo es una clase: canjealo al reservar'); const pl = db.plans.find(x => x.id === g.plan_id);
+      db.passes.push({ id: uid(), student_id: sid, plan_id: pl.id, name: pl.name, price: g.value, classes_total: pl.classes, days_valid: pl.days_valid, status: 'active', payment_method: 'regalo', created_at: new Date().toISOString(), ...demoActive(pl.days_valid) });
+      Object.assign(g, { status: 'redeemed', redeemed_at: new Date().toISOString() }); save(); return wait(null); },
+    giftCards: () => wait([...(db.gift_cards || [])].reverse()),
+    updateGift(id, patch) { Object.assign(db.gift_cards.find(g => g.id === id), patch); save(); return wait(null); },
+    requestGroup(g) { if (String(g.name || '').trim().length < 2) return fail('Poné tu nombre'); if (pk(g.phone).length < 8) return fail('Ingresá un WhatsApp válido (con característica)');
+      (db.group_requests ||= []).push({ id: uid(), ...g, status: 'nuevo', created_at: new Date().toISOString() }); save(); return wait(null); },
+    groupRequests: () => wait([...(db.group_requests || [])].reverse()),
+    updateGroup(id, patch) { Object.assign(db.group_requests.find(g => g.id === id), patch); save(); return wait(null); },
     logTraining(undo) {
       const sid = store.get(SKEY, null), s0 = db.students.find(x => x.id === sid);
       if (s0?.training !== 'approved') return fail('Es para el grupo de entrenamiento');
@@ -1076,12 +1215,13 @@ function route() {
   const ticket = /^#r-([0-9a-f]{6})$/i.exec(location.hash), perfil = location.hash === '#perfil';
   const other = /^#a-([0-9a-z-]{3,40})$/i.exec(location.hash), team = location.hash === '#team';
   const sportLink = /^#(sup|kayak)$/i.exec(location.hash);      // link directo: nativoescuela.com.ar/#kayak
+  const gift = /^#g-(NAT-[0-9a-f]{6})$/i.exec(location.hash);     // gift card: …/#g-NAT-1A2B3C
   if (sportLink) { st.fSport = sportLink[1].toLowerCase(); st.fType = ''; st.fProfe = ''; st.day = null; }
   $('nav-public').classList.toggle('on', !staff && !perfil && !other && !team);
   $('nav-acct').classList.toggle('on', staff || perfil || !!other || team);
   closeModal();
   staff ? renderStaff() : perfil ? renderStudent() : team ? renderTeam() : other ? renderOtherStudent(other[1].toLowerCase())
-    : ticket ? renderTicket(ticket[1].toUpperCase()) : renderPublic();
+    : ticket ? renderTicket(ticket[1].toUpperCase()) : gift ? renderGift(gift[1].toUpperCase()) : renderPublic();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
@@ -1107,14 +1247,16 @@ async function renderPublic() {
   const cached = DEMO ? null : store.get(PUB_CACHE, null);
   let shown = false;
   if (cached && Date.now() - cached.at < 12 * 3600e3) {
-    Object.assign(st, { types: cached.types, profes: cached.profes, plans: cached.plans, pub: cached.pub.filter(x => new Date(x.starts_at) > new Date()) });
+    Object.assign(st, { types: cached.types, profes: cached.profes, plans: cached.plans, reviews: cached.reviews || [], pub: cached.pub.filter(x => new Date(x.starts_at) > new Date()) });
     if ($('pub') && st.pub.length) { drawPublic(); shown = true; }
   }
   try {
     const from = startOfDay(new Date()), to = addDays(from, CONFIG.DAYS_AHEAD);
-    const [types, profes, pub, plans] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => []), syncMine()]);
-    Object.assign(st, { types, profes, pub, plans });
-    if (!DEMO) store.set(PUB_CACHE, { at: Date.now(), types, profes, pub, plans });
+    const [types, profes, pub, plans, reviews] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => []),
+      api.publicReviews().catch(() => []), syncMine()]);
+    Object.assign(st, { types, profes, pub, plans, reviews });
+    if (!DEMO) store.set(PUB_CACHE, { at: Date.now(), types, profes, pub, plans, reviews });
+    if (!WX) loadWeather().then(ok => { if (ok && $('pub') && $('modal').classList.contains('hidden')) { const y = window.scrollY; drawPublic(); window.scrollTo(0, y); } });
     if ($('pub') && (!shown || $('modal').classList.contains('hidden'))) { const y = window.scrollY; drawPublic(); if (shown) window.scrollTo(0, y); }
   } catch (e) {
     if ($('pub') && !shown) $('pub').innerHTML = `<div class="card empty" style="margin-top:14px">No pudimos cargar los horarios. ${esc(errMsg(e))}</div>`;
@@ -1125,6 +1267,32 @@ const PUB_CACHE = 'nativo_pub_v1';
 const pubSkeleton = () => `<div class="skel" aria-label="Cargando horarios" style="margin-top:16px"><i style="height:84px"></i><i style="height:18px;width:40%"></i>
   <div class="row" style="gap:6px">${'<i style="height:62px;flex:1"></i>'.repeat(5)}</div><i style="height:96px"></i><i style="height:96px"></i></div>`;
 const heroFacts = t => `<span><b>${t.duration_min}</b> min</span><span><b>${money(t.price)}</b> por persona</span><span>${(t.sport || 'sup') === 'kayak' ? 'kayak, pala y chaleco incluidos' : 'tabla, remo y chaleco incluidos'}</span>`;
+
+/* ── Pronóstico: viento, ráfagas y lluvia para la hora de cada clase (se guarda 1 h en el celu) ── */
+let WX = null;
+async function loadWeather() {
+  const w = CONFIG.WEATHER; if (!w || WX) return false;
+  const c = store.get('nativo_wx', null);
+  if (c && Date.now() - c.at < 3600e3) { WX = c.data; return true; }
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${w.lat}&longitude=${w.lon}&hourly=wind_speed_10m,wind_gusts_10m,precipitation_probability,temperature_2m&wind_speed_unit=kmh&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=16`;
+    const r = await fetch(u); if (!r.ok) return false;
+    const h = (await r.json()).hourly; WX = {};
+    h.time.forEach((t, i) => { WX[t] = [Math.round(h.wind_speed_10m[i]), Math.round(h.wind_gusts_10m[i]), h.precipitation_probability[i] ?? 0, Math.round(h.temperature_2m[i])]; });
+    store.set('nativo_wx', { at: Date.now(), data: WX }); return true;
+  } catch { return false; }
+}
+function wxAt(iso) {
+  if (!WX) return null;
+  const d = new Date(iso), k = `${dayKey(d)}T${pad(d.getHours())}:00`;
+  const v = WX[k]; return v ? { wind: v[0], gust: v[1], rain: v[2], temp: v[3] } : null;
+}
+// "🌬️ 18 km/h · ráf. 32 · ☔ 20% · 22°" — en naranja con ⚠️ si pasa el límite.
+function wxHtml(iso) {
+  const x = wxAt(iso); if (!x) return '';
+  const warn = x.wind >= CONFIG.WEATHER.windWarn || x.gust >= CONFIG.WEATHER.gustWarn;
+  return `<span class="wx ${warn ? 'warn' : ''}" title="Pronóstico para esa hora">${warn ? '⚠️ ' : ''}🌬️ ${x.wind} km/h · ráf. ${x.gust}${x.rain >= 20 ? ` · ☔ ${x.rain}%` : ''} · ${x.temp}°</span>`;
+}
 
 /* Disciplinas: SUP y kayak comparten página y agenda; se eligen con pestañas arriba. */
 const SPORTS = { sup: { label: 'SUP', em: '🏄', long: 'stand up paddle' }, kayak: { label: 'Kayak', em: '🛶', long: 'kayak' } };
@@ -1172,6 +1340,10 @@ function drawPublic() {
         const p = [...ps].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(x => new Date(x.created_at) > addDays(new Date(), -7)) || ps.find(x => x.pinned);
         return p ? `<a class="card board-pub" href="#team" style="display:block;text-decoration:none;color:inherit;margin-top:14px"><div class="row between"><b>📣 Aviso del team</b><span class="tiny muted">${esc(p.author_name || 'Nativo')} · ${ago(p.created_at)}</span></div>
           <div class="post-b">${esc(p.body.length > 160 ? p.body.slice(0, 157) + '…' : p.body)}</div><div class="tiny" style="margin-top:6px;color:var(--sea)">Ver el tablón y el team ›</div></a>` : ''; })()}
+    ${(st.myWait || []).map(w => w.free > 0
+      ? `<div class="card wait-free rise"><b>🎉 ¡Se liberó un lugar!</b><div class="small">${esc(w.title)} · ${esc(fmtDayLong(w.starts_at))} ${hhmm(w.starts_at)}. Estabas en lista de espera.</div>
+         <button class="btn coral sm" style="margin-top:8px" onclick="st.openSlot='${w.slot_id}';openSharedSlot()">Reservar ahora</button></div>`
+      : `<div class="small muted" style="margin-top:10px">⏳ Estás en lista de espera para ${esc(w.title)} del ${esc(fmtDayShort(w.starts_at))} ${hhmm(w.starts_at)}.</div>`).join('')}
     ${mine.length ? `<div class="section"><div class="label">Tus próximas clases</div><div class="mine" style="margin-top:0">${mine.map(m => `<a href="#r-${esc(m.code)}">
         <span class="t num">${hhmm(m.starts_at)}</span><span class="who"><b>${esc(fmtDayLong(m.starts_at))}</b><br><span class="muted">Reserva ${esc(m.code)}</span></span><span aria-hidden="true">›</span></a>`).join('')}</div></div>` : ''}
     ${activeTypes.length > 1 ? `<div class="section"><div class="label">Clase</div><div class="chips">
@@ -1197,18 +1369,25 @@ function drawPublic() {
     <div class="slots">
       ${daySlots.length ? daySlots.map(s => {
         const left = s.capacity - s.booked, full = left <= 0, trav = kindOf(s) === 'travesia';
-        return `<button class="slot rise ${full ? 'full' : ''} ${trav ? 'trav' : ''}" ${full ? 'disabled' : ''} onclick="openBooking('${s.id}')">
+        return `<button class="slot rise ${full ? 'full' : ''} ${trav ? 'trav' : ''}" onclick="${full ? `openWaitlist('${s.id}')` : `openBooking('${s.id}')`}">
           <div class="t num">${hhmm(s.starts_at)}<small>${s.duration_min >= 120 ? `${String(Math.round(s.duration_min / 6) / 10).replace('.', ',')} h` : `${s.duration_min} min`}</small></div>
           <div class="mid">${trav || activeTypes.length > 1 ? `<div class="ttl">${trav ? '<span class="pill trav-p">🧭 Travesía</span>' : ''}${esc(s.title)}</div>` : ''}<div class="who">${avatarHtml(st.profes.find(p => p.id === s.profe_id) || { name: s.profe_name }, 'xs')}<span>con ${esc(s.profe_name)}</span>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅 Entrenamiento</span>' : ''}</div>
-            <div class="meta">${s.location ? esc(s.location) + ' · ' : ''}${money(s.price)}</div>
-            ${full ? '<span class="pill gray">Completo</span>' : left <= 2 && s.capacity > 2 ? `<span class="pill warn">¡Quedan ${left}!</span>` : `<span class="pill ok">${left} ${left === 1 ? 'lugar libre' : 'lugares libres'}</span>`}</div>
-          <span class="go" aria-hidden="true">${full ? '–' : '→'}</span>
+            <div class="meta">${s.location ? esc(s.location) + ' · ' : ''}${money(s.price)}</div>${wxHtml(s.starts_at)}
+            ${full ? '<span class="pill gray">Completo · anotate en espera</span>' : left <= 2 && s.capacity > 2 ? `<span class="pill warn">¡Quedan ${left}!</span>` : `<span class="pill ok">${left} ${left === 1 ? 'lugar libre' : 'lugares libres'}</span>`}</div>
+          <span class="go" aria-hidden="true">${full ? '⏳' : '→'}</span>
         </button>`; }).join('') : (() => { const pw = !avail.length && profes.length === 1 && profes[0].whatsapp ? profes[0] : null;
           return `<div class="card empty">${avail.length ? 'No quedan lugares este día. Probá con otro día marcado con punto.' : `Todavía no hay ${sp === 'kayak' ? 'salidas de kayak publicadas' : 'clases publicadas'} para las próximas semanas.${sp === 'kayak' ? ' ¡Escribinos y te avisamos las próximas!' : ''}`}${pw
             ? `<div style="margin-top:12px"><a class="btn wa sm" href="${profeWa(pw.name, pw.whatsapp, `por las clases de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">Escribile a ${esc(pw.name.split(' ')[0])}</a></div>`
             : CONFIG.WHATSAPP ? `<div style="margin-top:12px"><a class="btn wa sm" href="${waLink(CONFIG.WHATSAPP, `Hola! Quería consultar por una clase de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">Consultanos por WhatsApp</a></div>` : ''}</div>`; })()}
     </div>
-    ${trainType && sp === 'sup' ? trainingPromo(trainType) : ''}`;   // el grupo de entrenamiento es de SUP
+    ${trainType && sp === 'sup' ? trainingPromo(trainType) : ''}
+    ${(() => { const rv = (st.reviews || []).filter(r => (r.sport || 'sup') === sp).slice(0, 6);
+      return rv.length ? `<div class="section"><div class="label">⭐ Lo que dicen los alumnos</div><div class="reviews">${rv.map(r => `<div class="card rv"><div class="rv-st">${'★'.repeat(r.stars)}<span>${'★'.repeat(5 - r.stars)}</span></div>
+        <p>“${esc(r.comment)}”</p><div class="tiny muted">${esc(r.first_name || '')}${r.profe_name ? ` · clase con ${esc(r.profe_name.split(' ')[0])}` : ''}</div></div>`).join('')}</div></div>` : ''; })()}
+    <div class="cta2">
+      <button class="card cta" onclick="openGift()"><i>🎁</i><b>Regalá una clase</b><span class="small muted">o un abono, con tarjeta de regalo</span></button>
+      <button class="card cta" onclick="openGroup()"><i>👥</i><b>Clases privadas y grupales</b><span class="small muted">cumples, empresas, grupos de amigos</span></button>
+    </div>`;   // el grupo de entrenamiento es de SUP
   // "¿Dudas?": en kayak va al WhatsApp del profe de kayak (Mati); en SUP, al de la escuela.
   const kw = sp !== 'sup' ? profes.find(p => p.whatsapp) : null, fw = $('foot-wa');
   if (fw) {
@@ -1251,6 +1430,117 @@ async function openSharedSlot() {
   if (s.capacity - s.booked <= 0) return toast('Esa clase ya está completa 😕. Mirá otras fechas.');
   openBooking(id);
 }
+/* ── Gift cards: regalar una clase o un abono ── */
+function openGift() {
+  const opts = [];
+  Object.entries(SPORTS).forEach(([k, x]) => { const t = (st.types || []).filter(t => t.active && !t.members_only && (t.sport || 'sup') === k && +t.price).sort((a, b) => a.price - b.price)[0];
+    if (t) opts.push({ v: `clase:${k}`, l: `1 clase de ${x.label}`, p: t.price, em: x.em }); });
+  (st.plans || []).filter(p => p.active).forEach(p => opts.push({ v: `abono:${p.id}`, l: p.name, p: p.price, em: '💳' }));
+  if (!opts.length) return toast('Todavía no hay clases para regalar');
+  openModal(`<h2>🎁 Regalá una clase</h2>
+    <p class="small muted" style="margin-bottom:12px">Pedís el regalo, coordinás el pago por WhatsApp y te mandamos la tarjeta con el código para que se la pases.</p>
+    <div id="gf-err"></div>
+    <form onsubmit="doGift(event)">
+      <div class="field"><span class="flabel">¿Qué querés regalar?</span><div class="choice">${opts.map((o, i) => `<label class="check opt"><input type="radio" name="what" value="${o.v}" ${i ? '' : 'checked'}> ${o.em} ${esc(o.l)} · <b>${money(o.p)}</b></label>`).join('')}</div></div>
+      <div class="grid2"><div class="field"><label for="gf-buyer">Tu nombre</label><input class="input" id="gf-buyer" name="buyer" required maxlength="60" value="${esc(st.student?.name || '')}"></div>
+        <div class="field"><label for="gf-phone">Tu WhatsApp</label><input class="input" id="gf-phone" name="buyerPhone" type="tel" inputmode="tel" required maxlength="30" value="${esc(st.student?.phone || '')}"></div></div>
+      <div class="field"><label for="gf-to">¿Para quién es?</label><input class="input" id="gf-to" name="recipient" required maxlength="60" placeholder="Nombre de quien lo recibe"></div>
+      <div class="field"><label for="gf-msg">Mensaje para la tarjeta <span class="muted">(opcional)</span></label><input class="input" id="gf-msg" name="message" maxlength="200" placeholder="¡Feliz cumple! A remar 🌊"></div>
+      <div class="sheet-foot"><button class="btn coral block" id="gf-btn">Pedir el regalo</button></div></form>`);
+}
+async function doGift(ev) {
+  ev.preventDefault(); const f = ev.target, btn = $('gf-btn'), [kind, ref] = f.what.value.split(':'); btn.disabled = true;
+  const g = { kind, sport: kind === 'clase' ? ref : null, plan: kind === 'abono' ? ref : null, buyer: f.buyer.value.trim(), buyerPhone: f.buyerPhone.value.trim(), recipient: f.recipient.value.trim(), message: f.message.value.trim() };
+  try {
+    const code = await api.requestGift(g);
+    const sp = kind === 'clase' ? ref : (st.plans || []).find(p => p.id === ref)?.sport || 'sup', c = sportContact(sp, CONFIG.PASS_CONTACT?.whatsapp ? CONFIG.PASS_CONTACT : schoolContact());
+    const what = f.querySelector('input[name=what]:checked')?.parentElement.textContent.replace(/\s+/g, ' ').trim() || '';
+    $('modal-body').innerHTML = `<button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button><div style="text-align:center"><div class="big-emoji">🎁</div><h2>¡Regalo pedido!</h2>
+      <p>Código: <b class="num" style="font-size:20px">${esc(code)}</b></p>
+      <p class="small muted">Coordiná el pago por WhatsApp. Cuando se confirma, la tarjeta se activa y le pasás el link a ${esc(g.recipient.split(' ')[0])}.</p></div>
+      <div class="choice">${c?.whatsapp ? `<a class="btn wa block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Quiero pagar una gift card de Nativo: ${what} para ${g.recipient}. Código ${code}. Soy ${g.buyer}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Coordinar el pago</a>` : ''}
+        <a class="btn ghost block" href="#g-${code}" onclick="closeModal()">Ver la tarjeta de regalo</a></div>`;
+  } catch (e) { $('gf-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+async function renderGift(code) {
+  $('app').innerHTML = `<div class="wrap" id="gift"><div class="loading">Buscando el regalo…</div></div>`;
+  const g = await api.giftByCode(code).catch(() => null); if (!$('gift')) return;
+  if (!g) { $('gift').innerHTML = `<div class="card empty" style="margin-top:16px">No encontramos el regalo <b>${esc(code)}</b>.<div style="margin-top:12px"><a class="btn coral" href="#">Ver clases</a></div></div>`; return; }
+  const sp = SPORTS[g.sport] || SPORTS.sup, what = g.kind === 'abono' ? `${esc(g.plan_name || 'Abono')} · ${g.classes} clases` : `1 clase de ${sp.label}`;
+  const url = `${location.origin}${location.pathname}#g-${g.code}`;
+  $('gift').innerHTML = `
+    <div class="giftcard rise"><img src="img/logo.webp" alt="">
+      <div class="small"><b>Nativo · Gift card</b></div>
+      <div class="gc-big">${sp.em} ${what}</div>
+      <div>Para <b>${esc(g.recipient_name)}</b>${g.from_name ? `, de <b>${esc(g.from_name)}</b>` : ''}</div>
+      ${g.message ? `<p style="margin:10px 0 0;font-style:italic">“${esc(g.message)}”</p>` : ''}
+      <div class="gc-code">${esc(g.code)}</div></div>
+    <div class="card" style="margin-top:14px">
+      ${g.status === 'pending' ? '<b>⏳ Pendiente de pago</b><p class="small muted">Se activa cuando la escuela confirma el pago.</p>'
+        : g.status === 'redeemed' ? '<b>✓ Este regalo ya se usó</b><p class="small muted">¡Que lo hayas disfrutado! 🌊</p>'
+        : g.status === 'cancelled' ? '<b>Este regalo fue anulado</b>'
+        : g.kind === 'abono' ? `<b>🎉 ¡Listo para usar!</b><p class="small muted">Entrá con tu cuenta y canjealo: se activa tu abono de ${g.classes} clases.</p>
+            <button class="btn coral block" onclick="redeemGiftPage('${g.code}')">Canjear en mi cuenta</button>`
+        : `<b>🎉 ¡Listo para usar!</b><p class="small muted">Reservá una clase de ${sp.label} y, en el comprobante, tocá <b>🎁 Canjear</b> con este código: la clase queda paga.</p>
+            <a class="btn coral block" href="#${g.sport === 'kayak' ? 'kayak' : ''}">Elegir mi clase</a>`}
+    </div>
+    <div class="tk-acts"><button class="btn ghost block" onclick="(navigator.share ? navigator.share({ title: 'Un regalo de Nativo 🎁', url: '${url}' }) : navigator.clipboard.writeText('${url}').then(() => toast('Link copiado ✓'))).catch(() => {})">Compartir este regalo</button>
+      <a class="btn ghost block" href="#">Ver la página de Nativo</a></div>`;
+}
+async function redeemGiftPage(code) {
+  if (!st.student) return loginWithGoogle({ hash: '#g-' + code });
+  try { await api.redeemGiftPass(code); toast('¡Abono activado! 🎉'); location.hash = '#perfil'; } catch (e) { toast(errMsg(e)); }
+}
+
+/* ── Clases privadas y grupales ── */
+function openGroup() {
+  const kay = (st.types || []).some(t => t.active && t.sport === 'kayak');
+  openModal(`<h2>👥 Clases privadas y grupales</h2>
+    <p class="small muted" style="margin-bottom:12px">Cumpleaños, empresas, grupos de amigos o una clase solo para vos. Dejanos los datos y te escribimos con opciones y precio.</p>
+    <div id="gr-err"></div>
+    <form onsubmit="doGroup(event)">
+      <div class="field"><span class="flabel">¿Qué tenés en mente?</span><div class="seg">${[['cumple', '🎂 Cumple'], ['empresa', '🏢 Empresa'], ['grupo', '👯 Grupo'], ['privada', '🙋 Privada']].map(([k, l], i) => `<label><input type="radio" name="kind" value="${k}" ${i ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
+      ${kay ? `<div class="field"><span class="flabel">Actividad</span><div class="seg"><label><input type="radio" name="sport" value="sup" checked>🏄 SUP</label><label><input type="radio" name="sport" value="kayak">🛶 Kayak</label></div></div>` : '<input type="hidden" name="sport" value="sup">'}
+      <div class="grid2"><div class="field"><label for="gr-people">¿Cuántos son?</label><input class="input" id="gr-people" name="people" type="number" inputmode="numeric" min="1" max="200" value="6"></div>
+        <div class="field"><label for="gr-when">¿Cuándo?</label><input class="input" id="gr-when" name="preferred" maxlength="120" placeholder="Ej: un sábado de noviembre"></div></div>
+      <div class="grid2"><div class="field"><label for="gr-name">Tu nombre</label><input class="input" id="gr-name" name="name" required maxlength="60" value="${esc(st.student?.name || '')}"></div>
+        <div class="field"><label for="gr-phone">Tu WhatsApp</label><input class="input" id="gr-phone" name="phone" type="tel" inputmode="tel" required maxlength="30" value="${esc(st.student?.phone || '')}"></div></div>
+      <div class="field"><label for="gr-msg">Algo más <span class="muted">(opcional)</span></label><textarea class="input" id="gr-msg" name="message" maxlength="500" placeholder="Edades, nivel, si quieren algo especial…"></textarea></div>
+      <div class="sheet-foot"><button class="btn coral block" id="gr-btn">Enviar pedido</button></div></form>`);
+}
+async function doGroup(ev) {
+  ev.preventDefault(); const f = ev.target, btn = $('gr-btn'); btn.disabled = true;
+  try {
+    await api.requestGroup({ name: f.name.value.trim(), phone: f.phone.value.trim(), kind: f.kind.value, sport: f.sport.value, people: +f.people.value || null, preferred: f.preferred.value.trim(), message: f.message.value.trim() });
+    $('modal-body').innerHTML = `<button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button><div style="text-align:center"><div class="big-emoji">👥</div><h2>¡Pedido enviado!</h2>
+      <p class="muted">Te escribimos por WhatsApp con opciones y precio.</p></div><div class="sheet-foot"><button class="btn block" onclick="closeModal()">Listo</button></div>`;
+  } catch (e) { $('gr-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+
+/* ── Lista de espera ── */
+function openWaitlist(id) {
+  const s = st.pub.find(x => x.id === id); if (!s) return;
+  const me = st.student, mine = (st.myWait || []).some(w => w.slot_id === id);
+  openModal(`<h2>⏳ Lista de espera</h2>
+    <div class="sum"><b>${esc(s.title)}</b> con ${esc(s.profe_name)}<br>${esc(fmtDayLong(s.starts_at))} · <b class="num">${hhmm(s.starts_at)}</b></div>
+    ${mine ? '<p>Ya estás en la lista de esta clase. Si se libera un lugar te avisamos 🙌</p><div class="sheet-foot"><button class="btn block" onclick="closeModal()">Listo</button></div>' : `
+    <p class="small muted" style="margin-bottom:12px">Está completa. Si alguien cancela, te avisamos por WhatsApp${me ? ' y te aparece acá en la web' : ''} para que tomes el lugar.</p>
+    <div id="wl-err"></div>
+    <form onsubmit="doWaitlist(event,'${id}')">
+      ${me ? `<input type="hidden" name="name" value="${esc(me.name)}">` : '<div class="field"><label for="wl-name">Nombre y apellido</label><input class="input" id="wl-name" name="name" required minlength="2" maxlength="80" autocomplete="name"></div>'}
+      <div class="field"><label for="wl-phone">WhatsApp</label><input class="input" id="wl-phone" name="phone" type="tel" inputmode="tel" required maxlength="30" placeholder="341 555 1234" autocomplete="tel" value="${esc(me?.phone || '')}"></div>
+      <div class="sheet-foot"><button class="btn coral block" id="wl-btn">Anotarme en la lista</button></div></form>`}`);
+}
+async function doWaitlist(ev, id) {
+  ev.preventDefault(); const f = ev.target, btn = $('wl-btn'); btn.disabled = true;
+  try {
+    const n = await api.joinWaitlist(id, f.name.value.trim(), f.phone.value.trim());
+    if (st.student) st.myWait = await api.myWaitlist().catch(() => st.myWait);
+    $('modal-body').innerHTML = `<button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button><div style="text-align:center"><div class="big-emoji">⏳</div><h2>¡Anotado/a!</h2>
+      <p>Sos el <b>${n}°</b> en la lista. Si se libera un lugar te avisamos por WhatsApp.</p></div>
+      <div class="sheet-foot"><button class="btn block" onclick="closeModal()">Listo</button></div>`;
+  } catch (e) { $('wl-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
 function openBooking(id) {
   const s = st.pub.find(x => x.id === id); if (!s) return;
   if (s.members_only && st.student?.training !== 'approved') return trainingInfo(s);
@@ -1264,6 +1554,7 @@ function openBooking(id) {
       <span>${esc(fmtDayLong(s.starts_at))}</span> · <b class="num">${hhmm(s.starts_at)}</b> a ${hhmm(addMin(s.starts_at, s.duration_min))}
       ${s.location ? `<br><span class="muted">${esc(s.location)}</span>${CONFIG.MAPS ? ` · <a href="${CONFIG.MAPS}" target="_blank" rel="noopener">Ver mapa</a>` : ''}` : ''}</div>
     <div id="bk-err"></div>
+    ${me && st.myWaiver === null ? '<div class="small" style="background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:8px 10px;margin-bottom:10px">📝 Todavía no completaste tu ficha de salud: te la pedimos después de reservar (1 minuto).</div>' : ''}
     ${me ? `<div class="as-me">${avatarHtml(me)}<span>Reservás como <b>${esc(me.name)}</b></span></div>`
       : `<div class="quick-login"><span>¿Tenés cuenta? Reservá más rápido</span><button type="button" class="btn google sm" onclick="loginWithGoogle({ book: '${s.id}' })">${ICON.google} Google</button></div>`}
     <form onsubmit="submitBooking(event,'${s.id}')" id="bk-form">
@@ -1379,6 +1670,7 @@ async function renderTicket(code) {
         <div class="code" style="margin-bottom:0">${esc(r.code)}</div>
       </div>
     </div>
+    <div id="tk-extra"></div>
     ${live && !r.paid && r.amount > 0 && r.pay_pref === 'transferencia' && r.profe_alias ? `<div class="card transfer rise">
       <b>💸 Transferí ${money(r.amount)}</b>
       <div class="alias-row"><span class="alias num">${esc(r.profe_alias)}</span><button class="btn coral sm" onclick="copyAlias(this, ${esc(JSON.stringify(r.profe_alias))})">Copiar alias</button></div>
@@ -1399,6 +1691,7 @@ async function renderTicket(code) {
       ${(c => c?.whatsapp ? `<a class="btn ${live && r.profe_whatsapp ? 'ghost' : 'wa'} block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar (${c.name ? esc(c.name) : 'escuela'})</a>` : '')(sportContact(r.sport, schoolContact()))}
       <a class="btn ghost block" href="#">Ver más clases</a>
     </div>`;
+  ticketExtras(r);
 }
 
 // Cancelar la propia reserva: hasta CONFIG.CANCEL_HOURS antes y si no está paga (con abono sí: vuelve al abono).
@@ -1434,6 +1727,35 @@ function cancelledMine(r) {
       <p class="small muted" style="margin:4px 0 10px">Si querés, avisale a ${r.profe_whatsapp ? esc(r.profe_name.split(' ')[0]) : 'la escuela'} (opcional).</p>
       <a class="btn wa block" href="${waLink(to, msg)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Avisar por WhatsApp</a></div>`);
   });
+}
+// Debajo del comprobante: ficha pendiente, calificar la clase (si ya terminó) y canjear un regalo.
+async function ticketExtras(r) {
+  const ended = addMin(r.starts_at, r.duration_min || 60) < new Date(), given = ended && !['cancelled', 'no_show'].includes(r.status) && r.slot_status !== 'cancelled';
+  const live = r.status === 'confirmed' && r.slot_status === 'open' && !ended;
+  const [hasW, rev] = await Promise.all([live ? api.waiverStatus(r.code).catch(() => true) : true, given ? api.reviewByCode(r.code).catch(() => null) : null]);
+  if (!$('tk-extra') || st.ticket?.code !== r.code) return;
+  st.tkReview = rev?.stars || 0;
+  $('tk-extra').innerHTML = `
+    ${!hasW ? `<div class="card waiver-warn rise"><b>📝 Antes de la clase: completá tu ficha de salud y deslinde</b><div class="small">Es una sola vez, 1 minuto.</div>
+      <button class="btn coral sm" style="margin-top:8px" onclick="openWaiver(${st.student ? '{ mine: true }' : `{ code: '${r.code}' }`})">Completar ahora</button></div>` : ''}
+    ${given ? `<div class="card review rise"><b>${rev ? '¡Gracias por tu reseña!' : `¿Cómo estuvo tu clase con ${esc(r.profe_name.split(' ')[0])}?`}</b>
+      <div class="stars" id="tk-stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" onclick="setStars(${n})" aria-label="${n} estrellas" class="${n <= (rev?.stars || 0) ? 'on' : ''}">★</button>`).join('')}</div>
+      <textarea class="input" id="tk-comment" maxlength="400" placeholder="Contanos qué te pareció (opcional)">${esc(rev?.comment || '')}</textarea>
+      <button class="btn coral block" style="margin-top:8px" onclick="sendReview('${r.code}')">${rev ? 'Actualizar reseña' : 'Enviar reseña'}</button>
+      ${rev && rev.stars >= 4 && CONFIG.GOOGLE_REVIEW_URL ? `<a class="btn ghost block" style="margin-top:8px" href="${CONFIG.GOOGLE_REVIEW_URL}" target="_blank" rel="noopener">⭐ Dejanos tu reseña en Google también</a>` : ''}</div>` : ''}
+    ${live && !r.paid && +r.amount > 0 && r.payment_method !== 'abono' ? `<details class="small" style="margin-top:12px;text-align:center"><summary style="cursor:pointer">🎁 ¿Tenés un regalo (gift card)? Canjealo acá</summary>
+      <form class="row" style="margin-top:8px" onsubmit="redeemOnTicket(event,'${r.code}')"><input class="input" name="gift" required placeholder="NAT-…" style="flex:1;text-transform:uppercase" autocapitalize="characters"><button class="btn coral">Canjear</button></form></details>` : ''}`;
+}
+function setStars(n) { st.tkReview = n; document.querySelectorAll('#tk-stars button').forEach((b, i) => b.classList.toggle('on', i < n)); }
+async function sendReview(code) {
+  if (!st.tkReview) return toast('Elegí de 1 a 5 estrellas');
+  try { await api.leaveReview(code, st.tkReview, $('tk-comment').value.trim()); toast('¡Gracias por tu reseña! ⭐'); ticketExtras(st.ticket); }
+  catch (e) { toast(errMsg(e)); }
+}
+async function redeemOnTicket(ev, code) {
+  ev.preventDefault();
+  try { await api.redeemGiftBooking(ev.target.gift.value.trim().toUpperCase(), code); toast('¡Regalo canjeado! Tu clase ya está paga 🎁'); renderTicket(code); }
+  catch (e) { toast(errMsg(e)); }
 }
 async function copyAlias(btn, alias) {
   try { await navigator.clipboard.writeText(alias); btn.textContent = 'Copiado ✓'; toast('Alias copiado: pegalo en tu app del banco'); setTimeout(() => { btn.textContent = 'Copiar alias'; }, 2500); }
@@ -1753,6 +2075,7 @@ async function refreshAccount() {
   const [passes, posts, prof] = await Promise.all([st.student ? api.myPasses().catch(() => []) : [], tr ? api.teamPosts().catch(() => []) : [],
     tr ? api.studentProfile(st.student.id).catch(() => null) : null]);
   st.myPasses = passes; st.teamPosts = posts; st.myDays = prof?.train_days || [];
+  [st.myWait, st.myWaiver] = st.student ? await Promise.all([api.myWaitlist().catch(() => []), api.myWaiver().catch(() => undefined)]) : [[], undefined];
   drawNav();
   if ($('pub') && st.pub?.length) drawPublic();          // muestra "Tu abono" en vez de la oferta
   setTimeout(maybeTutorial, 700);
@@ -1957,8 +2280,8 @@ async function renderStudent() {
   let list = [], prof = null;
   if (!st.profes?.length) st.profes = await api.publicProfes().catch(() => []);   // contacto de kayak para sus abonos
   if (!st.types?.length) st.types = await api.classTypes().catch(() => []);       // ¿hay kayak? → sus logros
-  try { [list, st.myPasses, st.plans, st.teamPosts, prof] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
-    me.training === 'approved' ? api.teamPosts().catch(() => []) : [], api.studentProfile(me.id).catch(() => null)]); } catch (e) { toast(errMsg(e)); }
+  try { [list, st.myPasses, st.plans, st.teamPosts, prof, st.myWaiver] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
+    me.training === 'approved' ? api.teamPosts().catch(() => []) : [], api.studentProfile(me.id).catch(() => null), api.myWaiver().catch(() => null)]); } catch (e) { toast(errMsg(e)); }
   if (!$('sp')) return;
   st.myDays = prof?.train_days || st.myDays || [];
   const now = new Date(), ok = b => b.status !== 'cancelled' && b.slot_status !== 'cancelled';
@@ -1967,27 +2290,75 @@ async function renderStudent() {
   const row = b => `<a class="hist" href="#r-${esc(b.code)}" style="text-decoration:none;color:inherit">${avatarHtml({ name: b.profe_name, avatar_url: b.profe_avatar })}
       <span class="who"><b>${esc(fmtDayLong(b.starts_at))} · ${hhmm(b.starts_at)}</b><br><span class="muted">con ${esc(b.profe_name)}${b.people > 1 ? ` · ${b.people} personas` : ''}</span></span>
       ${!ok(b) ? '<span class="pill bad" style="margin:0">Cancelada</span>' : b.status === 'no_show' ? '<span class="pill warn" style="margin:0">No fuiste</span>' : new Date(b.starts_at) < now ? '<span class="pill ok" style="margin:0">✓</span>' : '<span class="muted">›</span>'}</a>`;
- $('sp').innerHTML = `
+ const passes = (st.myPasses || []).filter(p => p.status === 'pending' || (p.status === 'active' && p.expires_on >= dayKey(new Date())));
+  const hist = list.filter(b => !next.includes(b)), wv = st.myWaiver;
+  // Perfil en secciones que se abren y cierran (cada uno recuerda cómo las dejaste).
+  const sec = (key, title, body, open) => { const o = (store.get('nativo_psec', {})[key] ?? open);
+    return `<details class="psec" ${o ? 'open' : ''} ontoggle="psecToggle('${key}', this.open)"><summary>${title}</summary><div class="psec-b">${body}</div></details>`; };
+  $('sp').innerHTML = `
     ${P.head}
       <div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost sm" onclick="editStudent()">Editar perfil</button><a class="btn coral sm" href="#">Reservar clase</a></div>
       <div style="text-align:center;margin-top:8px"><a href="#" class="small" onclick="showTutorial();return false">¿Cómo funciona Nativo? Ver tutorial</a></div>
     </div>
     ${P.stats}
-    ${P.team ? teamSection(P.team, me.training === 'approved') : ''}
-    ${(() => { const ps = (st.myPasses || []).filter(p => p.status === 'pending' || (p.status === 'active' && p.expires_on >= dayKey(new Date())));
-        return ps.length ? ps.map(p => myPassCard(p)).join('') : (st.plans || []).filter(p => p.active).map(planCard).join(''); })()}
-    ${me.training === 'approved' ? '' : `<div class="train-card"><i>🏅</i><div style="flex:1">${me.training === 'requested'
+    ${wv ? '' : `<div class="card waiver-warn rise"><b>📝 Completá tu ficha de salud y deslinde</b><div class="small">Es una sola vez y la necesitamos antes de tu clase (1 minuto).</div>
+      <button class="btn coral sm" style="margin-top:8px" onclick="openWaiver({ mine: true })">Completar ahora</button></div>`}
+    ${sec('next', `📅 Próximas clases <span class="pill">${next.length}</span>`, next.length ? `<div class="card" style="padding:4px 14px">${next.map(row).join('')}</div>`
+      : `<div class="card empty" style="padding:18px">No tenés clases reservadas.<div style="margin-top:10px"><a class="btn coral sm" href="#">Reservar una clase</a></div></div>`, true)}
+    ${P.team ? sec('team', '🏅 Team Nativo', teamSection(P.team, me.training === 'approved'), true) : ''}
+    ${sec('pass', passes.length ? `💳 Mi abono <span class="pill ok">${passes.length === 1 ? 'activo' : passes.length}</span>` : '💳 Abonos', passes.length ? passes.map(p => myPassCard(p)).join('') : (st.plans || []).filter(p => p.active).map(planCard).join('') || '<p class="muted small">No hay abonos disponibles.</p>', passes.length > 0)}
+    ${sec('logros', '🏆 Logros', P.logros, true)}
+    ${sec('ficha', wv ? '📝 Ficha de salud <span class="pill ok">✓ completa</span>' : '📝 Ficha de salud <span class="pill warn">pendiente</span>', wv
+      ? `<div class="card"><div class="small">Sabe nadar: <b>${{ si: 'Sí', poco: 'Un poco', no: 'No' }[wv.swims] || '-'}</b>${wv.health ? `<br>Salud: ${esc(wv.health)}` : ''}<br>Emergencias: <b>${esc(wv.emergency_name)}</b> · ${esc(wv.emergency_phone)}
+          <br><span class="tiny muted">Aceptaste el deslinde el ${esc(fmtDate(dayKey(wv.accepted_at)))}. Vale por 1 año.</span></div>
+          <button class="btn ghost sm" style="margin-top:10px" onclick="openWaiver({ mine: true })">Actualizar mis datos</button></div>`
+      : '<p class="small muted">Todavía no la completaste.</p><button class="btn coral sm" onclick="openWaiver({ mine: true })">Completar ficha y deslinde</button>', !wv)}
+    ${me.training === 'approved' ? '' : sec('train', '🏅 Grupo de entrenamiento', `<div class="train-card" style="margin:0"><i>🏅</i><div style="flex:1">${me.training === 'requested'
         ? `<b>Pedido de entrenamiento enviado</b><div class="small">Un admin lo tiene que aprobar.</div></div><button class="btn ghost sm" style="background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px #fff" onclick="cancelTrainingRequest()">Cancelar</button>`
         : `<b>¿Entrenás con nosotros?</b><div class="small">Si ya sos del grupo, pedí tu insignia 🏅. Si te querés sumar, escribile a ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')}.</div>
           <div class="row wrapf" style="margin-top:8px"><button class="btn coral sm" onclick="requestTraining()">Ya entreno: pedir 🏅</button>
-          ${CONFIG.TRAINING_CONTACT?.whatsapp ? `<a class="btn wa sm" href="${waLink(CONFIG.TRAINING_CONTACT.whatsapp, `Hola ${CONFIG.TRAINING_CONTACT.name}! Quería info para sumarme a los entrenamientos de SUP de Nativo 🏅`)}" target="_blank" rel="noopener">Quiero sumarme</a>` : ''}</div></div>`}</div>`}
-    ${P.logros}
-    <div class="section"><div class="label">Próximas clases</div>
-      ${next.length ? `<div class="card" style="padding:4px 14px">${next.map(row).join('')}</div>` : `<div class="card empty" style="padding:18px">No tenés clases reservadas.<div style="margin-top:10px"><a class="btn coral sm" href="#">Reservar una clase</a></div></div>`}</div>
-    ${list.length > next.length ? `<div class="section"><div class="label">Historial</div><div class="card" style="padding:4px 14px">${list.filter(b => !next.includes(b)).map(row).join('')}</div></div>` : ''}
+          ${CONFIG.TRAINING_CONTACT?.whatsapp ? `<a class="btn wa sm" href="${waLink(CONFIG.TRAINING_CONTACT.whatsapp, `Hola ${CONFIG.TRAINING_CONTACT.name}! Quería info para sumarme a los entrenamientos de SUP de Nativo 🏅`)}" target="_blank" rel="noopener">Quiero sumarme</a>` : ''}</div></div>`}</div>`, false)}
+    ${hist.length ? sec('hist', `🕘 Historial <span class="pill gray">${hist.length}</span>`, `<div class="card" style="padding:4px 14px">${hist.map(row).join('')}</div>`, false) : ''}
+    ${sec('gift', '🎁 Canjear un regalo', `<p class="small muted" style="margin-bottom:8px">¿Te regalaron un abono? Poné el código (ej. NAT-1A2B3C) y se activa en tu cuenta. Si es una clase, reservá y canjealo en el comprobante.</p>
+      <form class="row" onsubmit="redeemGiftHere(event)"><input class="input" name="code" required placeholder="NAT-…" style="flex:1;text-transform:uppercase" autocapitalize="characters"><button class="btn coral">Canjear</button></form>`, false)}
     <div style="text-align:center;margin:22px 0 30px"><button class="btn ghost sm" onclick="logoutStudent()">Salir</button></div>`;
   if (st.resumePlan) { const id = st.resumePlan; st.resumePlan = null; wantPass(id); }
 }
+/* ── Ficha de salud y deslinde: desde el perfil (con cuenta) o desde el comprobante (invitados) ── */
+function openWaiver({ mine, code } = {}) {
+  const me = st.student, w = mine ? st.myWaiver : null, t = st.ticket;
+  st.waiverCtx = { mine: !!mine, code };
+  openModal(`<h2>📝 Ficha de salud y deslinde</h2>
+    <p class="small muted" style="margin-bottom:12px">Una sola vez (vale 1 año). La ven solo los profes, para cuidarte en el agua.</p>
+    <div id="wv-err"></div>
+    <form onsubmit="saveWaiver(event)">
+      <div class="field"><label for="wv-name">Nombre y apellido</label><input class="input" id="wv-name" name="name" required maxlength="80" value="${esc(w?.name || me?.name || (t ? t.first_name : '') || '')}"></div>
+      <div class="grid2">${mine ? `<div class="field"><label for="wv-phone">Tu WhatsApp</label><input class="input" id="wv-phone" name="phone" type="tel" inputmode="tel" required maxlength="30" value="${esc(me?.phone || '')}"></div>` : ''}
+        <div class="field"><label for="wv-birth">Fecha de nacimiento</label><input class="input" id="wv-birth" name="birth" type="date" value="${esc(w?.birth_date || '')}"></div></div>
+      <div class="field"><span class="flabel">¿Sabés nadar?</span><div class="seg">${[['si', 'Sí'], ['poco', 'Un poco'], ['no', 'No']].map(([k, l]) => `<label><input type="radio" name="swims" value="${k}" ${w?.swims === k ? 'checked' : ''} required>${l}</label>`).join('')}</div></div>
+      <div class="field"><label for="wv-health">¿Algo de salud que tengamos que saber? <span class="muted">(opcional)</span></label><textarea class="input" id="wv-health" name="health" maxlength="500" placeholder="Ej: asma, alergias, embarazo, lesiones, medicación…">${esc(w?.health || '')}</textarea></div>
+      <div class="grid2"><div class="field"><label for="wv-em">Contacto de emergencia</label><input class="input" id="wv-em" name="emName" required maxlength="60" placeholder="Nombre" value="${esc(w?.emergency_name || '')}"></div>
+        <div class="field"><label for="wv-emp">Su teléfono</label><input class="input" id="wv-emp" name="emPhone" type="tel" inputmode="tel" required maxlength="30" value="${esc(w?.emergency_phone || '')}"></div></div>
+      <details class="small" style="margin-bottom:10px"><summary style="cursor:pointer"><b>Leer el deslinde</b></summary><p class="small muted" style="margin-top:6px">${esc(CONFIG.WAIVER_TEXT)}</p></details>
+      <label class="check" style="margin-bottom:14px"><input type="checkbox" name="ok" required> Leí y acepto el deslinde de responsabilidad</label>
+      <div class="sheet-foot"><button class="btn coral block" id="wv-btn">Guardar ficha</button></div></form>`);
+}
+async function saveWaiver(ev) {
+  ev.preventDefault(); const f = ev.target, btn = $('wv-btn'), c = st.waiverCtx || {}; btn.disabled = true;
+  const w = { name: f.name.value.trim(), phone: f.phone?.value.trim(), birth: f.birth.value || null, swims: f.swims.value, health: f.health.value.trim(), emName: f.emName.value.trim(), emPhone: f.emPhone.value.trim() };
+  try {
+    if (c.mine) { await api.submitMyWaiver(w); st.myWaiver = await api.myWaiver().catch(() => ({})); }
+    else await api.submitWaiver(c.code, w);
+    closeModal(); toast('Ficha guardada ✓ ¡Gracias!');
+    if (location.hash === '#perfil') renderStudent(); else if (st.ticket && $('tk')) renderTicket(st.ticket.code);
+  } catch (e) { $('wv-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+async function redeemGiftHere(ev) {
+  ev.preventDefault(); const code = ev.target.code.value.trim().toUpperCase();
+  try { await api.redeemGiftPass(code); toast('¡Regalo canjeado! Tu abono ya está activo 🎉'); st.myPasses = await api.myPasses().catch(() => st.myPasses); renderStudent(); }
+  catch (e) { toast(errMsg(e)); }
+}
+function psecToggle(key, open) { const m = store.get('nativo_psec', {}); m[key] = open; store.set('nativo_psec', m); }
 function editStudent() {
   const me = st.student; st.pendingPhoto = null;
   openModal(`<h2>Editar perfil</h2><div id="pf-err"></div>
@@ -2029,9 +2400,9 @@ async function renderStaff() {
   const tabs = admin
     ? [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['resumen', 'Resumen', ICON.chart], ['profes', 'Equipo', ICON.team], ['mas', 'Más', ICON.more]]
     : [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['numeros', 'Mis números', ICON.chart], ['perfil', 'Perfil', ICON.user]];
-  const all = [...tabs.map(t => t[0]), 'clases', 'perfil', ...(admin ? ['abonos'] : [])];
+  const all = [...tabs.map(t => t[0]), 'clases', 'perfil', ...(admin ? ['abonos', 'grupos'] : [])];
   if (!all.includes(st.tab)) st.tab = 'agenda';
-  const onTab = ['clases', 'perfil', 'abonos'].includes(st.tab) && admin ? 'mas' : st.tab;
+  const onTab = ['clases', 'perfil', 'abonos', 'grupos'].includes(st.tab) && admin ? 'mas' : st.tab;
   $('staff').innerHTML = `
     <div class="hello"><div><div class="tiny muted">${ROLES[roleKey(st.me)]} · Nativo</div><b>Hola, ${esc(st.me.name.split(' ')[0])} 👋</b></div>
       <button class="btn ghost sm" onclick="logout()">Salir</button></div>
@@ -2041,13 +2412,13 @@ async function renderStaff() {
   PANES[st.tab]();
   startLive();
 }
-const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos() };
+const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos(), grupos: () => paneGroups() };
 function setTab(t) { st.tab = t; renderStaff(); window.scrollTo({ top: 0 }); }
 
 /* ── Tiempo real: lo que hace otro profe aparece sin recargar ──
    Si estás a mitad de algo (formulario, ventana abierta, escribiendo) no se pisa:
    aparece "Hay cambios · Actualizar" y se aplica cuando terminás. */
-const LIVE_TABS = ['agenda', 'resumen', 'numeros', 'profes', 'abonos'];
+const LIVE_TABS = ['agenda', 'resumen', 'numeros', 'profes', 'abonos', 'grupos'];
 let liveOff = null, liveT = null, livePending = false;
 // ¿Hay algo escrito/elegido en la pantalla que todavía no se guardó?
 const paneDirty = () => [...document.querySelectorAll('#pane input, #pane textarea, #pane select')].some(i =>
@@ -2090,13 +2461,16 @@ async function refreshPublic() {
   } catch {}
 }
 async function logout() { stopLive(); try { Object.keys(localStorage).filter(k => k.startsWith('nativo_agenda_')).forEach(k => localStorage.removeItem(k)); } catch {} await api.signOut(); st.me = null; st.student = null; st.tab = null; drawNav(); renderStaff(); }
-function paneMore() {
+async function paneMore() {
   paneEl().innerHTML = `<div class="menu">
-    <button class="btn ghost block" onclick="setTab('abonos')"><span>💳 Abonos</span><span>›</span></button>
+    <button class="btn ghost block" onclick="setTab('abonos')"><span>💳 Abonos y 🎁 gift cards</span><span>›</span></button>
+    <button class="btn ghost block" onclick="setTab('grupos')"><span>👥 Clases privadas y grupales <b id="grp-n"></b></span><span>›</span></button>
     <button class="btn ghost block" onclick="setTab('clases')"><span>Precio y cupo de la clase</span><span>›</span></button>
     <button class="btn ghost block" onclick="setTab('perfil')"><span>Mi perfil</span><span>›</span></button>
     <a class="btn ghost block" href="#"><span>Ver la página de reservas</span><span>›</span></a>
     <button class="btn danger block" onclick="logout()"><span>Salir</span><span>›</span></button></div>`;
+  const n = (await api.groupRequests().catch(() => [])).filter(g => g.status === 'nuevo').length;
+  if (n && $('grp-n')) $('grp-n').innerHTML = `<span class="pill warn" style="margin:0 0 0 6px">${n} nuevo${n > 1 ? 's' : ''}</span>`;
 }
 
 function drawLogin(mode = 'in') {
@@ -2184,11 +2558,26 @@ async function paneAgenda() {
     const [slots, types, profiles] = await Promise.all([api.staffSlots(from, to), st.types?.length && !shown ? st.types : api.classTypes().catch(() => st.types || []),
       isAdmin && (!st.allProfiles.length || shown) ? api.profiles() : st.allProfiles]);
     st.staffSlots = slots; st.types = types; if (isAdmin) st.allProfiles = profiles;
+    await loadAgendaExtras();
     if (!st.agendaPast && !DEMO) store.set(key, { at: Date.now(), slots, types, profiles: isAdmin ? profiles : [] });
   } catch (e) { if (!shown) paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   if (st.tab !== 'agenda' || !$('pane')) return;
   if (shown && staffBusy()) return;              // no pisar lo que estás haciendo; se ve al cerrar
   const y = window.scrollY; drawAgenda(isAdmin); if (shown) window.scrollTo(0, y);
+  if (!WX) loadWeather().then(ok => { if (ok && st.tab === 'agenda' && $('pane') && !staffBusy()) { const y2 = window.scrollY; drawAgenda(isAdmin); window.scrollTo(0, y2); } });
+}
+// Lista de espera y fichas de los alumnos de las clases que se ven en la agenda.
+async function loadAgendaExtras() {
+  const ids = st.staffSlots.filter(s => s.status !== 'cancelled' && !isPast(s)).map(s => s.id);
+  const keys = [...new Set(st.staffSlots.flatMap(s => s.bookings.map(b => phoneKey(b.customer_phone))).filter(k => k.length >= 8))];
+  const [wl, wv] = await Promise.all([api.slotWaitlist(ids).catch(() => []), api.waivers(keys).catch(() => null)]);
+  st.waitBySlot = {}; wl.forEach(w => (st.waitBySlot[w.slot_id] ||= []).push(w));
+  if (wv) { st.waiverBy = {}; wv.forEach(w => { if (!st.waiverBy[w.phone_key]) st.waiverBy[w.phone_key] = w; }); }
+}
+const phoneKey = p => String(p || '').replace(/\D/g, '').slice(-10);
+async function dropWait(id) {
+  if (!await askConfirm('¿Sacar a esta persona de la lista de espera?', 'Sacar')) return;
+  try { await api.deleteWaitlist(id); await loadAgendaExtras(); drawAgenda(st.me.role === 'admin'); } catch (e) { toast(errMsg(e)); }
 }
 function drawAgenda(isAdmin) {
   const now = new Date();
@@ -2226,10 +2615,15 @@ function slotCard(s) {
   const mine = st.me.role === 'admin' ? 'profe' : 'para vos';
   return `<div class="card sslot rise ${cancelled ? 'cancelled' : ''}">
     <div class="hd"><div class="t num">${hhmm(s.starts_at)}</div>
-      <div class="info"><b>${(st.types || []).some(t => (t.sport || 'sup') !== 'sup') ? SPORTS[sportOf(s)].em + ' ' : ''}${esc(s.title)}</b>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅</span>' : ''}${kindOf(s) === 'travesia' ? ' <span class="pill trav-p" style="margin:0 0 0 4px">🧭</span>' : ''}<div>${st.me.role === 'admin' ? `con ${esc(s.profe?.name)} · ` : ''}${s.duration_min} min${s.location ? ' · ' + esc(s.location) : ''}</div></div>
+      <div class="info"><b>${(st.types || []).some(t => (t.sport || 'sup') !== 'sup') ? SPORTS[sportOf(s)].em + ' ' : ''}${esc(s.title)}</b>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅</span>' : ''}${kindOf(s) === 'travesia' ? ' <span class="pill trav-p" style="margin:0 0 0 4px">🧭</span>' : ''}<div>${st.me.role === 'admin' ? `con ${esc(s.profe?.name)} · ` : ''}${s.duration_min} min${s.location ? ' · ' + esc(s.location) : ''}</div>${cancelled || isPast(s) ? '' : wxHtml(s.starts_at)}</div>
       ${cancelled ? '<span class="pill bad" style="margin:0">Suspendida</span>' : `<span class="cap num ${people >= s.capacity ? 'full' : ''}">${people}/${s.capacity}</span>`}</div>
     ${!cancelled && (share > 0 || pend > 0) ? `<div class="money-line num">${share > 0 ? `<span class="ok">${mine}: ${money(share)}</span>` : ''}${pend > 0 ? `<span class="warn">${past ? 'falta marcar pago' : 'a cobrar'}: ${money(pend)}</span>` : ''}</div>` : ''}
     ${bks.map(b => bookingRow(s, b)).join('')}
+    ${!cancelled && !past && (st.waitBySlot?.[s.id] || []).length ? (() => { const wl = st.waitBySlot[s.id], free = s.capacity - people;
+      return `<div class="wl"><div class="small"><b>⏳ Lista de espera (${wl.length})</b>${free > 0 ? ` · <span style="color:var(--ok);font-weight:700">¡hay ${free} ${free === 1 ? 'lugar libre' : 'lugares libres'}! avisale al primero</span>` : ''}</div>
+        ${wl.map((w, i) => `<div class="wl-row"><span>${i + 1}. ${esc(w.name)}${w.notified_at ? ' <span class="tiny muted">· avisado</span>' : ''}</span>
+          <a class="btn ${free > 0 && !w.notified_at ? 'wa' : 'ghost'} sm" href="${waLink(w.phone, `Hola ${w.name.split(' ')[0]}! Se liberó un lugar en la clase del ${fmtDayShort(s.starts_at)} a las ${hhmm(s.starts_at)} en Nativo 🙌. Reservalo acá: ${slotUrl(s.id)}`)}" target="_blank" rel="noopener" onclick="api.updateWaitlist('${w.id}', { notified_at: new Date().toISOString() }).catch(() => {})">Avisar</a>
+          <button class="btn ghost sm" onclick="dropWait('${w.id}')" aria-label="Sacar de la lista">✕</button></div>`).join('')}</div>`; })() : ''}
     ${cancelled ? `<div class="slot-foot"><button class="btn danger sm" onclick="deleteSuspended('${s.id}')">Borrar clase suspendida</button></div>` : `<div class="slot-foot"><button class="btn ghost sm" onclick="manualBooking('${s.id}')">+ Anotar alumno</button>
       ${past ? '' : `<button class="btn ghost sm" style="flex:0 0 auto" onclick="shareSlot('${s.id}')" aria-label="Compartir link de la clase">🔗</button>`}
       <button class="btn ghost sm" style="flex:0 0 auto" onclick="slotMenu('${s.id}')" aria-label="Más opciones">${ICON.more.replace('<svg', '<svg width="20" height="20"')}</button></div>`}
@@ -2241,13 +2635,13 @@ function bookingRow(s, b) {
   return `<div class="bk ${x ? 'x' : ''}">
     ${contactBtn(b.customer_phone, msg)}
     <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${b.student?.avatar_url ? `<img class="mini-av" src="${esc(b.student.avatar_url)}" alt="" referrerpolicy="no-referrer">` : ''}${esc(b.customer_name)}${b.student?.training === 'approved' ? ' 🏅' : ''}${b.people > 1 ? ` ×${b.people}` : ''}</b>
-      <span>${x ? 'Cancelada' : money(b.amount)}${!x && !b.paid && b.pay_pref ? ` · ${b.pay_pref === 'transferencia' ? '💸 va a transferir' : '💵 paga en efectivo'}` : ''}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</span></div>
+      <span>${!x && st.waiverBy && !isPast(s) ? (st.waiverBy[phoneKey(b.customer_phone)] ? (st.waiverBy[phoneKey(b.customer_phone)].swims === 'no' || st.waiverBy[phoneKey(b.customer_phone)].health ? '<b style="color:var(--warn)">⚠️ ver ficha</b> · ' : '') : '<span style="color:var(--warn)">📝 sin ficha</span> · ') : ''}${x ? 'Cancelada' : money(b.amount)}${!x && !b.paid && b.pay_pref ? ` · ${b.pay_pref === 'transferencia' ? '💸 va a transferir' : '💵 paga en efectivo'}` : ''}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</span></div>
     ${x ? (b.paid ? `<div class="acts"><button class="tog yes" onclick="payMenu('${b.id}')">✓ Cobrada · ¿devolver?</button></div>` : '') : `<div class="acts">
       ${isPast(s) ? `<button class="tog ${came ? 'yes' : miss ? 'no' : ''}" onclick="toggleCame('${b.id}')">${came ? '✓ Vino' : miss ? 'Faltó' : 'Vino?'}</button>` : ''}
       <button class="tog ${b.paid ? 'yes' : 'pay'}" onclick="payMenu('${b.id}')">${b.paid ? '✓ ' + esc(PAY_SHORT[b.payment_method] || 'Pagó') : 'Cobrar'}</button></div>`}
   </div>`;
 }
-const PAY_SHORT = { efectivo: 'Efectivo', transferencia: 'Transf.', mercadopago: 'MP', abono: 'Abono' };
+const PAY_SHORT = { efectivo: 'Efectivo', transferencia: 'Transf.', mercadopago: 'MP', abono: 'Abono', regalo: 'Regalo' };
 const cap = w => String(w).charAt(0).toUpperCase() + String(w).slice(1);
 const findBooking = id => { for (const s of [...st.staffSlots, ...(st.unpaidSlots || [])]) { const b = s.bookings.find(x => x.id === id); if (b) return { s, b }; } return {}; };
 // Asistencia: un toque cicla  sin marcar → vino → faltó → sin marcar
@@ -2272,6 +2666,11 @@ function bookingMenu(id) {
   openModal(`<h2>${esc(b.customer_name)}</h2>
     <div class="sum">${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)} · ${b.people} ${b.people > 1 ? 'personas' : 'persona'} · ${money(b.amount)}<br>
       <span class="muted">Código ${esc(b.code)}${b.customer_phone ? ' · ' + esc(b.customer_phone) : ''}${b.source ? ' · ' + esc(SOURCES[b.source] || b.source) : ''}</span>${b.notes ? `<br><span class="muted">${esc(b.notes)}</span>` : ''}</div>
+    ${(w => w ? `<div class="card" style="margin:0 0 10px;padding:10px 12px;${w.swims === 'no' || w.health ? 'border:2px solid var(--warn)' : ''}"><b class="small">📝 Ficha de salud</b>
+      <div class="small">Sabe nadar: <b>${{ si: 'Sí', poco: 'Un poco', no: 'No' }[w.swims] || '-'}</b>${w.birth_date ? ` · ${Math.floor((Date.now() - new Date(w.birth_date)) / 31557600000)} años` : ''}${w.health ? `<br><b style="color:var(--warn)">Salud:</b> ${esc(w.health)}` : ''}
+      <br>Emergencias: ${esc(w.emergency_name)} · <a href="tel:${esc(w.emergency_phone)}">${esc(w.emergency_phone)}</a></div></div>`
+      : st.waiverBy ? '<div class="small" style="color:var(--warn);margin-bottom:10px">📝 Todavía no completó la ficha de salud y deslinde.</div>' : '')(st.waiverBy?.[phoneKey(b.customer_phone)])}
+    ${isPast(s) && b.status !== 'cancelled' && b.customer_phone && !b.customer_phone.startsWith('@') ? `<a class="btn ghost block" style="margin-bottom:10px" href="${waLink(b.customer_phone, `Hola ${b.customer_name.split(' ')[0]}! Gracias por venir a Nativo 🏄. ¿Nos dejás tu opinión de la clase? Es un toque: ${location.origin}/#r-${b.code}`)}" target="_blank" rel="noopener">⭐ Pedirle una reseña por WhatsApp</a>` : ''}
     ${b.student_id ? `<a class="btn ghost block" style="margin-bottom:10px" href="#a-${b.student_id}">${b.student?.training === 'approved' ? '🏅 ' : ''}Ver perfil y logros</a>` : ''}
     <div class="label">Estado</div>
     <div class="choice">${Object.entries(STATUS).map(([k, l]) => `<button class="btn ${b.status === k ? 'dark' : k === 'cancelled' ? 'danger' : 'ghost'} block" onclick="closeModal();updBooking('${b.id}',{status:'${k}'})">${b.status === k ? '✓ ' : ''}${k === 'cancelled' ? 'Cancelar reserva' : l}</button>`).join('')}</div>`);
@@ -2352,7 +2751,19 @@ async function cancelSlot(id) {
   const act = s.bookings.filter(b => b.status !== 'cancelled');
   if (!await askConfirm(`¿Suspender esta clase?${act.length ? `\n\nSe van a cancelar ${act.length} reserva(s). Avisales por WhatsApp desde la lista.` : ''}`, 'Suspender')) return;
   try { await api.updateSlot(id, { status: 'cancelled' }); await api.cancelSlotBookings(id); toast('Clase suspendida. Quedó oculta en "Ver suspendidas"'); paneAgenda(); }
-  catch (e) { toast(errMsg(e)); }
+  catch (e) { return toast(errMsg(e)); }
+  if (act.length) notifySuspended(s, act);
+}
+// Después de suspender: un botón de WhatsApp por alumno, con el mensaje armado.
+function notifySuspended(s, list) {
+  const x = wxAt(s.starts_at), why = x && (x.wind >= CONFIG.WEATHER.windWarn || x.gust >= CONFIG.WEATHER.gustWarn) ? 'por viento' : x && x.rain >= 60 ? 'por lluvia' : 'por el clima';
+  const msg = b => `Hola ${b.customer_name.split(' ')[0]}! Te escribo de Nativo: ${why} suspendimos la clase del ${fmtDayShort(s.starts_at)} a las ${hhmm(s.starts_at)} 😕. ¿Te reprogramamos para otro día?`;
+  openModal(`<h2>Avisá a los alumnos</h2>
+    <p class="small muted" style="margin-bottom:10px">Tocá cada uno: se abre WhatsApp con el mensaje listo (podés cambiar "${why}").</p>
+    ${list.map(b => b.customer_phone && !b.customer_phone.startsWith('@')
+      ? `<a class="btn wa block" style="margin-bottom:8px;justify-content:space-between" href="${waLink(b.customer_phone, msg(b))}" target="_blank" rel="noopener" onclick="this.classList.add('done');this.querySelector('i').textContent='✓ enviado'"><span>${esc(b.customer_name)}</span><i style="font-style:normal">Avisar ›</i></a>`
+      : `<div class="small muted" style="margin-bottom:8px">${esc(b.customer_name)}: sin WhatsApp cargado</div>`).join('')}
+    <div class="sheet-foot"><button class="btn ghost block" onclick="closeModal()">Listo</button></div>`);
 }
 async function forceDeleteSlot(id) {
   const s = st.staffSlots.find(x => x.id === id); if (!s) return;
@@ -2696,7 +3107,59 @@ async function paneStats() {
           <span class="num">${money(b.amount)} · ${esc(fmtDayShort(s.starts_at))}${isAdmin ? ` · ${esc(s.profe?.name)}` : ''}</span></div>
         <div class="acts"><button class="tog pay" onclick="payMenu('${b.id}')">Cobrar</button></div>
       </div>`).join('') : '<p class="small" style="color:var(--ok)">Todo cobrado ✓</p>'}
-    </div>`;
+    </div>
+    <div id="rv-card"></div>
+    ${isAdmin ? `<details class="card more" ontoggle="if(this.open)moreNumbers()"><summary>📊 Más números</summary><div id="more-n" style="margin-top:10px"><div class="loading">Calculando…</div></div></details>` : ''}`;
+  reviewsCard(isAdmin, ssp);
+}
+
+// Reseñas: promedio por profe y las últimas (el admin puede ocultar alguna de la página).
+async function reviewsCard(isAdmin, sport) {
+  let rv = []; try { rv = await api.reviews(); } catch { return; }
+  const sp = r => (st.types || []).find(t => t.id === r.slot?.class_type_id)?.sport || 'sup';
+  rv = rv.filter(r => sp(r) === sport); if (!$('rv-card')) return;
+  if (!rv.length) { $('rv-card').innerHTML = `<div class="card"><h3>⭐ Reseñas</h3><p class="small muted">Todavía no hay. Los alumnos califican desde su comprobante cuando termina la clase (o mandales "⭐ Pedirle una reseña" desde la agenda).</p></div>`; return; }
+  const avg = list => (list.reduce((a, r) => a + r.stars, 0) / list.length).toFixed(1).replace('.', ',');
+  const byP = {}; rv.forEach(r => (byP[r.profe?.name || '—'] ||= []).push(r));
+  $('rv-card').innerHTML = `<div class="card"><h3>⭐ Reseñas <span class="pill ok">${avg(rv)} ★ · ${rv.length}</span></h3>
+    ${isAdmin && Object.keys(byP).length > 1 ? `<div class="small" style="margin-bottom:8px">${Object.entries(byP).sort((a, b) => b[1].length - a[1].length).map(([n, l]) => `<b>${esc(n)}</b> ${avg(l)} ★ (${l.length})`).join(' · ')}</div>` : ''}
+    ${rv.slice(0, 8).map(r => `<div style="border-top:1px solid var(--line);padding:8px 0;${r.hidden ? 'opacity:.5' : ''}"><div class="row between"><span style="color:#f5b301">${'★'.repeat(r.stars)}<span style="color:#d5dcd9">${'★'.repeat(5 - r.stars)}</span></span>
+      <span class="tiny muted">${esc((r.booking?.customer_name || '').split(' ')[0])}${isAdmin ? ` · ${esc(r.profe?.name || '')}` : ''} · ${esc(fmtDayShort(r.created_at))}</span></div>
+      ${r.comment ? `<div class="small">“${esc(r.comment)}”</div>` : ''}
+      ${isAdmin && r.comment && r.stars >= 4 ? `<button class="btn ghost sm" style="margin-top:4px" onclick="api.hideReview('${r.id}', ${!r.hidden}).then(() => reviewsCard(true, '${sport}'))">${r.hidden ? 'Mostrar en la página' : 'Ocultar de la página'}</button>` : ''}</div>`).join('')}</div>`;
+}
+
+// 📊 Más números (admin): último año de la disciplina elegida.
+async function moreNumbers() {
+  const box = $('more-n'); if (!box || box.dataset.done) return; box.dataset.done = 1;
+  let all = []; try { all = await api.staffSlots(addDays(new Date(), -365), addDays(new Date(), 60)); } catch (e) { box.innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  all = all.filter(s => sportOf(s) === (st.statSport || 'sup') && s.status !== 'cancelled');
+  const now = new Date(), [y, m] = st.month.split('-').map(Number), mFrom = new Date(y, m - 1, 1), mTo = new Date(y, m, 1);
+  const rows = all.flatMap(s => s.bookings.filter(b => b.status !== 'cancelled').map(b => ({ s, b, k: phoneKey(b.customer_phone) || b.customer_name.toLowerCase() })));
+  const first = {}; rows.slice().sort((a, b) => a.s.starts_at.localeCompare(b.s.starts_at)).forEach(r => { first[r.k] ||= r.s.starts_at; });
+  const inMonth = rows.filter(r => new Date(r.s.starts_at) >= mFrom && new Date(r.s.starts_at) < mTo);
+  const people = [...new Set(inMonth.map(r => r.k))], nuevos = people.filter(k => new Date(first[k]) >= mFrom).length;
+  // horarios más pedidos (día + hora), por alumnos
+  const hrs = {}; rows.filter(r => r.b.status !== 'no_show').forEach(r => { const d = new Date(r.s.starts_at), key = `${WD[d.getDay()]} ${hhmm(d)}`; hrs[key] = (hrs[key] || 0) + r.b.people; });
+  const topH = Object.entries(hrs).sort((a, b) => b[1] - a[1]).slice(0, 5), maxH = topH[0]?.[1] || 1;
+  // repetición por profe: de sus alumnos, cuántos volvieron a tomar otra clase con él/ella
+  const rep = {}; rows.forEach(r => { const p = r.s.profe?.name || '—'; (rep[p] ||= {})[r.k] = ((rep[p] ||= {})[r.k] || 0) + 1; });
+  const repRows = Object.entries(rep).map(([p, m]) => { const v = Object.values(m); return [p, v.length, v.filter(n => n >= 2).length]; }).sort((a, b) => b[2] / b[1] - a[2] / a[1]);
+  // los que no vienen hace más de 30 días (y no tienen nada reservado)
+  const last = {}, future = new Set(), info = {};
+  rows.forEach(r => { const d = new Date(r.s.starts_at); if (d > now) future.add(r.k); else if (!last[r.k] || d > last[r.k]) { last[r.k] = d; info[r.k] = r.b; } });
+  const lost = Object.entries(last).filter(([k, d]) => !future.has(k) && (now - d) / 864e5 > 30).sort((a, b) => b[1] - a[1]).slice(0, 20);
+  box.innerHTML = `
+    <div class="kpis">${[['Alumnos del mes', people.length], ['Nuevos', nuevos], ['Volvieron', people.length - nuevos], ['% que vuelve', people.length ? pct((people.length - nuevos) / people.length) : '–']].map(([l, v]) => `<div class="kpi"><small>${l}</small><b>${v}</b></div>`).join('')}</div>
+    <h3 style="margin-top:14px">🕐 Horarios más pedidos <span class="tiny muted">(último año)</span></h3>
+    ${topH.map(([k, n]) => `<div class="row between small" style="margin:4px 0"><span style="width:90px">${esc(k)}</span><div class="bar" style="flex:1;margin:0 8px"><i style="width:${n / maxH * 100}%"></i></div><b class="num">${n}</b></div>`).join('') || '<p class="small muted">Sin datos</p>'}
+    <h3 style="margin-top:14px">🔁 Alumnos que repiten con el mismo profe</h3>
+    ${repRows.map(([p, tot, again]) => `<div class="row between small" style="padding:4px 0;border-top:1px solid var(--line)"><span>${esc(p)}</span><span class="num"><b>${pct(again / tot)}</b> · ${again} de ${tot}</span></div>`).join('') || '<p class="small muted">Sin datos</p>'}
+    <h3 style="margin-top:14px">💤 No vienen hace más de 30 días <span class="pill gray">${lost.length}</span></h3>
+    <p class="tiny muted">Sin clases reservadas. Escribiles para invitarlos a volver.</p>
+    ${lost.map(([k, d]) => { const b = info[k], ok = b.customer_phone && !b.customer_phone.startsWith('@');
+      return `<div class="row between small" style="padding:6px 0;border-top:1px solid var(--line)"><span><b>${esc(b.customer_name)}</b> · hace ${Math.round((now - d) / 864e5)} días</span>
+        ${ok ? `<a class="btn wa sm" href="${waLink(b.customer_phone, `Hola ${b.customer_name.split(' ')[0]}! ¿Cómo estás? Te extrañamos en Nativo 🌊 ¿Volvés a remar? Mirá los horarios: ${location.origin}/`)}" target="_blank" rel="noopener">Escribirle</a>` : ''}</div>`; }).join('') || '<p class="small" style="color:var(--ok)">Nadie: ¡todos siguen viniendo! 🙌</p>'}`;
 }
 function shiftMonth(n) { const [y, m] = st.month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); st.month = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; paneStats(); }
 function exportCsv() {
@@ -2908,8 +3371,8 @@ const pickerValue = key => st.pickers?.[key]?.sel || '';
 
 /* ── Abonos (admin) ── */
 async function paneAbonos() {
-  let passes = [], plans = [], students = [];
-  try { [passes, plans, students] = await Promise.all([api.adminPasses(), api.plans(), api.students()]); }
+  let passes = [], plans = [], students = [], gifts = [];
+  try { [passes, plans, students, gifts] = await Promise.all([api.adminPasses(), api.plans(), api.students(), api.giftCards().catch(() => [])]); }
   catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   st.adminPasses = passes; st.plans = plans;
   const today = dayKey(new Date());
@@ -2947,12 +3410,62 @@ async function paneAbonos() {
     ${done.length ? `<details class="card more"><summary>Vencidos, usados o anulados (${done.length})</summary>
       ${done.map(p => `<div class="prow" style="cursor:default">${who(p)}<span>${esc(p.name)} · ${p.used}/${p.classes_total} · ${p.status === 'cancelled' ? 'anulado' : p.used >= p.classes_total ? 'usado completo' : 'venció ' + fmtDate(p.expires_on)}</span></span>
         ${p.status === 'cancelled' ? `<button class="btn ghost sm" onclick="undoPass('${p.id}')">Reactivar</button>` : ''}</div>`).join('')}</details>` : ''}
+    ${giftsCard(gifts, plans)}
     ${Object.entries(SPORTS).map(([k, x]) => { const ps = plans.filter(pl => (pl.sport || 'sup') === k);
       return `<div class="card"><h2>${x.em} Abonos de ${x.label}</h2>
       <p class="small muted" style="margin-bottom:10px">${k === 'sup' ? `Lo que se ofrece en la pestaña SUP. Cada clase del abono vale precio ÷ clases (ej. ${money(90000)} ÷ 4 = ${money(22500)}), y con eso se calcula la parte del profe. Cambiar un plan no modifica abonos ya vendidos.` : `Solo para clases de ${x.label}: se ofrecen en su pestaña y no sirven para las otras clases (ni los de SUP para estas).`}</p>
       <div class="tbl-wrap"><table><tr><th>Nombre</th><th>Precio</th><th>Clases</th><th>Días</th><th>Descripción</th><th>Activo</th><th></th></tr>
       ${ps.map(planRow).join('')}${planRow({ sort: plans.length + 1, sport: k, ...(k === 'sup' ? {} : { name: '', description: '' }) })}</table></div></div>`; }).join('')}`;
 }
+// Gift cards (admin): pedidos a cobrar, activas y usadas.
+function giftsCard(gifts, plans) {
+  if (!gifts.length) return `<div class="card"><h2>🎁 Gift cards</h2><p class="small muted">Todavía no hay regalos. Se piden desde la página con "🎁 Regalá una clase".</p></div>`;
+  const what = g => g.kind === 'abono' ? (plans.find(p => p.id === g.plan_id)?.name || 'Abono') : `1 clase de ${SPORTS[g.sport]?.label || 'SUP'}`;
+  const pend = gifts.filter(g => g.status === 'pending'), act = gifts.filter(g => g.status === 'active'), used = gifts.filter(g => ['redeemed', 'cancelled'].includes(g.status));
+  const row = (g, acts) => `<div class="prow" style="cursor:default;align-items:flex-start"><span class="who"><b>${esc(what(g))} · ${money(g.value)}</b>
+      <span>${esc(g.code)} · de ${esc(g.buyer_name)} para ${esc(g.recipient_name)}${g.status === 'redeemed' ? ` · usado ${esc(fmtDate(dayKey(g.redeemed_at)))}` : g.status === 'cancelled' ? ' · anulado' : ''}</span></span>
+      <span class="row" style="flex:none;gap:4px">${acts}</span></div>`;
+  return `<div class="card ${pend.length ? 'unpaid' : ''}"><h2>🎁 Gift cards ${pend.length ? `<span class="pill warn">${pend.length} a cobrar</span>` : ''}</h2>
+    ${pend.map(g => row(g, `<a class="btn ghost sm" href="${waLink(g.buyer_phone, `Hola ${g.buyer_name.split(' ')[0]}! Te escribo de Nativo por la gift card ${g.code} (${what(g)}, ${money(g.value)}).`)}" target="_blank" rel="noopener">WhatsApp</a>
+      <button class="btn sm" onclick="giftPaid('${g.id}')">Cobrado</button><button class="btn ghost sm" onclick="giftCancel('${g.id}')" aria-label="Anular">✕</button>`)).join('')}
+    ${act.length ? `<div class="label" style="margin-top:12px">Activas, sin usar (${act.length})</div>${act.map(g => row(g, `<a class="btn ghost sm" href="${waLink(g.buyer_phone, giftMsg(g, what(g)))}" target="_blank" rel="noopener">Reenviar link</a>`)).join('')}` : ''}
+    ${used.length ? `<details style="margin-top:10px"><summary class="small" style="cursor:pointer">Usadas o anuladas (${used.length})</summary>${used.map(g => row(g, '')).join('')}</details>` : ''}
+    <p class="tiny muted" style="margin-top:8px">La plata de cada regalo se cuenta en el Resumen cuando se usa (como clase o abono).</p></div>`;
+}
+const giftMsg = (g, what) => `Hola ${g.buyer_name.split(' ')[0]}! Ya está activa tu gift card de Nativo 🎁 (${what}) para ${g.recipient_name}. Pasale este link: ${location.origin}/#g-${g.code}`;
+async function giftPaid(id) {
+  const g = (await api.giftCards()).find(x => x.id === id); if (!g) return;
+  try {
+    await api.updateGift(id, { status: 'active', paid_at: new Date().toISOString() });
+    const what = g.kind === 'abono' ? ((st.plans || []).find(p => p.id === g.plan_id)?.name || 'Abono') : `1 clase de ${SPORTS[g.sport]?.label || 'SUP'}`;
+    openModal(`<div style="text-align:center"><div class="big-emoji">🎁</div><h2>Gift card activa</h2><p class="small muted">Mandale el link a ${esc(g.buyer_name.split(' ')[0])} para que se la pase a ${esc(g.recipient_name)}.</p></div>
+      <div class="choice"><a class="btn wa block" href="${waLink(g.buyer_phone, giftMsg(g, what))}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Mandar el link</a>
+      <button class="btn ghost block" onclick="closeModal()">Listo</button></div>`);
+    paneAbonos();
+  } catch (e) { toast(errMsg(e)); }
+}
+async function giftCancel(id) {
+  if (!await askConfirm('¿Anular este pedido de regalo?', 'Anular')) return;
+  try { await api.updateGift(id, { status: 'cancelled' }); paneAbonos(); } catch (e) { toast(errMsg(e)); }
+}
+
+/* ── Pedidos de clases privadas y grupales (admin) ── */
+const GROUP_KIND = { cumple: '🎂 Cumpleaños', empresa: '🏢 Empresa', grupo: '👯 Grupo', privada: '🙋 Privada', otro: 'Otro' };
+async function paneGroups() {
+  let list = []; try { list = await api.groupRequests(); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  const by = k => list.filter(g => g.status === k);
+  const row = g => `<div class="card" style="margin-bottom:10px"><div class="row between"><b>${GROUP_KIND[g.kind] || g.kind} · ${SPORTS[g.sport]?.em || ''} ${g.people ? g.people + ' personas' : ''}</b><span class="tiny muted">${esc(fmtDayShort(g.created_at))}</span></div>
+    <div class="small" style="margin:4px 0">${esc(g.name)} · ${esc(g.phone)}${g.preferred ? `<br>Cuándo: ${esc(g.preferred)}` : ''}${g.message ? `<br>“${esc(g.message)}”` : ''}</div>
+    <div class="row wrapf" style="gap:6px"><a class="btn wa sm" href="${waLink(g.phone, `Hola ${g.name.split(' ')[0]}! Te escribo de Nativo por tu pedido de clase ${(GROUP_KIND[g.kind] || '').replace(/^\S+ /, '').toLowerCase()} de ${SPORTS[g.sport]?.label || 'SUP'}${g.people ? ` para ${g.people}` : ''} 🏄`)}" target="_blank" rel="noopener" onclick="${g.status === 'nuevo' ? `api.updateGroup('${g.id}', { status: 'contactado' }).then(paneGroups)` : ''}">Escribirle</a>
+      ${g.status !== 'cerrado' ? `<button class="btn ghost sm" onclick="api.updateGroup('${g.id}', { status: 'cerrado' }).then(paneGroups)">Cerrar</button>` : `<button class="btn ghost sm" onclick="api.updateGroup('${g.id}', { status: 'nuevo' }).then(paneGroups)">Reabrir</button>`}</div></div>`;
+  paneEl().innerHTML = `<div style="margin-bottom:10px"><a href="#" class="small" onclick="setTab('mas');return false">‹ Más</a></div>
+    <h2 style="margin:0 0 10px">👥 Clases privadas y grupales</h2>
+    ${list.length ? '' : '<div class="card empty">Todavía no hay pedidos. Llegan desde la página: "👥 Clases privadas y grupales".</div>'}
+    ${by('nuevo').length ? `<div class="label">Nuevos (${by('nuevo').length})</div>${by('nuevo').map(row).join('')}` : ''}
+    ${by('contactado').length ? `<div class="label">Contactados (${by('contactado').length})</div>${by('contactado').map(row).join('')}` : ''}
+    ${by('cerrado').length ? `<details><summary class="small" style="cursor:pointer">Cerrados (${by('cerrado').length})</summary>${by('cerrado').map(row).join('')}</details>` : ''}`;
+}
+
 async function savePlanRow(btn) {
   const tr = btn.closest('tr'), g = k => tr.querySelector(`[data-k=${k}]`);
   const pl = { name: g('name').value.trim(), price: +g('price').value, classes: +g('classes').value, days_valid: +g('days_valid').value, description: g('description').value.trim() || null, active: g('active').checked, sport: g('sport').value };

@@ -72,6 +72,15 @@ Al reservar, el alumno pasa a **"Tu reserva"** (`/#r-CÓDIGO`): la reserva actua
 
 La agenda, el resumen, Equipo y Abonos se actualizan solos cuando otro profe carga, cobra o borra algo (Supabase Realtime; lo activa `setup.sql`). Si estás con un formulario o una ventana abierta no se pisa: aparece **"Hay cambios nuevos · Actualizar"** y se aplica al cerrar. Al volver a la app (desbloquear el celu) también se recargan los datos. En la demo se prueba con dos pestañas abiertas.
 
+## Más funciones
+- **Viento en cada clase**: pronóstico de Open-Meteo (gratis) en la página y en la agenda; ⚠️ si pasa `CONFIG.WEATHER.windWarn` / `gustWarn`. Al suspender, aparece un botón de WhatsApp por alumno con el aviso armado.
+- **Lista de espera**: en una clase completa el alumno se anota; si alguien cancela, en la agenda aparece "¡hay lugar! avisale al primero" con el WhatsApp listo (y al alumno con cuenta le aparece en la web). Al reservar sale solo de la lista.
+- **Ficha de salud y deslinde**: el alumno la completa una vez (vale 1 año) en su perfil o desde el comprobante; si reserva sin tenerla, se le avisa. El profe ve "📝 sin ficha" o "⚠️ ver ficha" en la agenda y los datos al tocar al alumno. Texto en `CONFIG.WAIVER_TEXT` (revisalo con un abogado).
+- **Reseñas**: cuando termina la clase, el comprobante pide estrellas y comentario. Las de 4–5 con comentario se muestran en la página (el admin puede ocultar). `CONFIG.GOOGLE_REVIEW_URL` agrega el botón para reseñar en Google.
+- **Gift cards**: "🎁 Regalá una clase" en la página → pedido con código → el admin marca *Cobrado* en *Más → Abonos* y le manda el link `…/#g-CÓDIGO`. Una clase se canjea en el comprobante; un abono, en el perfil.
+- **Clases privadas y grupales**: formulario en la página; llegan a *Más → 👥 Clases privadas y grupales*.
+- **📊 Más números** (Resumen, admin): nuevos vs. los que vuelven, horarios más pedidos, repetición por profe y alumnos que no vienen hace más de 30 días.
+
 ## Pago online con Mercado Pago (opcional)
 El alumno reserva y en la misma pantalla puede tocar **Pagar ahora con Mercado Pago**. También puede pagar después desde **Pagar mi reserva**, con su código.
 Cuando Mercado Pago aprueba el pago, avisa al servidor (`api/mp-webhook`) y la reserva queda marcada como **pagó · mercadopago** sin que nadie toque nada.
