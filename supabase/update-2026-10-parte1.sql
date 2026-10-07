@@ -94,12 +94,12 @@ alter table public.group_requests enable row level security;
 drop policy if exists "group_requests admin" on public.group_requests;
 create policy "group_requests admin" on public.group_requests for all to authenticated using (is_admin()) with check (is_admin());
 
-do $fn$
+do '
 declare t text;
 begin
-  foreach t in array array['waitlist', 'gift_cards', 'group_requests'] loop
-    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
-      execute format('alter publication supabase_realtime add table public.%I', t);
+  foreach t in array array[''waitlist'', ''gift_cards'', ''group_requests''] loop
+    if not exists (select 1 from pg_publication_tables where pubname = ''supabase_realtime'' and schemaname = ''public'' and tablename = t) then
+      execute format(''alter publication supabase_realtime add table public.%I'', t);
     end if;
   end loop;
-end $fn$;
+end ';
