@@ -790,7 +790,8 @@ function demoApi() {
     myBookings() {
       const sid = store.get(SKEY, null);
       return wait(db.bookings.filter(b => sid && b.student_id === sid).map(b => { const s = db.slots.find(x => x.id === b.slot_id), p = db.profiles.find(x => x.id === s.profe_id);
-        return { code: b.code, status: b.status, paid: b.paid, people: b.people, amount: b.amount, title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location, slot_status: s.status, profe_name: p?.name, profe_avatar: p?.avatar_url, members_only: !!s.members_only }; })
+        return { code: b.code, status: b.status, paid: b.paid, people: b.people, amount: b.amount, title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location, slot_status: s.status, profe_name: p?.name, profe_avatar: p?.avatar_url, members_only: !!s.members_only,
+          sport: db.class_types.find(t => t.id === s.class_type_id)?.sport || 'sup', kind: db.class_types.find(t => t.id === s.class_type_id)?.kind || 'iniciacion' }; })
         .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
     updateStudent(id, patch) {
@@ -913,7 +914,8 @@ function demoApi() {
     studentProfile(id) {
       const s0 = db.students.find(x => x.id === id); if (!s0) return fail('No encontramos ese perfil');
       const bks = db.bookings.filter(b => b.student_id === id).map(b => { const s = db.slots.find(x => x.id === b.slot_id);
-        return { starts_at: s.starts_at, duration_min: s.duration_min, people: b.people, profe_name: db.profiles.find(x => x.id === s.profe_id)?.name, members_only: !!s.members_only, status: b.status, slot_status: s.status }; });
+        return { starts_at: s.starts_at, duration_min: s.duration_min, people: b.people, profe_name: db.profiles.find(x => x.id === s.profe_id)?.name, members_only: !!s.members_only, status: b.status, slot_status: s.status,
+          sport: db.class_types.find(t => t.id === s.class_type_id)?.sport || 'sup', kind: db.class_types.find(t => t.id === s.class_type_id)?.kind || 'iniciacion' }; });
       return wait({ student: { ...s0, phone: meP() ? s0.phone : null }, bookings: bks, train_days: demoDays(id) });
     },
     teamMembers() { return wait(db.students.filter(x => x.training === 'approved').map(x => ({ id: x.id, name: x.name, avatar_url: x.avatar_url, instagram: x.instagram, level: x.level, train_days: demoDays(x.id) }))); },
@@ -1181,6 +1183,7 @@ function drawPublic() {
   document.querySelector('.day.on')?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   watchDaybar();
   if (st.resumeBook) { const id = st.resumeBook; st.resumeBook = null; if (st.pub.some(x => x.id === id)) openBooking(id); }   // venía de "reservar con Google"
+  if (st.openSlot) openSharedSlot();
 }
 function setPub(k, v) {
   st[k] = v; if (k !== 'day') st.day = null;
@@ -1195,6 +1198,22 @@ function watchDaybar() {
   new IntersectionObserver(([e]) => bar.classList.toggle('stuck', !e.isIntersecting), { rootMargin: '-70px 0px 0px 0px' }).observe(sentinel);
 }
 
+// Llegó por el link de una clase: vamos a su pestaña y su día, y abrimos la reserva.
+async function openSharedSlot() {
+  const id = st.openSlot; st.openSlot = null;
+  let s = st.pub.find(x => x.id === id);
+  if (!s) {   // puede ser más adelante que las próximas semanas (ej. una travesía)
+    const from = startOfDay(new Date());
+    s = (await api.publicSlots(from, addDays(from, 180)).catch(() => [])).find(x => x.id === id);
+    if (s) st.pub.push(s);
+  }
+  if (!s) return toast('Esa clase ya no está disponible. Mirá las otras fechas 👇');
+  st.fSport = sportOf(s); st.fType = ''; st.fProfe = ''; st.day = dayKey(s.starts_at);
+  drawPublic();
+  document.querySelector('.dayttl')?.scrollIntoView({ block: 'start' });
+  if (s.capacity - s.booked <= 0) return toast('Esa clase ya está completa 😕. Mirá otras fechas.');
+  openBooking(id);
+}
 function openBooking(id) {
   const s = st.pub.find(x => x.id === id); if (!s) return;
   if (s.members_only && st.student?.training !== 'approved') return trainingInfo(s);
@@ -1598,8 +1617,10 @@ async function showTutorial(first, only) {
   if (!st.plans) st.plans = await api.plans().catch(() => []);
   if (!st.types?.length) st.types = await api.classTypes().catch(() => []);
   const me = st.student, name = me?.name?.split(' ')[0];
-  const t = (st.types || []).find(x => x.active && !x.members_only), plan = (st.plans || []).find(p => p.active);
+  const t = (st.types || []).find(x => x.active && !x.members_only && (x.sport || 'sup') === 'sup'), plan = (st.plans || []).find(p => p.active && (p.sport || 'sup') === 'sup');
   const tc = CONFIG.TRAINING_CONTACT, pc = CONFIG.PASS_CONTACT;
+  if (!st.profes?.length) st.profes = await api.publicProfes().catch(() => []);
+  const kay = (st.types || []).filter(x => x.active && !x.members_only && x.sport === 'kayak').sort((a, b) => a.price - b.price)[0], kc = sportContact('kayak', null);
   const S = [
     { em: '🏄', h: name ? `¡Bienvenido/a, ${esc(name)}!` : '¡Bienvenido/a a Nativo!',
       p: `Somos una escuela de stand up paddle en ${esc(CONFIG.LOCATION)}. Te mostramos en 1 minuto cómo funciona todo.` },
@@ -1609,6 +1630,8 @@ async function showTutorial(first, only) {
       steps: [`¿No podés ir? Cancelala desde la reserva hasta ${CONFIG.CANCEL_HOURS} h antes`, 'Tus clases quedan en "Tus próximas clases" y en tu perfil'] },
     plan && { em: '💳', h: `${esc(plan.name)}`, p: `${money(plan.price)} = ${plan.classes} clases en ${plan.days_valid} días (${money(Math.round(plan.price / plan.classes))} c/u${t ? `, ahorrás ${money(t.price * plan.classes - plan.price)}` : ''}).`,
       steps: [`Tocá "Lo quiero" y le escribís a ${esc(pc?.name || 'la escuela')} para pagarlo`, 'Cuando se confirma el pago, se activa en tu cuenta', 'Al reservar elegís "Usar mi abono"; en tu perfil ves clases y días que te quedan'] },
+    kay && { em: '🛶', h: 'Escuela de kayak', p: `También tenemos kayak${kc?.name ? ` con ${esc(kc.name)}` : ''}: clases de iniciación y <b>travesías</b> por el río${kay.price ? ` (desde ${money(kay.price)})` : ''}.`,
+      steps: ['Arriba de los horarios elegí la pestaña "🛶 Kayak"', 'Las travesías se ven resaltadas con 🧭', `Su abono es aparte, y las dudas van directo${kc?.name ? ` a ${esc(kc.name)}` : ' al profe de kayak'} por WhatsApp`] },
     { em: '🏅', h: 'Grupo de entrenamiento', p: `Para los que ya reman seguido: días fijos con profe. Se coordina por WhatsApp${tc?.name ? ` con ${esc(tc.name)}` : ''}.`,
       steps: ['Desde tu perfil: "Quiero sumarme" para pedir info', 'Si ya entrenás: "Ya entreno: pedir 🏅"', me?.training === 'approved' ? 'Ya sos del team: te mostramos cómo funciona 👉' : 'Ya en el team: sumás tus entrenos con "Hoy entrené", tenés racha, logros y el portal del grupo'] },
     ...(me?.training === 'approved' ? TEAM_SLIDES : []),
@@ -1725,12 +1748,25 @@ function profileParts(me, list, days) {
   const past = list.filter(b => ok(b) && b.status !== 'no_show' && new Date(b.starts_at) < now);
   const hours = past.reduce((a, b) => a + (b.duration_min || 60), 0) / 60;
   const byProfe = {}; past.forEach(b => { byProfe[b.profe_name] = (byProfe[b.profe_name] || 0) + 1; });
+  // Logros por disciplina: los de SUP y los de kayak van aparte (un alumno puede hacer las dos).
+  const sup = past.filter(b => (b.sport || 'sup') === 'sup'), kay = past.filter(b => b.sport === 'kayak');
+  const fiel = list => { const c = {}; list.forEach(b => { c[b.profe_name] = (c[b.profe_name] || 0) + 1; }); return Object.values(c).some(n => n >= 3); };
+  const hr = b => new Date(b.starts_at).getHours();
   const badges = [
-    ['🏄', 'Primera remada', past.length >= 1], ['🔥', '5 clases', past.length >= 5], ['🏆', '10 clases', past.length >= 10],
-    ['🌅', 'Madrugador', past.some(b => new Date(b.starts_at).getHours() < 9)], ['🌇', 'Atardecer', past.some(b => new Date(b.starts_at).getHours() >= 18)],
-    ['🤝', 'En grupo', past.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', Object.values(byProfe).some(n => n >= 3)],
+    ['🏄', 'Primera remada', sup.length >= 1], ['🔥', '5 clases', sup.length >= 5], ['🏆', '10 clases', sup.length >= 10],
+    ['🌅', 'Madrugador', sup.some(b => hr(b) < 9)], ['🌇', 'Atardecer', sup.some(b => hr(b) >= 18)],
+    ['🤝', 'En grupo', sup.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', fiel(sup)],
     ['🏅', 'Entrenamiento', me.training === 'approved'],
   ];
+  const trav = kay.filter(b => b.kind === 'travesia');
+  const kBadges = [
+    ['🛶', 'Primera salida', kay.length >= 1], ['🔥', '5 salidas', kay.length >= 5], ['🏆', '10 salidas', kay.length >= 10],
+    ['🧭', 'Primera travesía', trav.length >= 1], ['🗺️', '3 travesías', trav.length >= 3], ['⏱️', 'Remada larga (3 h+)', kay.some(b => (b.duration_min || 0) >= 180)],
+    ['🤝', 'En grupo', kay.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', fiel(kay)],
+  ];
+  const doneK = list.some(b => b.sport === 'kayak' && b.status !== 'cancelled'), doneS = list.some(b => (b.sport || 'sup') === 'sup' && b.status !== 'cancelled');
+  const grid = (title, bs) => `<div class="section"><div class="label">${title} · ${bs.filter(b => b[2]).length} de ${bs.length}</div>
+      <div class="badges">${bs.map(([i, t, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${t}</div>`).join('')}</div></div>`;
   const ig = me.instagram ? me.instagram.replace(/^@/, '') : '';
   return {
     head: `<div class="sp-cover"><svg class="waves" viewBox="0 0 2400 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18C150 4 300 4 450 16S750 32 900 18 1050 4 1200 18 1500 32 1650 18 1950 4 2100 16 2250 30 2400 18V34H0Z"/></svg></div>
@@ -1740,8 +1776,8 @@ function profileParts(me, list, days) {
       ${me.bio ? `<p class="bio-t">${esc(me.bio)}</p>` : ''}`,
     stats: `<div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>`,
     team: me.training === 'approved' || (days || []).length ? days : null,
-    logros: `<div class="section"><div class="label">Logros · ${badges.filter(b => b[2]).length} de ${badges.length}</div>
-      <div class="badges">${badges.map(([i, t, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${t}</div>`).join('')}</div></div>`,
+    // solo kayak → solo sus logros; las dos → las dos secciones; ninguna todavía → los de SUP
+    logros: (doneS || !doneK ? grid(doneK ? '🏄 Logros de SUP' : 'Logros', badges) : '') + (doneK ? grid('🛶 Logros de kayak', kBadges) : ''),
   };
 }
 
@@ -2061,6 +2097,7 @@ function slotCard(s) {
     ${!cancelled && (share > 0 || pend > 0) ? `<div class="money-line num">${share > 0 ? `<span class="ok">${mine}: ${money(share)}</span>` : ''}${pend > 0 ? `<span class="warn">${past ? 'falta marcar pago' : 'a cobrar'}: ${money(pend)}</span>` : ''}</div>` : ''}
     ${bks.map(b => bookingRow(s, b)).join('')}
     ${cancelled ? `<div class="slot-foot"><button class="btn danger sm" onclick="deleteSuspended('${s.id}')">Borrar clase suspendida</button></div>` : `<div class="slot-foot"><button class="btn ghost sm" onclick="manualBooking('${s.id}')">+ Anotar alumno</button>
+      ${past ? '' : `<button class="btn ghost sm" style="flex:0 0 auto" onclick="shareSlot('${s.id}')" aria-label="Compartir link de la clase">🔗</button>`}
       <button class="btn ghost sm" style="flex:0 0 auto" onclick="slotMenu('${s.id}')" aria-label="Más opciones">${ICON.more.replace('<svg', '<svg width="20" height="20"')}</button></div>`}
   </div>`;
 }
@@ -2110,10 +2147,62 @@ function slotMenu(id) {
   const n = s.bookings.filter(b => b.status !== 'cancelled').length;
   openModal(`<h2>${hhmm(s.starts_at)} · ${esc(fmtDayShort(s.starts_at))}</h2>
     <div class="choice">
+      ${s.status !== 'cancelled' ? `<button class="btn block" onclick="editSlot('${s.id}')">✏️ Editar clase</button>
+      <button class="btn ghost block" onclick="closeModal();shareSlot('${s.id}')">🔗 Compartir link de esta clase</button>` : ''}
       ${s.bookings.length ? `<button class="btn ghost block" onclick="closeModal();cancelSlot('${s.id}')">Suspender clase${n ? ` (avisar a ${n})` : ''}</button>` : ''}
       <button class="btn danger block" onclick="closeModal();forceDeleteSlot('${s.id}')">Borrar clase${s.bookings.length ? ' y sus reservas' : ''}</button>
       <button class="btn ghost block" onclick="closeModal()">Volver</button></div>
     ${s.bookings.length ? '<p class="tiny muted" style="margin-top:10px">Suspender deja registro y la podés avisar. Borrar la elimina del todo: usalo para pruebas o errores de carga.</p>' : ''}`);
+}
+
+// Editar una clase ya creada (día, hora, cupo, precio, lugar, título y, si sos admin, el profe).
+function editSlot(id) {
+  const s = st.staffSlots.find(x => x.id === id); if (!s) return;
+  const d = new Date(s.starts_at), people = s.bookings.filter(b => b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
+  const admin = st.me.role === 'admin', sp = sportOf(s);
+  const profes = admin ? (st.allProfiles || []).filter(p => p.approved && teaches(p) && (p.role === 'admin' || (p.sports?.length ? p.sports : ['sup']).includes(sp))) : [];
+  openModal(`<h2>Editar clase</h2><div id="es-err"></div>
+    <form onsubmit="saveSlotEdit(event,'${id}')">
+      <div class="field"><label for="es-title">Título que ve el alumno</label><input class="input" id="es-title" name="title" required maxlength="80" value="${esc(s.title)}"></div>
+      <div class="grid2"><div class="field"><label for="es-date">Día</label><input class="input" id="es-date" name="date" type="date" required value="${dayKey(d)}"></div>
+        <div class="field"><label for="es-time">Hora</label><input class="input" id="es-time" name="time" type="time" step="900" required value="${hhmm(d)}"></div></div>
+      <div class="grid2"><div class="field"><label for="es-dur">Duración (min)</label><input class="input" id="es-dur" name="dur" type="number" min="15" step="15" required value="${s.duration_min}"></div>
+        <div class="field"><label for="es-cap">Cupo</label><input class="input" id="es-cap" name="cap" type="number" min="1" required value="${s.capacity}"></div></div>
+      <div class="grid2"><div class="field"><label for="es-price">Precio por persona</label><input class="input" id="es-price" name="price" type="number" min="0" step="500" required value="${+s.price}"></div>
+        <div class="field"><label for="es-loc">Lugar</label><input class="input" id="es-loc" name="loc" maxlength="80" value="${esc(s.location || '')}"></div></div>
+      ${profes.length > 1 ? `<div class="field"><label for="es-profe">Profe</label><select class="input" id="es-profe" name="profe">${profes.map(p => `<option value="${p.id}" ${p.id === s.profe_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : ''}
+      ${people ? `<p class="tiny muted" style="margin:-4px 0 12px">Ya hay ${people} ${people === 1 ? 'anotado' : 'anotados'}: si cambiás día u hora, avisales. Las reservas ya hechas mantienen su precio.</p>` : ''}
+      <div class="sheet-foot"><button class="btn coral block" id="es-btn">Guardar cambios</button></div></form>`);
+}
+async function saveSlotEdit(ev, id) {
+  ev.preventDefault();
+  const f = ev.target, s = st.staffSlots.find(x => x.id === id), btn = $('es-btn');
+  const start = new Date(`${f.date.value}T${f.time.value}`), people = s.bookings.filter(b => b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
+  if (isNaN(start)) return;
+  if (+f.cap.value < people && !await askConfirm(`Ya hay ${people} anotados y el cupo nuevo es ${f.cap.value}. ¿Guardar igual?`, 'Guardar igual')) return;
+  const moved = start.getTime() !== new Date(s.starts_at).getTime();
+  if (moved && people && !await askConfirm(`Cambiaste el día u horario y hay ${people} ${people === 1 ? 'anotado' : 'anotados'}. Acordate de avisarles por WhatsApp. ¿Guardar?`, 'Guardar')) return;
+  const patch = { title: f.title.value.trim(), starts_at: start.toISOString(), duration_min: +f.dur.value, capacity: +f.cap.value, price: +f.price.value, location: f.loc.value.trim() || null };
+  if (f.profe && f.profe.value !== s.profe_id) { patch.profe_id = f.profe.value; patch.profe_pct = +((st.allProfiles || []).find(p => p.id === f.profe.value)?.commission_pct ?? s.profe_pct); }
+  btn.disabled = true;
+  try { await api.updateSlot(id, patch); closeModal(); toast('Clase actualizada ✓'); const y = window.scrollY; await paneAgenda(); window.scrollTo(0, y); }
+  catch (e) { $('es-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+
+// Link directo a una clase: quien lo abre entra justo a esa clase para reservar (con vista previa en WhatsApp).
+const slotUrl = id => `${location.origin}/c/${id}`;
+async function shareSlot(id) {
+  const s = st.staffSlots.find(x => x.id === id); if (!s) return;
+  const t = typeOf(s), em = SPORTS[sportOf(s)].em, url = slotUrl(id);
+  const text = `${em} ${t?.kind === 'travesia' ? '🧭 ' : ''}${s.title} · ${fmtDayLong(s.starts_at)} ${hhmm(s.starts_at)} con ${s.profe?.name || st.me.name.split(' ')[0]}. Reservá tu lugar acá:`;
+  openModal(`<h2>Compartir esta clase</h2>
+    <p class="small muted" style="margin-bottom:10px">Quien abra el link entra directo a esta clase para reservar.</p>
+    <div class="sum" style="word-break:break-all"><b>${esc(url)}</b></div>
+    <div class="choice">
+      <a class="btn wa block" href="https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Mandar por WhatsApp</a>
+      ${navigator.share ? `<button class="btn ghost block" onclick="navigator.share({ title: ${esc(JSON.stringify(s.title))}, text: ${esc(JSON.stringify(text))}, url: '${url}' }).catch(() => {})">Compartir (Instagram, etc.)</button>` : ''}
+      <button class="btn ghost block" onclick="navigator.clipboard.writeText('${url}').then(() => toast('Link copiado ✓'), () => toast('${url}'))">Copiar link</button>
+      <button class="btn ghost block" onclick="closeModal()">Listo</button></div>`);
 }
 
 async function updBooking(id, patch) {
@@ -2824,6 +2913,12 @@ api.onAuth(() => { if (location.hash.startsWith('#staff')) renderStaff(); else r
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 // Vuelta desde un mail de invitación / recuperar contraseña → ir directo al área de profes.
 // Primero dejamos que Supabase lea el token del link; recién después limpiamos la URL.
+// Links directos: /kayak abre la pestaña Kayak; /c/<id> abre esa clase para reservar.
+// (El servidor arma la vista previa de WhatsApp; acá dejamos la URL en "/" para que todo lo demás funcione igual.)
+{ const cm = /^\/c\/([0-9a-f-]{36})\/?$/i.exec(location.pathname), km = /^\/(kayak|sup)\/?$/i.exec(location.pathname);
+  if (cm) st.openSlot = cm[1].toLowerCase();
+  if (km) st.fSport = km[1].toLowerCase();
+  if (cm || km) history.replaceState(null, '', '/' + location.search + location.hash); }
 const QS = new URLSearchParams(location.search);
 if (QS.has('code') || QS.has('error_description')) {
   // Vuelta desde Google: supabase-js canjea el ?code= por la sesión; después seguimos donde estaba.

@@ -413,12 +413,12 @@ language sql stable security definer set search_path = public as $fn$
   where p_code ~* '^[0-9a-f]{6}$' and b.code = upper(btrim(p_code));
 $fn$;
 -- Clases del alumno con cuenta (perfil). Suma las que reservó como invitado con el mismo email de Google.
-drop function if exists public.my_bookings();   -- cambió lo que devuelve (members_only)
+drop function if exists public.my_bookings();   -- cambió lo que devuelve (disciplina y tipo)
 create or replace function public.my_bookings()
 returns table (
   code text, status text, paid boolean, people int, amount numeric, title text,
   starts_at timestamptz, duration_min int, location text, slot_status text,
-  profe_name text, profe_avatar text, members_only boolean
+  profe_name text, profe_avatar text, members_only boolean, sport text, kind text
 )
 language plpgsql security definer set search_path = public as $fn$
 #variable_conflict use_column
@@ -428,8 +428,9 @@ begin
   where b.student_id is null and auth.email() is not null and lower(b.customer_email) = lower(auth.email());
   return query
     select b.code, b.status, b.paid, b.people, b.amount, s.title, s.starts_at, s.duration_min,
-           s.location, s.status, p.name, p.avatar_url, s.members_only
+           s.location, s.status, p.name, p.avatar_url, s.members_only, coalesce(ct.sport, 'sup'), coalesce(ct.kind, 'iniciacion')
     from bookings b join slots s on s.id = b.slot_id join profiles p on p.id = s.profe_id
+    left join class_types ct on ct.id = s.class_type_id
     where b.student_id = auth.uid()
     order by s.starts_at desc;
 end $fn$;
@@ -728,8 +729,10 @@ begin
                                  'instagram', st.instagram, 'level', st.level, 'training', st.training,
                                  'phone', case when is_staff() then st.phone end, 'created_at', st.created_at),
     'bookings', coalesce((select json_agg(json_build_object('starts_at', s.starts_at, 'duration_min', s.duration_min, 'people', b.people,
-                  'profe_name', p.name, 'members_only', s.members_only, 'status', b.status, 'slot_status', s.status) order by s.starts_at desc)
-                from bookings b join slots s on s.id = b.slot_id join profiles p on p.id = s.profe_id where b.student_id = p_id), '[]'::json),
+                  'profe_name', p.name, 'members_only', s.members_only, 'status', b.status, 'slot_status', s.status,
+                  'sport', coalesce(ct.sport, 'sup'), 'kind', coalesce(ct.kind, 'iniciacion')) order by s.starts_at desc)
+                from bookings b join slots s on s.id = b.slot_id join profiles p on p.id = s.profe_id
+                left join class_types ct on ct.id = s.class_type_id where b.student_id = p_id), '[]'::json),
     'train_days', to_json(training_days(p_id)))
   into r from students st where st.id = p_id;
   if r is null then raise exception 'No encontramos ese perfil'; end if;

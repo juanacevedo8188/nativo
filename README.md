@@ -52,6 +52,9 @@ Configuración (una vez):
 - En *Equipo → tocar al profe*: **Da clases de** (qué disciplinas puede cargar) y **Configura tipos de clase de** (ej. Mati: Kayak en las dos). Un profe solo puede crear clases de sus disciplinas (lo controla la base).
 - El profe que configura kayak lo hace desde *Crear → ⚙️ Tus tipos de clase*: precio, cupo, duración, tipo y activa. `setup.sql` deja dos tipos de ejemplo de kayak **inactivos y en $0** para completar.
 - Los abonos tienen disciplina (*Abonos → Planes → Para*): el de SUP no sirve para kayak.
+- **Link directo a una clase**: en la agenda, 🔗 (o ⋯ → Compartir link) da `…/c/<id>`: quien lo abre entra directo a esa clase o travesía para reservar, y en WhatsApp se ve con título, día, hora y profe. `…/kayak` abre la pestaña Kayak con su propia vista previa (`img/og-kayak.jpg`). Lo resuelven `vercel.json` + `api/page.js`.
+- **Editar clase**: ⋯ → ✏️ Editar clase (título, día, hora, duración, cupo, precio, lugar; el admin también cambia el profe).
+- **Logros de kayak** aparte de los de SUP en el perfil del alumno.
 
 ## Entrenamiento
 - En *Más → Precio y cupo* marcá el tipo de clase como **Solo entren.** y usá la descripción para días y horarios. Esas clases **no se publican en la web** (`public_slots` las excluye): se ven solo en la agenda de los profes, que anotan a los chicos con "+ Anotar alumno".

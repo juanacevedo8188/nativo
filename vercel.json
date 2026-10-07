@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/kayak", "destination": "/api/page?sport=kayak" },
+    { "source": "/c/:slot", "destination": "/api/page?slot=:slot" }
+  ]
+}
