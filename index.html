@@ -608,6 +608,15 @@ const ICON = {
   google: '<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.3H12v4.3h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2-1.9 3.2-4.7 3.2-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.2a6.6 6.6 0 0 1 0-4.3V7.1H2.1a11 11 0 0 0 0 9.9l3.7-2.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7.1l3.7 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>',
   ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>',
 };
+// Contacto por disciplina: en SUP, los de siempre (escuela / Torita); en kayak, todo va al profe de kayak (Mati).
+function sportContact(sport, fallback) {
+  if (sport && sport !== 'sup') {
+    const p = (st.profes || []).find(x => (x.sports || []).includes(sport) && x.whatsapp);
+    if (p) return { name: p.name.split(' ')[0], whatsapp: p.whatsapp };
+  }
+  return fallback;
+}
+const schoolContact = () => CONFIG.WHATSAPP ? { name: '', whatsapp: CONFIG.WHATSAPP } : null;
 // WhatsApp para escribirle a un profe desde la página pública. Si el profe no muestra su número,
 // el mensaje va al WhatsApp de la escuela nombrando al profe.
 function profeWa(name, phone, extra = '') {
@@ -835,7 +844,8 @@ function demoApi() {
       const s = db.slots.find(x => x.id === b.slot_id);
       return wait({ code: b.code, first_name: b.customer_name.split(' ')[0], title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location,
         profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: b.amount, paid: b.paid, status: b.status, slot_status: s.status,
-        profe_whatsapp: (pp => pp && pp.public_whatsapp !== false ? pp.phone || null : null)(db.profiles.find(p => p.id === s.profe_id)), payment_method: b.payment_method });
+        profe_whatsapp: (pp => pp && pp.public_whatsapp !== false ? pp.phone || null : null)(db.profiles.find(p => p.id === s.profe_id)), payment_method: b.payment_method,
+        sport: db.class_types.find(t => t.id === s.class_type_id)?.sport || 'sup' });
     },
     async book(b) {
       const s = db.slots.find(x => x.id === b.slot_id);
@@ -1064,7 +1074,7 @@ async function renderPublic() {
     </section>
     <div class="wrap" id="pub"><div class="loading">Cargando horarios…</div></div>
     <div class="foot wrap">
-      ${CONFIG.WHATSAPP ? `<a class="btn wa" href="${waLink(CONFIG.WHATSAPP, 'Hola Nativo! Tengo una consulta')}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} ¿Dudas? Escribinos</a>` : ''}
+      <a class="btn wa ${CONFIG.WHATSAPP ? '' : 'hidden'}" id="foot-wa" href="${CONFIG.WHATSAPP ? waLink(CONFIG.WHATSAPP, 'Hola Nativo! Tengo una consulta') : '#'}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} ¿Dudas? Escribinos</a>
       <div class="links"><a href="#" onclick="showTutorial();return false">¿Cómo funciona?</a>${MP_ON ? `<a href="#" onclick="openPayByCode();return false">Pagar mi reserva</a>` : ''}<a href="#staff">Acceso profes</a></div>
     </div>`;
   try {
@@ -1159,7 +1169,15 @@ function drawPublic() {
             ? `<div style="margin-top:12px"><a class="btn wa sm" href="${profeWa(pw.name, pw.whatsapp, `por las clases de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">Escribile a ${esc(pw.name.split(' ')[0])}</a></div>`
             : CONFIG.WHATSAPP ? `<div style="margin-top:12px"><a class="btn wa sm" href="${waLink(CONFIG.WHATSAPP, `Hola! Quería consultar por una clase de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">Consultanos por WhatsApp</a></div>` : ''}</div>`; })()}
     </div>
-    ${trainType ? trainingPromo(trainType) : ''}`;
+    ${trainType && sp === 'sup' ? trainingPromo(trainType) : ''}`;   // el grupo de entrenamiento es de SUP
+  // "¿Dudas?": en kayak va al WhatsApp del profe de kayak (Mati); en SUP, al de la escuela.
+  const kw = sp !== 'sup' ? profes.find(p => p.whatsapp) : null, fw = $('foot-wa');
+  if (fw) {
+    const num = kw ? kw.whatsapp : CONFIG.WHATSAPP;
+    fw.classList.toggle('hidden', !num);
+    if (num) { fw.href = waLink(num, kw ? `Hola ${kw.name.split(' ')[0]}! Tengo una consulta por las clases de ${SPORTS[sp].label}` : 'Hola Nativo! Tengo una consulta');
+      fw.innerHTML = `${ICON.wa.replace('<svg', '<svg width="20" height="20"')} ${kw ? `¿Dudas? Escribile a ${esc(kw.name.split(' ')[0])}` : '¿Dudas? Escribinos'}`; }
+  }
   document.querySelector('.day.on')?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   watchDaybar();
   if (st.resumeBook) { const id = st.resumeBook; st.resumeBook = null; if (st.pub.some(x => x.id === id)) openBooking(id); }   // venía de "reservar con Google"
@@ -1275,7 +1293,7 @@ function ticketState(r) {
 async function renderTicket(code) {
   $('app').innerHTML = `<div class="wrap" id="tk"><div class="loading">Buscando tu reserva…</div></div>`;
   let r = null;
-  try { r = await api.bookingByCode(code); } catch (e) { /* se muestra abajo */ }
+  try { [r] = await Promise.all([api.bookingByCode(code), st.profes?.length ? null : api.publicProfes().then(x => { st.profes = x; }).catch(() => {})]); } catch (e) { /* se muestra abajo */ }
   if (!$('tk')) return;
   if (!r) { $('tk').innerHTML = `<div class="card empty" style="margin-top:16px">No encontramos la reserva <b>${esc(code)}</b>. Revisá el código o escribinos.<div style="margin-top:14px"><a class="btn coral" href="#">Ver clases</a></div></div>`; return; }
   st.ticket = r;
@@ -1311,7 +1329,7 @@ async function renderTicket(code) {
       ${live && r.profe_whatsapp ? `<a class="btn wa block" href="${profeWa(r.profe_name, r.profe_whatsapp, `por mi clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code})`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Escribirle a ${esc(r.profe_name.split(' ')[0])}</a>` : ''}
       ${live ? (canSelfCancel(r) ? `<button class="btn danger block" onclick="askCancelMine()">No puedo ir · cancelar mi reserva</button>`
         : `<p class="tiny muted" style="text-align:center;margin:2px 0">${r.paid && r.payment_method !== 'abono' ? 'Ya está paga: para cancelarla escribinos.' : `Faltan menos de ${CONFIG.CANCEL_HOURS} h: para cancelar escribinos.`}</p>`) : ''}
-      ${CONFIG.WHATSAPP ? `<a class="btn ${live && r.profe_whatsapp ? 'ghost' : 'wa'} block" href="${waLink(CONFIG.WHATSAPP, `Hola! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar (escuela)</a>` : ''}
+      ${(c => c?.whatsapp ? `<a class="btn ${live && r.profe_whatsapp ? 'ghost' : 'wa'} block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar (${c.name ? esc(c.name) : 'escuela'})</a>` : '')(sportContact(r.sport, schoolContact()))}
       <a class="btn ghost block" href="#">Ver más clases</a>
     </div>`;
 }
@@ -1344,7 +1362,7 @@ function cancelledMine(r) {
   renderTicket(r.code).then(() => {
     toast(r.payment_method === 'abono' ? 'Reserva cancelada: la clase volvió a tu abono' : 'Reserva cancelada. ¡Gracias por avisar!');
     const msg = `Hola! Cancelé mi reserva ${r.code} del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)}. ¡Perdón y gracias!`;
-    const to = r.profe_whatsapp || CONFIG.WHATSAPP;
+    const to = r.profe_whatsapp || sportContact(r.sport, schoolContact())?.whatsapp;
     if (to && $('tk')) $('tk').insertAdjacentHTML('afterbegin', `<div class="card" style="margin-top:14px;text-align:center"><b>Listo, cancelaste tu clase</b>
       <p class="small muted" style="margin:4px 0 10px">Si querés, avisale a ${r.profe_whatsapp ? esc(r.profe_name.split(' ')[0]) : 'la escuela'} (opcional).</p>
       <a class="btn wa block" href="${waLink(to, msg)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Avisar por WhatsApp</a></div>`);
@@ -1459,9 +1477,9 @@ function planCard(pl) {
 }
 // "Lo quiero" → WhatsApp de la persona que vende los abonos, con el mensaje armado.
 function passWa(pl) {
-  const c = CONFIG.PASS_CONTACT; if (!c?.whatsapp) return '';
+  const c = sportContact(pl.sport, CONFIG.PASS_CONTACT); if (!c?.whatsapp) return '';
   const who = st.student ? ` Soy ${st.student.name}.` : '';
-  return waLink(c.whatsapp, `Hola ${c.name}! Quiero el ${pl.name} (${money(pl.price)} · ${pl.classes} clases) de Nativo 🏄.${who} ¿Cómo lo pago?`);
+  return waLink(c.whatsapp, `Hola ${c.name}! Quiero el ${pl.name} (${money(pl.price)} · ${pl.classes} clases) de Nativo ${SPORTS[pl.sport || 'sup']?.em || '🏄'}.${who} ¿Cómo lo pago?`);
 }
 // Si el alumno tiene cuenta, además queda anotado el pedido para que el admin lo confirme con un toque.
 function notePassRequest(planId) {
@@ -1475,7 +1493,7 @@ function myPassCard(p, compact) {
   const left = p.classes_total - p.used;
   if (p.status === 'pending') return `<div class="plan-card"><span class="pc-ic">⏳</span><div class="pc-body"><b class="t">${esc(p.name)}: pedido</b>
       <div class="small">Pagalo (${money(p.price)}) y se activan tus clases.</div></div>
-      ${(CONFIG.PASS_CONTACT?.whatsapp || CONFIG.WHATSAPP) ? `<a class="btn dark sm" href="${waLink(CONFIG.PASS_CONTACT?.whatsapp || CONFIG.WHATSAPP, `Hola ${CONFIG.PASS_CONTACT?.name || ''}! Pedí el ${p.name} (${money(p.price)}). Soy ${st.student?.name || ''}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">Escribile a ${esc(CONFIG.PASS_CONTACT?.name || 'la escuela')}</a>` : ''}</div>`;
+      ${(c => c?.whatsapp ? `<a class="btn dark sm" href="${waLink(c.whatsapp, `Hola ${c.name || ''}! Pedí el ${p.name} (${money(p.price)}). Soy ${st.student?.name || ''}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">Escribile a ${esc(c.name || 'la escuela')}</a>` : '')(sportContact(passSport(p), CONFIG.PASS_CONTACT?.whatsapp ? CONFIG.PASS_CONTACT : schoolContact()))}</div>`;
   const days = passDaysLeft(p);
   return `<div class="plan-card"><span class="pc-ic">💳</span><div class="pc-body"><b class="t">${esc(p.name)}</b>
       <div class="pass-count"><span><b class="num">${left}</b>${left === 1 ? 'clase' : 'clases'}</span><span class="${days <= 5 ? 'soon' : ''}"><b class="num">${days <= 1 ? '¡Hoy!' : days}</b>${days <= 1 ? 'último día' : 'días'}</span></div>
@@ -1500,7 +1518,7 @@ async function sendPassRequest(planId) {
     openModal(`<div style="text-align:center"><div class="big-emoji">💳</div><h2>¡Pedido enviado!</h2>
       <p class="muted">Coordiná el pago (${money(pl.price)}) y la escuela activa tu abono.</p></div>
       <div class="choice" style="margin-top:14px">
-        ${CONFIG.WHATSAPP ? `<a class="btn wa block" href="${waLink(CONFIG.WHATSAPP, `Hola! Pedí el ${pl.name} (${money(pl.price)}) desde la página. Soy ${st.student.name}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Coordinar el pago por WhatsApp</a>` : ''}
+        ${(c => c?.whatsapp ? `<a class="btn wa block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Pedí el ${pl.name} (${money(pl.price)}) desde la página. Soy ${st.student.name}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Coordinar el pago por WhatsApp</a>` : '')(sportContact(pl.sport, schoolContact()))}
         <button class="btn ghost block" onclick="closeModal();route()">Listo</button></div>`);
   } catch (e) { $('ps-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
 }
@@ -1783,6 +1801,7 @@ async function renderStudent() {
     return;
   }
   let list = [], prof = null;
+  if (!st.profes?.length) st.profes = await api.publicProfes().catch(() => []);   // contacto de kayak para sus abonos
   try { [list, st.myPasses, st.plans, st.teamPosts, prof] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
     me.training === 'approved' ? api.teamPosts().catch(() => []) : [], api.studentProfile(me.id).catch(() => null)]); } catch (e) { toast(errMsg(e)); }
   if (!$('sp')) return;
