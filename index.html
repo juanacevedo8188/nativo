@@ -1829,8 +1829,12 @@ function profileParts(me, list, days) {
       ${me.bio ? `<p class="bio-t">${esc(me.bio)}</p>` : ''}`,
     stats: `<div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>`,
     team: me.training === 'approved' || (days || []).length ? days : null,
-    // solo kayak → solo sus logros; las dos → las dos secciones; ninguna todavía → los de SUP
-    logros: (doneS || !doneK ? grid(doneK ? '🏄 Logros de SUP' : 'Logros', badges) : '') + (doneK ? grid('🛶 Logros de kayak', kBadges) : ''),
+    // Si la escuela tiene kayak, se ven las dos secciones (las de kayak bloqueadas hasta la primera salida).
+    // Quien hace solo kayak ve primero las suyas.
+    logros: (() => { const kOn = doneK || (st.types || []).some(t => t.active && !t.members_only && t.sport === 'kayak');
+      if (!kOn) return grid('Logros', badges);
+      const S = grid('🏄 Logros de SUP', badges), K = grid('🛶 Logros de kayak', kBadges);
+      return doneK && !doneS ? K + S : S + K; })(),
   };
 }
 
@@ -1891,6 +1895,7 @@ async function renderStudent() {
   }
   let list = [], prof = null;
   if (!st.profes?.length) st.profes = await api.publicProfes().catch(() => []);   // contacto de kayak para sus abonos
+  if (!st.types?.length) st.types = await api.classTypes().catch(() => []);       // ¿hay kayak? → sus logros
   try { [list, st.myPasses, st.plans, st.teamPosts, prof] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
     me.training === 'approved' ? api.teamPosts().catch(() => []) : [], api.studentProfile(me.id).catch(() => null)]); } catch (e) { toast(errMsg(e)); }
   if (!$('sp')) return;
