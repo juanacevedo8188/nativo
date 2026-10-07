@@ -1,5 +1,4 @@
--- Actualización: lista de espera, ficha de salud y deslinde, reseñas, gift cards y clases grupales.
--- Copiá todo y corrélo en Supabase → SQL Editor (se puede correr más de una vez). También está incluido en setup.sql.
+-- PARTE 2 de 2: funciones (correla después de la PARTE 1). Se puede correr más de una vez.
 
 -- ═════════ Lista de espera, ficha y deslinde, reseñas, gift cards y pedidos grupales ═════════
 -- Clave de un teléfono: los últimos 10 dígitos ("+54 9 341 555-1234" = "3415551234").
@@ -7,17 +6,6 @@ create or replace function public.phone_key(p text) returns text
 language sql immutable as $fn$ select right(regexp_replace(coalesce(p, ''), '\D', '', 'g'), 10) $fn$;
 
 -- ── Lista de espera: si una clase está completa, el alumno se anota y le avisamos si se libera un lugar.
-create table if not exists public.waitlist (
-  id         uuid primary key default gen_random_uuid(),
-  slot_id    uuid not null references public.slots(id) on delete cascade,
-  name       text not null,
-  phone      text not null,
-  student_id uuid references public.students(id) on delete set null,
-  created_at timestamptz not null default now(),
-  notified_at timestamptz
-);
-create index if not exists waitlist_slot_idx on public.waitlist (slot_id, created_at);
-grant select, update, delete on public.waitlist to authenticated;
 
 create or replace function public.join_waitlist(p_slot uuid, p_name text, p_phone text) returns int
 language plpgsql security definer set search_path = public as $fn$
@@ -64,20 +52,6 @@ drop trigger if exists waitlist_cleanup on public.bookings;
 create trigger waitlist_cleanup after insert on public.bookings for each row execute function public.waitlist_cleanup();
 
 -- ── Ficha y deslinde: una vez por persona (vale 1 año). Se completa desde el comprobante.
-create table if not exists public.waivers (
-  id              uuid primary key default gen_random_uuid(),
-  phone_key       text not null,
-  student_id      uuid references public.students(id) on delete set null,
-  name            text not null,
-  birth_date      date,
-  swims           text check (swims in ('si', 'poco', 'no')),
-  health          text,
-  emergency_name  text,
-  emergency_phone text,
-  accepted_at     timestamptz not null default now()
-);
-create index if not exists waivers_phone_idx on public.waivers (phone_key, accepted_at desc);
-grant select on public.waivers to authenticated;
 
 create or replace function public.waiver_status(p_code text) returns boolean
 language sql stable security definer set search_path = public as $fn$
@@ -124,17 +98,6 @@ begin
 end $fn$;
 
 -- ── Reseñas: el alumno califica su clase (con el código de la reserva) cuando ya terminó.
-create table if not exists public.reviews (
-  id         uuid primary key default gen_random_uuid(),
-  booking_id uuid not null unique references public.bookings(id) on delete cascade,
-  slot_id    uuid references public.slots(id) on delete cascade,
-  profe_id   uuid references public.profiles(id) on delete set null,
-  stars      int not null check (stars between 1 and 5),
-  comment    text,
-  hidden     boolean not null default false,
-  created_at timestamptz not null default now()
-);
-grant select, update on public.reviews to authenticated;
 
 create or replace function public.leave_review(p_code text, p_stars int, p_comment text) returns void
 language plpgsql security definer set search_path = public as $fn$
@@ -171,25 +134,6 @@ $fn$;
 
 -- ── Gift cards: alguien regala una clase o un abono. Se pide desde la página, el admin la activa
 --    cuando cobra, y quien la recibe la canjea con el código.
-create table if not exists public.gift_cards (
-  id               uuid primary key default gen_random_uuid(),
-  code             text not null unique,
-  kind             text not null check (kind in ('clase', 'abono')),
-  sport            text not null default 'sup',
-  plan_id          uuid references public.plans(id) on delete set null,
-  value            numeric(12,2) not null default 0,
-  buyer_name       text not null,
-  buyer_phone      text not null,
-  recipient_name   text not null,
-  message          text,
-  status           text not null default 'pending' check (status in ('pending', 'active', 'redeemed', 'cancelled')),
-  created_at       timestamptz not null default now(),
-  paid_at          timestamptz,
-  redeemed_at      timestamptz,
-  redeemed_booking uuid references public.bookings(id) on delete set null,
-  redeemed_pass    uuid references public.passes(id) on delete set null
-);
-grant select, update on public.gift_cards to authenticated;
 
 create or replace function public.request_gift(p_kind text, p_sport text, p_plan uuid, p_buyer text, p_buyer_phone text,
                                                p_recipient text, p_message text) returns text
@@ -270,19 +214,6 @@ begin
 end $fn$;
 
 -- ── Clases privadas y grupales (cumpleaños, empresas, grupos): pedido desde la página para el admin.
-create table if not exists public.group_requests (
-  id         uuid primary key default gen_random_uuid(),
-  name       text not null,
-  phone      text not null,
-  kind       text not null default 'grupo' check (kind in ('privada', 'grupo', 'cumple', 'empresa', 'otro')),
-  sport      text not null default 'sup',
-  people     int,
-  preferred  text,
-  message    text,
-  status     text not null default 'nuevo' check (status in ('nuevo', 'contactado', 'cerrado')),
-  created_at timestamptz not null default now()
-);
-grant select, update, delete on public.group_requests to authenticated;
 
 create or replace function public.request_group(p_name text, p_phone text, p_kind text, p_sport text, p_people int, p_preferred text, p_message text)
 returns void language plpgsql security definer set search_path = public as $fn$
@@ -309,35 +240,3 @@ grant execute on function public.join_waitlist(uuid, text, text), public.waiver_
 grant execute on function public.my_waitlist(), public.redeem_gift_pass(text) to authenticated;
 revoke all on function public.my_waiver(), public.submit_my_waiver(text, text, date, text, text, text, text) from public;
 grant execute on function public.my_waiver(), public.submit_my_waiver(text, text, date, text, text, text, text) to authenticated;
-
-
-alter table public.waitlist enable row level security;
-drop policy if exists "waitlist staff" on public.waitlist;
-create policy "waitlist staff" on public.waitlist for all to authenticated
-  using (is_admin() or owns_slot(slot_id)) with check (is_admin() or owns_slot(slot_id));
-alter table public.waivers enable row level security;
-drop policy if exists "waivers staff" on public.waivers;
-create policy "waivers staff" on public.waivers for select to authenticated using (is_staff());
-alter table public.reviews enable row level security;
-drop policy if exists "reviews select" on public.reviews;
-create policy "reviews select" on public.reviews for select to authenticated using (is_admin() or profe_id = auth.uid());
-drop policy if exists "reviews hide" on public.reviews;
-create policy "reviews hide" on public.reviews for update to authenticated using (is_admin()) with check (is_admin());
-alter table public.gift_cards enable row level security;
-drop policy if exists "gift_cards admin" on public.gift_cards;
-create policy "gift_cards admin" on public.gift_cards for all to authenticated using (is_admin()) with check (is_admin());
-alter table public.group_requests enable row level security;
-drop policy if exists "group_requests admin" on public.group_requests;
-create policy "group_requests admin" on public.group_requests for all to authenticated using (is_admin()) with check (is_admin());
-
-
--- Tiempo real para lista de espera, regalos y pedidos grupales.
-do $fn$
-declare t text;
-begin
-  foreach t in array array['waitlist', 'gift_cards', 'group_requests'] loop
-    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
-      execute format('alter publication supabase_realtime add table public.%I', t);
-    end if;
-  end loop;
-end $fn$;
