@@ -146,9 +146,11 @@ begin
   if s.starts_at + make_interval(mins => s.duration_min) > now() then raise exception 'Podés calificar cuando termine la clase'; end if;
   if b.status in ('cancelled', 'no_show') or s.status = 'cancelled' then raise exception 'Esa clase no se dio'; end if;
   if p_stars not between 1 and 5 then raise exception 'Elegí de 1 a 5 estrellas'; end if;
-  insert into reviews (booking_id, slot_id, profe_id, stars, comment)
-  values (b.id, s.id, s.profe_id, p_stars, left(nullif(btrim(p_comment), ''), 400))
-  on conflict (booking_id) do update set stars = excluded.stars, comment = excluded.comment, created_at = now();
+  update reviews set stars = p_stars, comment = left(nullif(btrim(p_comment), ''), 400), created_at = now() where booking_id = b.id;
+  if not found then
+    insert into reviews (booking_id, slot_id, profe_id, stars, comment)
+    values (b.id, s.id, s.profe_id, p_stars, left(nullif(btrim(p_comment), ''), 400));
+  end if;
 end $fn$;
 
 create or replace function public.review_by_code(p_code text) returns table (stars int, comment text)
