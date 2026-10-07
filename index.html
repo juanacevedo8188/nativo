@@ -414,6 +414,8 @@ const CONFIG = {
   LOCATION: 'Guardería Barlovento, Rosario',  // lugar por defecto de las clases
   MAPS: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Guardería Barlovento Rosario'),  // botón "Cómo llegar"
   DAYS_AHEAD: 21,
+  // El alumno puede cancelar solo su reserva hasta estas horas antes (igual que en setup.sql → cancel_my_booking).
+  CANCEL_HOURS: 12,
   // Profes con nombre de usuario (sin mail): por dentro la cuenta es usuario@USER_DOMAIN.
   // No se le manda ningún mail; solo tiene que ser un dominio de la escuela.
   USER_DOMAIN: 'usuarios.nativoescuela.com.ar',                   // cuántos días hacia adelante se pueden reservar
@@ -631,6 +633,7 @@ function supabaseApi() {
     publicProfes: () => q(c.rpc('public_profes')),
     publicSlots: (from, to) => q(c.rpc('public_slots', { p_from: from.toISOString(), p_to: to.toISOString() })),
     async bookingByCode(code) { const rows = await q(c.rpc('booking_by_code', { p_code: code })); return rows[0] || null; },
+    cancelMyBooking: (code, phone) => q(c.rpc('cancel_my_booking', { p_code: code, p_phone: phone || null })),
     async book(b) {
       const rows = await q(c.rpc('book_slot', { p_slot: b.slot_id, p_name: b.name, p_phone: b.phone, p_email: b.email || null, p_people: b.people, p_use_pass: !!b.usePass }));
       return rows[0];
@@ -756,6 +759,15 @@ function demoApi() {
       return wait(db.slots.filter(s => s.status === 'open' && !s.members_only && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
         .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
         .map(s => ({ ...s, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, booked: booked(s.id) })));
+    },
+    cancelMyBooking(code, phone) {
+      const b = db.bookings.find(x => x.code === String(code).toUpperCase()); if (!b) return fail('No encontramos esa reserva');
+      const s = db.slots.find(x => x.id === b.slot_id), d = v => String(v || '').replace(/\D/g, '').slice(-8);
+      const mine = (st.student && b.student_id === st.student.id) || (d(phone).length >= 6 && d(phone) === d(b.customer_phone));
+      if (!mine) return fail('El WhatsApp no coincide con el de la reserva');
+      if (new Date(s.starts_at) < addMin(new Date(), CONFIG.CANCEL_HOURS * 60)) return fail(`Faltan menos de ${CONFIG.CANCEL_HOURS} horas: para cancelar escribinos por WhatsApp`);
+      if (b.paid && b.payment_method !== 'abono') return fail('La reserva ya está paga: para cancelarla escribinos por WhatsApp');
+      b.status = 'cancelled'; b.notes = [b.notes, 'Cancelada por el alumno'].filter(Boolean).join(' · '); save(); return wait('ok');
     },
     bookingByCode(code) {
       const b = db.bookings.find(x => x.code === String(code).toUpperCase()); if (!b) return wait(null);
@@ -1173,11 +1185,47 @@ async function renderTicket(code) {
       </div>
       <button class="btn ghost block" onclick="shareTicket()">Compartir / copiar link de la reserva</button>
       ${live && r.profe_whatsapp ? `<a class="btn wa block" href="${profeWa(r.profe_name, r.profe_whatsapp, `por mi clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code})`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Escribirle a ${esc(r.profe_name.split(' ')[0])}</a>` : ''}
+      ${live ? (canSelfCancel(r) ? `<button class="btn danger block" onclick="askCancelMine()">No puedo ir · cancelar mi reserva</button>`
+        : `<p class="tiny muted" style="text-align:center;margin:2px 0">${r.paid && r.payment_method !== 'abono' ? 'Ya está paga: para cancelarla escribinos.' : `Faltan menos de ${CONFIG.CANCEL_HOURS} h: para cancelar escribinos.`}</p>`) : ''}
       ${CONFIG.WHATSAPP ? `<a class="btn ${live && r.profe_whatsapp ? 'ghost' : 'wa'} block" href="${waLink(CONFIG.WHATSAPP, `Hola! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar (escuela)</a>` : ''}
       <a class="btn ghost block" href="#">Ver más clases</a>
     </div>`;
 }
 
+// Cancelar la propia reserva: hasta CONFIG.CANCEL_HOURS antes y si no está paga (con abono sí: vuelve al abono).
+const canSelfCancel = r => r.status === 'confirmed' && r.slot_status === 'open'
+  && new Date(r.starts_at) > addMin(new Date(), CONFIG.CANCEL_HOURS * 60) && (!r.paid || r.payment_method === 'abono');
+async function askCancelMine() {
+  const r = st.ticket; if (!r) return;
+  const when = `${fmtDayLong(r.starts_at)} a las ${hhmm(r.starts_at)}`;
+  if (st.student) {                        // con cuenta: si la reserva es suya no hace falta nada más
+    if (!await askConfirm(`¿Cancelar tu clase del ${when}? Se libera tu lugar para otro.${r.payment_method === 'abono' ? ' La clase vuelve a tu abono.' : ''}`, 'Sí, cancelar')) return;
+    try { await api.cancelMyBooking(r.code); return cancelledMine(r); }
+    catch (e) { if (!/WhatsApp no coincide/.test(errMsg(e))) return toast(errMsg(e)); }
+  }
+  openModal(`<h2>Cancelar mi reserva</h2>
+    <p class="small muted" style="margin-bottom:12px">Clase del ${esc(when)} con ${esc(r.profe_name)}. Para confirmar que sos vos, poné el WhatsApp con el que reservaste.</p>
+    <div id="cm-err"></div>
+    <form onsubmit="doCancelMine(event)"><div class="field"><label for="cm-phone">Tu WhatsApp</label>
+      <input class="input" id="cm-phone" name="phone" type="tel" inputmode="tel" required placeholder="341 555 1234" autocomplete="tel"></div>
+      <div class="sheet-foot"><button class="btn danger block" id="cm-btn">Cancelar la reserva</button></div></form>`);
+}
+async function doCancelMine(ev) {
+  ev.preventDefault(); const r = st.ticket, btn = $('cm-btn'); btn.disabled = true;
+  try { await api.cancelMyBooking(r.code, ev.target.phone.value); closeModal(); cancelledMine(r); }
+  catch (e) { $('cm-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+function cancelledMine(r) {
+  store.set(MINE, store.get(MINE, []).filter(x => x.code !== r.code));
+  renderTicket(r.code).then(() => {
+    toast(r.payment_method === 'abono' ? 'Reserva cancelada: la clase volvió a tu abono' : 'Reserva cancelada. ¡Gracias por avisar!');
+    const msg = `Hola! Cancelé mi reserva ${r.code} del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)}. ¡Perdón y gracias!`;
+    const to = r.profe_whatsapp || CONFIG.WHATSAPP;
+    if (to && $('tk')) $('tk').insertAdjacentHTML('afterbegin', `<div class="card" style="margin-top:14px;text-align:center"><b>Listo, cancelaste tu clase</b>
+      <p class="small muted" style="margin:4px 0 10px">Si querés, avisale a ${r.profe_whatsapp ? esc(r.profe_name.split(' ')[0]) : 'la escuela'} (opcional).</p>
+      <a class="btn wa block" href="${waLink(to, msg)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Avisar por WhatsApp</a></div>`);
+  });
+}
 async function shareTicket() {
   const r = st.ticket, url = ticketUrl(r.code);
   const text = `Mi clase de SUP en Nativo: ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}. Código ${r.code}`;

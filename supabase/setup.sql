@@ -410,6 +410,40 @@ grant execute on function public.my_bookings() to authenticated;
 revoke all on function public.booking_by_code(text) from public;
 grant execute on function public.booking_by_code(text) to anon, authenticated;
 
+-- El alumno cancela su propia reserva desde el comprobante (si se confundió o no puede ir).
+-- Prueba de que es suya: tener cuenta y ser el dueño, o poner el mismo WhatsApp con el que reservó.
+-- Hasta 12 h antes de la clase (cambiar también CONFIG.CANCEL_HOURS en index.html). Si ya pagó,
+-- no se cancela sola: hay que escribirle a la escuela (para la devolución). Si era con abono,
+-- la clase vuelve al abono (pass_used no cuenta las canceladas).
+create or replace function public.cancel_my_booking(p_code text, p_phone text default null)
+returns text
+language plpgsql security definer set search_path = public as $fn$
+declare b bookings; s slots;
+  digits text := right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 8);
+begin
+  select * into b from bookings where code = upper(btrim(p_code)) and p_code ~* '^\s*[0-9a-f]{6}\s*$' for update;
+  if not found then raise exception 'No encontramos esa reserva'; end if;
+  if not ((auth.uid() is not null and b.student_id = auth.uid())
+          or (length(digits) >= 6 and right(regexp_replace(b.customer_phone, '\D', '', 'g'), 8) = digits)) then
+    raise exception 'El WhatsApp no coincide con el de la reserva';
+  end if;
+  select * into s from slots where id = b.slot_id;
+  if b.status = 'cancelled' then return 'ok'; end if;
+  if b.status <> 'confirmed' or s.status <> 'open' then raise exception 'Esta reserva ya no se puede cancelar'; end if;
+  if s.starts_at < now() + interval '12 hours' then
+    raise exception 'Faltan menos de 12 horas: para cancelar escribinos por WhatsApp';
+  end if;
+  if b.paid and coalesce(b.payment_method, '') <> 'abono' then
+    raise exception 'La reserva ya está paga: para cancelarla escribinos por WhatsApp';
+  end if;
+  update bookings set status = 'cancelled',
+    notes = concat_ws(' · ', nullif(btrim(notes), ''), 'Cancelada por el alumno ' || to_char(now() at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI'))
+  where id = b.id;
+  return 'ok';
+end $fn$;
+revoke all on function public.cancel_my_booking(text, text) from public;
+grant execute on function public.cancel_my_booking(text, text) to anon, authenticated;
+
 -- Borrar una clase SUSPENDIDA junto con sus reservas canceladas (para que no ocupe lugar).
 -- Solo el admin o el profe de esa clase. No deja borrar si alguna reserva quedó cobrada.
 create or replace function public.delete_suspended_slot(p_slot uuid)
