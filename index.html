@@ -315,6 +315,19 @@ textarea.input{min-height:80px;resize:vertical}
 .hello b{font-family:var(--f-display);font-size:21px;font-weight:600}
 .pane{padding-bottom:calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom,0px));animation:rise .3s var(--ease) both}
 /* Barra de pestañas abajo, como una app */
+.tuto{text-align:center;touch-action:pan-y}
+.tuto .slide{animation:rise .35s var(--ease) both}
+.tuto .em{font-size:64px;line-height:1;margin:6px 0 10px}
+.tuto h2{margin:0 0 8px}
+.tuto p{color:var(--ink2);margin:0 auto 12px;max-width:340px}
+.tuto .steps{display:grid;gap:8px;text-align:left;margin:4px auto 6px;max-width:340px}
+.tuto .steps div{display:flex;gap:10px;align-items:center;background:var(--bg);border-radius:12px;padding:9px 12px;font-size:15px}
+.tuto .steps b.n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--sun);border:2px solid var(--ink);display:grid;place-items:center;font:700 14px var(--f-display)}
+.tuto .dots{display:flex;gap:6px;justify-content:center;margin:14px 0 4px}
+.tuto .dots i{width:8px;height:8px;border-radius:99px;background:#d5dcd9;transition:all .25s}
+.tuto .dots i.on{width:22px;background:var(--ink)}
+.tuto .nav{display:flex;gap:8px;margin-top:10px}
+.tuto .nav .btn{flex:1}
 .live-bar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 32px);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:45;background:var(--sun);color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:10px 18px;font:600 15px var(--f-body);box-shadow:0 4px 0 var(--ink);white-space:nowrap;animation:pop .3s var(--ease) both;cursor:pointer}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 18px rgba(0,0,0,.12)}
 .tabbar button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:#b9c7c3;font-size:11.5px;font-weight:600;padding:6px 2px;border-radius:12px;transition:color .2s,background .2s}
@@ -972,7 +985,7 @@ async function renderPublic() {
     <div class="wrap" id="pub"><div class="loading">Cargando horarios…</div></div>
     <div class="foot wrap">
       ${CONFIG.WHATSAPP ? `<a class="btn wa" href="${waLink(CONFIG.WHATSAPP, 'Hola Nativo! Tengo una consulta')}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} ¿Dudas? Escribinos</a>` : ''}
-      <div class="links">${MP_ON ? `<a href="#" onclick="openPayByCode();return false">Pagar mi reserva</a>` : ''}<a href="#staff">Acceso profes</a></div>
+      <div class="links"><a href="#" onclick="showTutorial();return false">¿Cómo funciona?</a>${MP_ON ? `<a href="#" onclick="openPayByCode();return false">Pagar mi reserva</a>` : ''}<a href="#staff">Acceso profes</a></div>
     </div>`;
   try {
     const from = startOfDay(new Date()), to = addDays(from, CONFIG.DAYS_AHEAD);
@@ -1423,11 +1436,66 @@ async function cancelTrainingRequest() {
 
 /* ════════════════════════════ CUENTA DE ALUMNO (Google) ════════════════════════════ */
 const LEVELS = { nunca: 'Primera vez', pocas: 'Ya remé algunas veces', seguido: 'Remo seguido' };
+/* ── Mini tutorial: se muestra la primera vez que un alumno entra con su cuenta
+   (y siempre desde "¿Cómo funciona?"). Se arma con los datos reales: precio, abono, contactos. ── */
+const TUTO = 'nativo_tuto_v1';
+function maybeTutorial() {
+  const me = st.student;
+  if (!me || store.get(TUTO, []).includes(me.id)) return;
+  if (st.resumeBook || st.resumePlan || /^#(r-|staff)/.test(location.hash) || !$('modal').classList.contains('hidden')) return;
+  $('toast').classList.remove('on');           // el "¡Hola!" ya lo dice la primera pantalla
+  showTutorial(true);
+}
+async function showTutorial(first) {
+  if (!st.plans) st.plans = await api.plans().catch(() => []);
+  if (!st.types?.length) st.types = await api.classTypes().catch(() => []);
+  const me = st.student, name = me?.name?.split(' ')[0];
+  const t = (st.types || []).find(x => x.active && !x.members_only), plan = (st.plans || []).find(p => p.active);
+  const tc = CONFIG.TRAINING_CONTACT, pc = CONFIG.PASS_CONTACT;
+  const S = [
+    { em: '🏄', h: name ? `¡Bienvenido/a, ${esc(name)}!` : '¡Bienvenido/a a Nativo!',
+      p: `Somos una escuela de stand up paddle en ${esc(CONFIG.LOCATION)}. Te mostramos en 1 minuto cómo funciona todo.` },
+    { em: '📅', h: 'Reservar una clase', p: t ? `${esc(t.name)}: ${t.duration_min} min, ${money(t.price)} por persona. Tabla, remo y chaleco incluidos.` : '',
+      steps: ['Elegí un profe, o "Cualquier profe"', 'Elegí el día y el horario', 'Confirmá: tu nombre y WhatsApp ya están cargados'] },
+    { em: '🎟️', h: 'Tu reserva', p: 'Te queda un comprobante para guardar en el celu, agregar al calendario y ver cómo llegar. La clase se paga en la base.',
+      steps: [`¿No podés ir? Cancelala desde la reserva hasta ${CONFIG.CANCEL_HOURS} h antes`, 'Tus clases quedan en "Tus próximas clases" y en tu perfil'] },
+    plan && { em: '💳', h: `${esc(plan.name)}`, p: `${money(plan.price)} = ${plan.classes} clases en ${plan.days_valid} días (${money(Math.round(plan.price / plan.classes))} c/u${t ? `, ahorrás ${money(t.price * plan.classes - plan.price)}` : ''}).`,
+      steps: [`Tocá "Lo quiero" y le escribís a ${esc(pc?.name || 'la escuela')} para pagarlo`, 'Cuando se confirma el pago, se activa en tu cuenta', 'Al reservar elegís "Usar mi abono"; en tu perfil ves clases y días que te quedan'] },
+    { em: '🏅', h: 'Grupo de entrenamiento', p: `Para los que ya reman seguido: días fijos con profe. Se coordina por WhatsApp${tc?.name ? ` con ${esc(tc.name)}` : ''}.`,
+      steps: ['Desde tu perfil: "Quiero sumarme" para pedir info', 'Si ya entrenás: "Ya entreno: pedir 🏅"', 'Cuando te aprueban, tu perfil muestra la medalla'] },
+    { em: '😎', h: 'Tu perfil', p: 'Subí tu foto, tu Instagram y tu nivel. Ahí ves tus clases, tus estadísticas y los logros que vas desbloqueando.', last: true },
+  ].filter(Boolean);
+  st.tuto = { S, i: 0, first: !!first };
+  if (me) store.set(TUTO, [...new Set([...store.get(TUTO, []), me.id])]);   // visto (aunque lo cierre con ✕)
+  openModal(`<div class="tuto" id="tuto"></div>`);
+  drawTuto();
+  // deslizar con el dedo para pasar
+  const el = $('tuto'); let x0 = null;
+  el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+  el.addEventListener('touchend', e => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 50) tutoGo(dx < 0 ? 1 : -1); }, { passive: true });
+}
+function drawTuto() {
+  const { S, i } = st.tuto, sl = S[i], last = i === S.length - 1;
+  $('tuto').innerHTML = `<div class="slide" key="${i}"><div class="em" aria-hidden="true">${sl.em}</div><h2>${sl.h}</h2>${sl.p ? `<p>${sl.p}</p>` : ''}
+    ${sl.steps ? `<div class="steps">${sl.steps.map((x, n) => `<div><b class="n">${n + 1}</b><span>${x}</span></div>`).join('')}</div>` : ''}</div>
+    <div class="dots" aria-hidden="true">${S.map((_, n) => `<i class="${n === i ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="nav">${i ? '<button class="btn ghost" onclick="tutoGo(-1)">Atrás</button>' : `<button class="btn ghost" onclick="tutoDone()">Saltar</button>`}
+      ${last ? `<button class="btn coral" onclick="tutoDone('${st.student ? 'perfil' : 'reservar'}')">${st.student ? 'Completar mi perfil' : '¡A reservar!'}</button>`
+        : '<button class="btn coral" onclick="tutoGo(1)">Siguiente</button>'}</div>
+    <p class="tiny muted" style="margin-top:10px">${i + 1} de ${S.length}${st.tuto.first ? ' · lo podés volver a ver desde tu perfil' : ''}</p>`;
+}
+function tutoGo(d) { const t = st.tuto; if (!t || !$('tuto')) return; const n = t.i + d; if (n < 0 || n >= t.S.length) return; t.i = n; drawTuto(); }
+function tutoDone(go) {
+  closeModal(); st.tuto = null;
+  if (go === 'perfil') { if (location.hash === '#perfil') editStudent(); else { location.hash = '#perfil'; setTimeout(() => editStudent(), 900); } }
+  else if (go === 'reservar' && location.hash) location.hash = '';
+}
 async function refreshAccount() {
   try { [st.student, st.me] = await Promise.all([api.student(), api.me()]); } catch { st.student = null; }
   st.myPasses = st.student ? await api.myPasses().catch(() => []) : [];
   drawNav();
   if ($('pub') && st.pub?.length) drawPublic();          // muestra "Tu abono" en vez de la oferta
+  setTimeout(maybeTutorial, 700);
 }
 function drawNav() {
   const a = $('nav-acct');
@@ -1492,6 +1560,7 @@ async function renderStudent() {
       <div class="tags">${me.training === 'approved' ? '<span class="pill train" style="margin:0">🏅 Alumno de entrenamiento</span>' : ''}${me.level ? `<span class="pill" style="margin:0">${esc(LEVELS[me.level])}</span>` : ''}${me.instagram ? `<a class="pill" style="margin:0;background:#fbe7f1;color:#c13584;text-decoration:none" href="https://instagram.com/${encodeURIComponent(me.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(me.instagram.replace(/^@/, ''))}</a>` : ''}</div>
       ${me.bio ? `<p class="bio-t">${esc(me.bio)}</p>` : ''}
       <div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost sm" onclick="editStudent()">Editar perfil</button><a class="btn coral sm" href="#">Reservar clase</a></div>
+      <div style="text-align:center;margin-top:8px"><a href="#" class="small" onclick="showTutorial();return false">¿Cómo funciona Nativo? Ver tutorial</a></div>
     </div>
     <div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>
     ${(() => { const ps = (st.myPasses || []).filter(p => p.status === 'pending' || (p.status === 'active' && p.expires_on >= dayKey(new Date())));
