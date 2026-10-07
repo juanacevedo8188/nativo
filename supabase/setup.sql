@@ -543,16 +543,18 @@ language sql stable security definer set search_path = public as $fn$
 $fn$;
 
 -- Admin: todos los abonos con alumno y clases usadas.
+drop function if exists public.admin_passes();   -- cambió lo que devuelve (disciplina)
 create or replace function public.admin_passes()
 returns table (id uuid, student_id uuid, student_name text, student_avatar text, student_phone text, name text, price numeric,
-               classes_total int, used int, status text, starts_on date, expires_on date, payment_method text, paid_at timestamptz, created_at timestamptz)
+               classes_total int, used int, status text, starts_on date, expires_on date, payment_method text, paid_at timestamptz, created_at timestamptz,
+               sport text)
 language plpgsql stable security definer set search_path = public as $fn$
 begin
   if not is_admin() then raise exception 'Solo un admin puede ver los abonos'; end if;
   return query
     select ps.id, ps.student_id, st.name, st.avatar_url, st.phone, ps.name, ps.price, ps.classes_total, pass_used(ps.id),
-           ps.status, ps.starts_on, ps.expires_on, ps.payment_method, ps.paid_at, ps.created_at
-    from passes ps join students st on st.id = ps.student_id
+           ps.status, ps.starts_on, ps.expires_on, ps.payment_method, ps.paid_at, ps.created_at, coalesce(pl.sport, 'sup')
+    from passes ps join students st on st.id = ps.student_id left join plans pl on pl.id = ps.plan_id
     order by ps.created_at desc;
 end $fn$;
 

@@ -800,7 +800,7 @@ function demoApi() {
       save(); return wait(null);
     },
     myPasses() { const sid = store.get(SKEY, null); return wait(db.passes.filter(x => x.student_id === sid && x.status !== 'cancelled').map(x => ({ ...x, used: demoUsed(x.id), sport: (db.plans || []).find(p => p.id === x.plan_id)?.sport || 'sup' })).reverse()); },
-    adminPasses() { return wait(db.passes.map(x => { const st2 = db.students.find(y => y.id === x.student_id) || {}; return { ...x, used: demoUsed(x.id), student_name: st2.name, student_avatar: st2.avatar_url, student_phone: st2.phone }; }).reverse()); },
+    adminPasses() { return wait(db.passes.map(x => { const st2 = db.students.find(y => y.id === x.student_id) || {}; return { ...x, used: demoUsed(x.id), student_name: st2.name, student_avatar: st2.avatar_url, student_phone: st2.phone, sport: (db.plans || []).find(p => p.id === x.plan_id)?.sport || 'sup' }; }).reverse()); },
     activatePass(id, method) { const x = db.passes.find(y => y.id === id); Object.assign(x, demoActive(x.days_valid), { status: 'active', payment_method: method }); save(); return wait(null); },
     grantPass(studentId, planId, method) { const pl = db.plans.find(y => y.id === planId);
       db.passes.push({ id: uid(), student_id: studentId, plan_id: pl.id, name: pl.name, price: pl.price, classes_total: pl.classes, days_valid: pl.days_valid, status: 'active', payment_method: method, created_at: new Date().toISOString(), ...demoActive(pl.days_valid) }); save(); return wait(null); },
@@ -2382,8 +2382,17 @@ async function paneStats() {
   const from = new Date(y, m - 1, 1), to = new Date(y, m, 1);
   let past = [];
   let soldPasses = [];
-  try { [st.staffSlots, past, soldPasses] = await Promise.all([api.staffSlots(from, to), api.staffSlots(addDays(new Date(), -120), new Date()), isAdmin ? api.adminPasses().catch(() => []) : []]); }
+  try { [st.staffSlots, past, soldPasses] = await Promise.all([api.staffSlots(from, to), api.staffSlots(addDays(new Date(), -120), new Date()), isAdmin ? api.adminPasses().catch(() => []) : []]);
+    if (!st.types?.length) st.types = await api.classTypes().catch(() => []); }
   catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  // SUP y kayak no se mezclan: cada disciplina tiene sus números (el kayak es de Mati).
+  const statSports = Object.keys(SPORTS).filter(k => [...st.staffSlots, ...past].some(s => sportOf(s) === k) || (isAdmin && st.types.some(t => t.active && (t.sport || 'sup') === k)));
+  if (!statSports.includes(st.statSport)) st.statSport = statSports[0] || 'sup';
+  const ssp = st.statSport;
+  if (statSports.length > 1) {
+    st.staffSlots = st.staffSlots.filter(s => sportOf(s) === ssp); past = past.filter(s => sportOf(s) === ssp);
+    soldPasses = soldPasses.filter(p => (p.sport || 'sup') === ssp);
+  }
   const { tot, by, byType, bySrc } = computeStats(st.staffSlots);
   // No cobrados: clases que ya pasaron, alumno que vino (o no se marcó), sin pago marcado.
   const unpaid = past.filter(s => s.status !== 'cancelled')
@@ -2399,6 +2408,7 @@ async function paneStats() {
   const rows = st.staffSlots.flatMap(s => s.bookings.map(b => ({ s, b }))).sort((a, b) => a.s.starts_at.localeCompare(b.s.starts_at));
 
   paneEl().innerHTML = `
+    ${statSports.length > 1 ? `<div class="sports" role="tablist" style="margin:0 0 12px">${statSports.map(k => `<button role="tab" aria-selected="${k === ssp}" class="${k === ssp ? 'on' : ''}" onclick="st.statSport='${k}';paneStats()"><i>${SPORTS[k].em}</i>${SPORTS[k].label}</button>`).join('')}</div>` : ''}
     <div class="row between" style="margin-bottom:12px">
       <button class="icon-btn" onclick="shiftMonth(-1)" aria-label="Mes anterior">‹</button>
       <b style="font-family:var(--f-display);font-size:20px;font-weight:600">${esc(cap(from.toLocaleDateString('es-AR', { month: 'long' })))} ${y}</b>
