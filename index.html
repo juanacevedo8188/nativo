@@ -1365,7 +1365,7 @@ async function renderTicket(code) {
     ${fresh ? `<div style="text-align:center;margin-top:18px"><div class="big-emoji">🏄</div><h2 style="margin:4px 0 0">¡Listo, ${esc(r.first_name)}! Tenés tu lugar</h2>
       <p class="small muted">Guardá esta pantalla: el link siempre muestra tu reserva actualizada.</p></div>` : ''}
     <div class="card ticket rise">
-      <div class="tk-head"><img src="img/logo.webp" alt=""><div><span class="tiny">Nativo · Escuela de SUP</span><b>Tu reserva</b></div></div>
+      <div class="tk-head"><img src="img/logo.webp" alt=""><div><span class="tiny">Nativo · Escuela de ${SPORTS[r.sport || 'sup']?.label || 'SUP'}</span><b>Tu reserva</b></div></div>
       <div class="tk-body">
         <span class="pill ${cls}" style="margin:0 0 10px">${label}</span>
         <div class="when">${esc(fmtDayLong(r.starts_at))}<span class="num">${hhmm(r.starts_at)} a ${hhmm(end)}</span></div>
@@ -1374,7 +1374,7 @@ async function renderTicket(code) {
           <div><span>Profe</span><b>${esc(r.profe_name)}</b></div>
           <div><span>Lugar</span><b>${esc(r.location || CONFIG.LOCATION)}</b></div>
           <div><span>Personas</span><b class="num">${r.people}</b></div>
-          <div><span>Total</span><b class="num">${r.payment_method === 'abono' ? `${r.people} ${r.people > 1 ? 'clases' : 'clase'} de tu abono ✓` : `${money(r.amount)} ${r.paid ? '· pagado ✓' : r.pay_pref === 'transferencia' && r.profe_alias ? '· por transferencia' : r.pay_pref === 'efectivo' ? '· en efectivo en la clase' : '· se paga en la base'}`}</b></div>
+          <div><span>Total</span><b class="num">${r.payment_method === 'abono' ? `${r.people} ${r.people > 1 ? 'clases' : 'clase'} de tu abono ✓` : `${money(r.amount)} ${r.paid ? '· pagado ✓' : !(+r.amount) ? '' : r.pay_pref === 'transferencia' && r.profe_alias ? '· por transferencia' : r.pay_pref === 'efectivo' ? '· en efectivo en la clase' : '· se paga en la base'}`}</b></div>
         </div>
         <div class="code" style="margin-bottom:0">${esc(r.code)}</div>
       </div>
@@ -1460,7 +1460,7 @@ async function saveTicketImage(btn) {
     if (logo.naturalWidth) g.drawImage(logo, 70, 60, 230, 230 * logo.naturalHeight / logo.naturalWidth);
     const disp = '"Fredoka", "Arial Rounded MT Bold", sans-serif', body = '"Figtree", system-ui, sans-serif';
     g.fillStyle = '#1f1d1e'; g.font = `700 74px ${disp}`; g.fillText('Tu clase de SUP', 330, 175);
-    g.font = `500 38px ${body}`; g.fillText('Nativo · Escuela de SUP', 334, 235);
+    g.font = `500 38px ${body}`; g.fillText(`Nativo · Escuela de ${SPORTS[r.sport || 'sup']?.label || 'SUP'}`, 334, 235);
     const card = (x, y, w, h, rad) => { g.beginPath(); g.roundRect(x, y, w, h, rad); };
     g.fillStyle = '#1f1d1e'; card(78, 398, W - 140, 860, 44); g.fill();      // sombra tipo sticker
     g.fillStyle = '#ffffff'; card(64, 384, W - 140, 860, 44); g.fill();
