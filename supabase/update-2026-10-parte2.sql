@@ -1,21 +1,21 @@
--- PARTE 2 de 2: funciones (correla después de la PARTE 1). Se puede correr más de una vez.
+-- PARTE 2 de 2: funciones (correla despues de la PARTE 1). Se puede correr mas de una vez.
 
 create or replace function public.join_waitlist(p_slot uuid, p_name text, p_phone text) returns int
 language plpgsql security definer set search_path = public as '
 declare s slots; v_booked int; k text := right(regexp_replace(coalesce(p_phone, ''''), ''\D'', '''', ''g''), 10);
 begin
   p_name := btrim(coalesce(p_name, ''''));
-  if length(p_name) < 2 or length(p_name) > 80 then raise exception ''Ingresá tu nombre y apellido''; end if;
-  if length(k) < 8 then raise exception ''Ingresá un WhatsApp válido (con característica)''; end if;
+  if length(p_name) < 2 or length(p_name) > 80 then raise exception ''%'', U&''Ingres\00e1 tu nombre y apellido''; end if;
+  if length(k) < 8 then raise exception ''%'', U&''Ingres\00e1 un WhatsApp v\00e1lido (con caracter\00edstica)''; end if;
   select * into s from slots where id = p_slot;
-  if not found or s.status <> ''open'' or s.starts_at <= now() or s.members_only then raise exception ''Esa clase ya no está disponible''; end if;
+  if not found or s.status <> ''open'' or s.starts_at <= now() or s.members_only then raise exception ''%'', U&''Esa clase ya no est\00e1 disponible''; end if;
   select coalesce(sum(people), 0) into v_booked from bookings where slot_id = p_slot and status <> ''cancelled'';
-  if v_booked < s.capacity then raise exception ''Hay lugar: reservá directamente''; end if;
+  if v_booked < s.capacity then raise exception ''%'', U&''Hay lugar: reserv\00e1 directamente''; end if;
   if exists (select 1 from bookings where slot_id = p_slot and status <> ''cancelled'' and right(regexp_replace(coalesce(customer_phone, ''''), ''\D'', '''', ''g''), 10) = k) then
-    raise exception ''Ya tenés una reserva en esta clase'';
+    raise exception ''%'', U&''Ya ten\00e9s una reserva en esta clase'';
   end if;
   if not exists (select 1 from waitlist where slot_id = p_slot and right(regexp_replace(coalesce(phone, ''''), ''\D'', '''', ''g''), 10) = k) then
-    if (select count(*) from waitlist where slot_id = p_slot) >= 30 then raise exception ''La lista de espera está llena''; end if;
+    if (select count(*) from waitlist where slot_id = p_slot) >= 30 then raise exception ''%'', U&''La lista de espera est\00e1 llena''; end if;
     insert into waitlist (slot_id, name, phone, student_id)
     values (p_slot, p_name, btrim(p_phone), (select st.id from students st where st.id = auth.uid()));
   end if;
@@ -55,11 +55,11 @@ create or replace function public.submit_my_waiver(p_name text, p_phone text, p_
                                                    p_em_name text, p_em_phone text) returns void
 language plpgsql security definer set search_path = public as '
 begin
-  if not exists (select 1 from students where id = auth.uid()) then raise exception ''Entrá con tu cuenta''; end if;
-  if length(btrim(coalesce(p_name, ''''))) < 2 then raise exception ''Poné tu nombre y apellido''; end if;
-  if length(right(regexp_replace(coalesce(p_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 then raise exception ''Poné tu WhatsApp''; end if;
-  if p_swims not in (''si'', ''poco'', ''no'') then raise exception ''Contanos si sabés nadar''; end if;
-  if length(right(regexp_replace(coalesce(p_em_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 or length(btrim(coalesce(p_em_name, ''''))) < 2 then raise exception ''Poné un contacto de emergencia con teléfono''; end if;
+  if not exists (select 1 from students where id = auth.uid()) then raise exception ''%'', U&''Entr\00e1 con tu cuenta''; end if;
+  if length(btrim(coalesce(p_name, ''''))) < 2 then raise exception ''%'', U&''Pon\00e9 tu nombre y apellido''; end if;
+  if length(right(regexp_replace(coalesce(p_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 then raise exception ''%'', U&''Pon\00e9 tu WhatsApp''; end if;
+  if p_swims not in (''si'', ''poco'', ''no'') then raise exception ''%'', U&''Contanos si sab\00e9s nadar''; end if;
+  if length(right(regexp_replace(coalesce(p_em_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 or length(btrim(coalesce(p_em_name, ''''))) < 2 then raise exception ''%'', U&''Pon\00e9 un contacto de emergencia con tel\00e9fono''; end if;
   insert into waivers (phone_key, student_id, name, birth_date, swims, health, emergency_name, emergency_phone)
   values (right(regexp_replace(coalesce(p_phone, ''''), ''\D'', '''', ''g''), 10), auth.uid(), btrim(p_name), p_birth, p_swims, left(nullif(btrim(p_health), ''''), 500), btrim(p_em_name), btrim(p_em_phone));
   update students set phone = btrim(p_phone) where id = auth.uid() and (phone is null or btrim(phone) = '''');
@@ -72,9 +72,9 @@ declare b bookings;
 begin
   select * into b from bookings where code = upper(btrim(p_code));
   if not found then raise exception ''No encontramos esa reserva''; end if;
-  if length(btrim(coalesce(p_name, ''''))) < 2 then raise exception ''Poné tu nombre y apellido''; end if;
-  if p_swims not in (''si'', ''poco'', ''no'') then raise exception ''Contanos si sabés nadar''; end if;
-  if length(right(regexp_replace(coalesce(p_em_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 or length(btrim(coalesce(p_em_name, ''''))) < 2 then raise exception ''Poné un contacto de emergencia con teléfono''; end if;
+  if length(btrim(coalesce(p_name, ''''))) < 2 then raise exception ''%'', U&''Pon\00e9 tu nombre y apellido''; end if;
+  if p_swims not in (''si'', ''poco'', ''no'') then raise exception ''%'', U&''Contanos si sab\00e9s nadar''; end if;
+  if length(right(regexp_replace(coalesce(p_em_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 or length(btrim(coalesce(p_em_name, ''''))) < 2 then raise exception ''%'', U&''Pon\00e9 un contacto de emergencia con tel\00e9fono''; end if;
   insert into waivers (phone_key, student_id, name, birth_date, swims, health, emergency_name, emergency_phone)
   values (right(regexp_replace(coalesce(b.customer_phone, ''''), ''\D'', '''', ''g''), 10), b.student_id, btrim(p_name), p_birth, p_swims, left(nullif(btrim(p_health), ''''), 500),
           btrim(p_em_name), btrim(p_em_phone));
@@ -87,9 +87,9 @@ begin
   select * into b from bookings where code = upper(btrim(p_code));
   if not found then raise exception ''No encontramos esa reserva''; end if;
   select * into s from slots where id = b.slot_id;
-  if s.starts_at + make_interval(mins => s.duration_min) > now() then raise exception ''Podés calificar cuando termine la clase''; end if;
+  if s.starts_at + make_interval(mins => s.duration_min) > now() then raise exception ''%'', U&''Pod\00e9s calificar cuando termine la clase''; end if;
   if b.status in (''cancelled'', ''no_show'') or s.status = ''cancelled'' then raise exception ''Esa clase no se dio''; end if;
-  if p_stars not between 1 and 5 then raise exception ''Elegí de 1 a 5 estrellas''; end if;
+  if p_stars not between 1 and 5 then raise exception ''%'', U&''Eleg\00ed de 1 a 5 estrellas''; end if;
   update reviews set stars = p_stars, comment = left(nullif(btrim(p_comment), ''''), 400), created_at = now() where booking_id = b.id;
   if not found then
     insert into reviews (booking_id, slot_id, profe_id, stars, comment)
@@ -117,21 +117,21 @@ create or replace function public.request_gift(p_kind text, p_sport text, p_plan
 language plpgsql security definer set search_path = public as '
 declare v_code text; v_value numeric; pl plans;
 begin
-  if p_kind not in (''clase'', ''abono'') then raise exception ''Elegí qué regalar''; end if;
-  if length(btrim(coalesce(p_buyer, ''''))) < 2 or length(btrim(coalesce(p_recipient, ''''))) < 2 then raise exception ''Poné tu nombre y el de quien lo recibe''; end if;
-  if length(right(regexp_replace(coalesce(p_buyer_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 then raise exception ''Ingresá tu WhatsApp para coordinar el pago''; end if;
+  if p_kind not in (''clase'', ''abono'') then raise exception ''%'', U&''Eleg\00ed qu\00e9 regalar''; end if;
+  if length(btrim(coalesce(p_buyer, ''''))) < 2 or length(btrim(coalesce(p_recipient, ''''))) < 2 then raise exception ''%'', U&''Pon\00e9 tu nombre y el de quien lo recibe''; end if;
+  if length(right(regexp_replace(coalesce(p_buyer_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 then raise exception ''%'', U&''Ingres\00e1 tu WhatsApp para coordinar el pago''; end if;
   if (select count(*) from gift_cards where right(regexp_replace(coalesce(buyer_phone, ''''), ''\D'', '''', ''g''), 10) = right(regexp_replace(coalesce(p_buyer_phone, ''''), ''\D'', '''', ''g''), 10) and status = ''pending'') >= 5 then
-    raise exception ''Ya tenés regalos pendientes de pago: escribinos por WhatsApp'';
+    raise exception ''%'', U&''Ya ten\00e9s regalos pendientes de pago: escribinos por WhatsApp'';
   end if;
   if p_kind = ''abono'' then
     select * into pl from plans where id = p_plan and active;
-    if not found then raise exception ''Ese abono no está disponible''; end if;
+    if not found then raise exception ''%'', U&''Ese abono no est\00e1 disponible''; end if;
     v_value := pl.price; p_sport := pl.sport;
   else
     p_sport := coalesce(nullif(p_sport, ''''), ''sup'');
     select ct.price into v_value from class_types ct where ct.active and not ct.members_only and ct.sport = p_sport
     order by (ct.kind = ''iniciacion'') desc, ct.price limit 1;
-    if coalesce(v_value, 0) <= 0 then raise exception ''Todavía no hay clases de esa disciplina para regalar''; end if;
+    if coalesce(v_value, 0) <= 0 then raise exception ''%'', U&''Todav\00eda no hay clases de esa disciplina para regalar''; end if;
   end if;
   loop
     v_code := ''NAT-'' || upper(substr(md5(random()::text || clock_timestamp()::text), 1, 6));
@@ -155,18 +155,18 @@ language plpgsql security definer set search_path = public as '
 declare g gift_cards; b bookings; v_sport text;
 begin
   select * into g from gift_cards where code = upper(btrim(p_gift)) for update;
-  if not found then raise exception ''Ese código de regalo no existe''; end if;
-  if g.status = ''pending'' then raise exception ''Ese regalo todavía no está pago: avisale a quien te lo regaló''; end if;
-  if g.status <> ''active'' then raise exception ''Ese regalo ya se usó''; end if;
+  if not found then raise exception ''%'', U&''Ese c\00f3digo de regalo no existe''; end if;
+  if g.status = ''pending'' then raise exception ''%'', U&''Ese regalo todav\00eda no est\00e1 pago: avisale a quien te lo regal\00f3''; end if;
+  if g.status <> ''active'' then raise exception ''%'', U&''Ese regalo ya se us\00f3''; end if;
   if g.kind <> ''clase'' then raise exception ''Ese regalo es un abono: canjealo desde tu perfil''; end if;
   select * into b from bookings where code = upper(btrim(p_booking)) for update;
   if not found or b.status <> ''confirmed'' then raise exception ''No encontramos esa reserva''; end if;
-  if b.paid then raise exception ''Esa reserva ya está paga''; end if;
-  if b.people > 1 then raise exception ''El regalo cubre 1 persona: reservá para 1 y canjealo''; end if;
+  if b.paid then raise exception ''%'', U&''Esa reserva ya est\00e1 paga''; end if;
+  if b.people > 1 then raise exception ''%'', U&''El regalo cubre 1 persona: reserv\00e1 para 1 y canjealo''; end if;
   select coalesce(ct.sport, ''sup'') into v_sport from slots s left join class_types ct on ct.id = s.class_type_id where s.id = b.slot_id;
   if v_sport <> g.sport then raise exception ''Ese regalo es para clases de %'', case g.sport when ''kayak'' then ''kayak'' else ''SUP'' end; end if;
   update bookings set paid = true, payment_method = ''regalo'', pay_pref = null,
-    notes = concat_ws('' · '', nullif(btrim(notes), ''''), ''Gift card '' || g.code) where id = b.id;
+    notes = concat_ws(U&'' \00b7 '', nullif(btrim(notes), ''''), ''Gift card '' || g.code) where id = b.id;
   update gift_cards set status = ''redeemed'', redeemed_at = now(), redeemed_booking = b.id where id = g.id;
 end ';
 
@@ -174,11 +174,11 @@ create or replace function public.redeem_gift_pass(p_gift text) returns void
 language plpgsql security definer set search_path = public as '
 declare g gift_cards; pl plans; v_id uuid; v_today date := (now() at time zone ''America/Argentina/Buenos_Aires'')::date;
 begin
-  if not exists (select 1 from students where id = auth.uid()) then raise exception ''Entrá con Google para canjear el abono''; end if;
+  if not exists (select 1 from students where id = auth.uid()) then raise exception ''%'', U&''Entr\00e1 con Google para canjear el abono''; end if;
   select * into g from gift_cards where code = upper(btrim(p_gift)) for update;
-  if not found then raise exception ''Ese código de regalo no existe''; end if;
-  if g.status = ''pending'' then raise exception ''Ese regalo todavía no está pago: avisale a quien te lo regaló''; end if;
-  if g.status <> ''active'' then raise exception ''Ese regalo ya se usó''; end if;
+  if not found then raise exception ''%'', U&''Ese c\00f3digo de regalo no existe''; end if;
+  if g.status = ''pending'' then raise exception ''%'', U&''Ese regalo todav\00eda no est\00e1 pago: avisale a quien te lo regal\00f3''; end if;
+  if g.status <> ''active'' then raise exception ''%'', U&''Ese regalo ya se us\00f3''; end if;
   if g.kind <> ''abono'' then raise exception ''Ese regalo es una clase: canjealo al reservar''; end if;
   select * into pl from plans where id = g.plan_id;
   if not found then raise exception ''Ese abono ya no existe: escribinos''; end if;
@@ -191,8 +191,8 @@ end ';
 create or replace function public.request_group(p_name text, p_phone text, p_kind text, p_sport text, p_people int, p_preferred text, p_message text)
 returns void language plpgsql security definer set search_path = public as '
 begin
-  if length(btrim(coalesce(p_name, ''''))) < 2 then raise exception ''Poné tu nombre''; end if;
-  if length(right(regexp_replace(coalesce(p_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 then raise exception ''Ingresá un WhatsApp válido (con característica)''; end if;
+  if length(btrim(coalesce(p_name, ''''))) < 2 then raise exception ''%'', U&''Pon\00e9 tu nombre''; end if;
+  if length(right(regexp_replace(coalesce(p_phone, ''''), ''\D'', '''', ''g''), 10)) < 8 then raise exception ''%'', U&''Ingres\00e1 un WhatsApp v\00e1lido (con caracter\00edstica)''; end if;
   if (select count(*) from group_requests where right(regexp_replace(coalesce(phone, ''''), ''\D'', '''', ''g''), 10) = right(regexp_replace(coalesce(p_phone, ''''), ''\D'', '''', ''g''), 10) and created_at > now() - interval ''1 day'') >= 3 then
     raise exception ''Ya recibimos tu pedido: te escribimos pronto'';
   end if;

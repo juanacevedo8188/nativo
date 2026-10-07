@@ -1,4 +1,4 @@
--- PARTE 1 de 2: tablas nuevas (lista de espera, fichas, reseñas, gift cards, pedidos grupales).
+-- PARTE 1 de 2: tablas nuevas (lista de espera, fichas, resenas, gift cards, pedidos grupales).
 
 create table if not exists public.waitlist (
   id         uuid primary key default gen_random_uuid(),
