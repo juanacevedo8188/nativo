@@ -2,14 +2,12 @@
 
 -- ═════════ Lista de espera, ficha y deslinde, reseñas, gift cards y pedidos grupales ═════════
 -- Clave de un teléfono: los últimos 10 dígitos ("+54 9 341 555-1234" = "3415551234").
-create or replace function public.phone_key(p text) returns text
-language sql immutable as $fn$ select right(regexp_replace(coalesce(p, ''), '\D', '', 'g'), 10) $fn$;
 
 -- ── Lista de espera: si una clase está completa, el alumno se anota y le avisamos si se libera un lugar.
 
 create or replace function public.join_waitlist(p_slot uuid, p_name text, p_phone text) returns int
 language plpgsql security definer set search_path = public as $fn$
-declare s slots; v_booked int; k text := phone_key(p_phone);
+declare s slots; v_booked int; k text := right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10);
 begin
   p_name := btrim(coalesce(p_name, ''));
   if length(p_name) < 2 or length(p_name) > 80 then raise exception 'Ingresá tu nombre y apellido'; end if;
@@ -18,16 +16,16 @@ begin
   if not found or s.status <> 'open' or s.starts_at <= now() or s.members_only then raise exception 'Esa clase ya no está disponible'; end if;
   select coalesce(sum(people), 0) into v_booked from bookings where slot_id = p_slot and status <> 'cancelled';
   if v_booked < s.capacity then raise exception 'Hay lugar: reservá directamente'; end if;
-  if exists (select 1 from bookings where slot_id = p_slot and status <> 'cancelled' and phone_key(customer_phone) = k) then
+  if exists (select 1 from bookings where slot_id = p_slot and status <> 'cancelled' and right(regexp_replace(coalesce(customer_phone, ''), '\D', '', 'g'), 10) = k) then
     raise exception 'Ya tenés una reserva en esta clase';
   end if;
-  if not exists (select 1 from waitlist where slot_id = p_slot and phone_key(phone) = k) then
+  if not exists (select 1 from waitlist where slot_id = p_slot and right(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), 10) = k) then
     if (select count(*) from waitlist where slot_id = p_slot) >= 30 then raise exception 'La lista de espera está llena'; end if;
     insert into waitlist (slot_id, name, phone, student_id)
     values (p_slot, p_name, btrim(p_phone), (select st.id from students st where st.id = auth.uid()));
   end if;
   return (select count(*) from waitlist w where w.slot_id = p_slot
-          and w.created_at <= (select created_at from waitlist where slot_id = p_slot and phone_key(phone) = k limit 1));
+          and w.created_at <= (select created_at from waitlist where slot_id = p_slot and right(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), 10) = k limit 1));
 end $fn$;
 
 -- Del alumno con cuenta: sus esperas y si ya se liberó lugar.
@@ -39,7 +37,7 @@ language sql stable security definer set search_path = public as $fn$
   from waitlist w join slots s on s.id = w.slot_id
   where w.student_id = auth.uid() and s.status = 'open' and s.starts_at > now()
     and not exists (select 1 from bookings b where b.slot_id = s.id and b.status <> 'cancelled'
-                    and (phone_key(b.customer_phone) = phone_key(w.phone) or b.student_id = auth.uid()))
+                    and (right(regexp_replace(coalesce(b.customer_phone, ''), '\D', '', 'g'), 10) = right(regexp_replace(coalesce(w.phone, ''), '\D', '', 'g'), 10) or b.student_id = auth.uid()))
   order by s.starts_at;
 $fn$;
 
@@ -51,7 +49,7 @@ drop trigger if exists waitlist_cleanup on public.bookings;
 create or replace function public.waiver_status(p_code text) returns boolean
 language sql stable security definer set search_path = public as $fn$
   select exists (select 1 from bookings b join waivers w
-                   on w.phone_key = phone_key(b.customer_phone) or (b.student_id is not null and w.student_id = b.student_id)
+                   on w.phone_key = right(regexp_replace(coalesce(b.customer_phone, ''), '\D', '', 'g'), 10) or (b.student_id is not null and w.student_id = b.student_id)
                  where b.code = upper(btrim(p_code)) and w.accepted_at > now() - interval '365 days');
 $fn$;
 
@@ -69,11 +67,11 @@ language plpgsql security definer set search_path = public as $fn$
 begin
   if not exists (select 1 from students where id = auth.uid()) then raise exception 'Entrá con tu cuenta'; end if;
   if length(btrim(coalesce(p_name, ''))) < 2 then raise exception 'Poné tu nombre y apellido'; end if;
-  if length(phone_key(p_phone)) < 8 then raise exception 'Poné tu WhatsApp'; end if;
+  if length(right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10)) < 8 then raise exception 'Poné tu WhatsApp'; end if;
   if p_swims not in ('si', 'poco', 'no') then raise exception 'Contanos si sabés nadar'; end if;
-  if length(phone_key(p_em_phone)) < 8 or length(btrim(coalesce(p_em_name, ''))) < 2 then raise exception 'Poné un contacto de emergencia con teléfono'; end if;
+  if length(right(regexp_replace(coalesce(p_em_phone, ''), '\D', '', 'g'), 10)) < 8 or length(btrim(coalesce(p_em_name, ''))) < 2 then raise exception 'Poné un contacto de emergencia con teléfono'; end if;
   insert into waivers (phone_key, student_id, name, birth_date, swims, health, emergency_name, emergency_phone)
-  values (phone_key(p_phone), auth.uid(), btrim(p_name), p_birth, p_swims, left(nullif(btrim(p_health), ''), 500), btrim(p_em_name), btrim(p_em_phone));
+  values (right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10), auth.uid(), btrim(p_name), p_birth, p_swims, left(nullif(btrim(p_health), ''), 500), btrim(p_em_name), btrim(p_em_phone));
   update students set phone = btrim(p_phone) where id = auth.uid() and (phone is null or btrim(phone) = '');
 end $fn$;
 
@@ -86,9 +84,9 @@ begin
   if not found then raise exception 'No encontramos esa reserva'; end if;
   if length(btrim(coalesce(p_name, ''))) < 2 then raise exception 'Poné tu nombre y apellido'; end if;
   if p_swims not in ('si', 'poco', 'no') then raise exception 'Contanos si sabés nadar'; end if;
-  if length(phone_key(p_em_phone)) < 8 or length(btrim(coalesce(p_em_name, ''))) < 2 then raise exception 'Poné un contacto de emergencia con teléfono'; end if;
+  if length(right(regexp_replace(coalesce(p_em_phone, ''), '\D', '', 'g'), 10)) < 8 or length(btrim(coalesce(p_em_name, ''))) < 2 then raise exception 'Poné un contacto de emergencia con teléfono'; end if;
   insert into waivers (phone_key, student_id, name, birth_date, swims, health, emergency_name, emergency_phone)
-  values (phone_key(b.customer_phone), b.student_id, btrim(p_name), p_birth, p_swims, left(nullif(btrim(p_health), ''), 500),
+  values (right(regexp_replace(coalesce(b.customer_phone, ''), '\D', '', 'g'), 10), b.student_id, btrim(p_name), p_birth, p_swims, left(nullif(btrim(p_health), ''), 500),
           btrim(p_em_name), btrim(p_em_phone));
 end $fn$;
 
@@ -137,8 +135,8 @@ declare v_code text; v_value numeric; pl plans;
 begin
   if p_kind not in ('clase', 'abono') then raise exception 'Elegí qué regalar'; end if;
   if length(btrim(coalesce(p_buyer, ''))) < 2 or length(btrim(coalesce(p_recipient, ''))) < 2 then raise exception 'Poné tu nombre y el de quien lo recibe'; end if;
-  if length(phone_key(p_buyer_phone)) < 8 then raise exception 'Ingresá tu WhatsApp para coordinar el pago'; end if;
-  if (select count(*) from gift_cards where phone_key(buyer_phone) = phone_key(p_buyer_phone) and status = 'pending') >= 5 then
+  if length(right(regexp_replace(coalesce(p_buyer_phone, ''), '\D', '', 'g'), 10)) < 8 then raise exception 'Ingresá tu WhatsApp para coordinar el pago'; end if;
+  if (select count(*) from gift_cards where right(regexp_replace(coalesce(buyer_phone, ''), '\D', '', 'g'), 10) = right(regexp_replace(coalesce(p_buyer_phone, ''), '\D', '', 'g'), 10) and status = 'pending') >= 5 then
     raise exception 'Ya tenés regalos pendientes de pago: escribinos por WhatsApp';
   end if;
   if p_kind = 'abono' then
@@ -214,8 +212,8 @@ create or replace function public.request_group(p_name text, p_phone text, p_kin
 returns void language plpgsql security definer set search_path = public as $fn$
 begin
   if length(btrim(coalesce(p_name, ''))) < 2 then raise exception 'Poné tu nombre'; end if;
-  if length(phone_key(p_phone)) < 8 then raise exception 'Ingresá un WhatsApp válido (con característica)'; end if;
-  if (select count(*) from group_requests where phone_key(phone) = phone_key(p_phone) and created_at > now() - interval '1 day') >= 3 then
+  if length(right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10)) < 8 then raise exception 'Ingresá un WhatsApp válido (con característica)'; end if;
+  if (select count(*) from group_requests where right(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), 10) = right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) and created_at > now() - interval '1 day') >= 3 then
     raise exception 'Ya recibimos tu pedido: te escribimos pronto';
   end if;
   insert into group_requests (name, phone, kind, sport, people, preferred, message)
