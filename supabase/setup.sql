@@ -32,6 +32,9 @@ create table if not exists public.profiles (
 -- Un admin puede ser solo admin (no da clases) o admin y profe a la vez.
 -- teaches = da clases: aparece en la página de reservas y en la lista de profes.
 alter table public.profiles add column if not exists teaches boolean not null default true;
+-- Alias (o CBU/CVU) del profe para que el alumno le transfiera la clase, y el titular para confirmar.
+alter table public.profiles add column if not exists pay_alias  text;
+alter table public.profiles add column if not exists pay_holder text;
 -- Disciplinas: qué da cada profe (sports) y de cuáles configura tipos de clase, precios y cupos (manages).
 -- Ej.: Mati → sports {kayak}, manages {kayak}. Los admins manejan todo.
 alter table public.profiles add column if not exists sports  text[] not null default '{sup}';
@@ -105,6 +108,10 @@ create table if not exists public.students (
   created_at timestamptz not null default now()
 );
 alter table public.bookings add column if not exists student_id uuid references public.students(id) on delete set null;
+-- Cómo dijo el alumno que va a pagar al reservar (transferencia al alias del profe o efectivo en la clase).
+alter table public.bookings add column if not exists pay_pref text;
+alter table public.bookings drop constraint if exists bookings_pay_pref_check;
+alter table public.bookings add constraint bookings_pay_pref_check check (pay_pref is null or pay_pref in ('transferencia', 'efectivo'));
 
 -- Entrenamiento: clases solo para alumnos aprobados por un admin.
 --   class_types.members_only / slots.members_only → la clase es "Solo entrenamiento".
@@ -296,11 +303,12 @@ language sql stable security definer set search_path = public as $fn$
 $fn$;
 
 -- Profes para mostrar en la página pública.
-drop function if exists public.public_profes();   -- cambió lo que devuelve (disciplinas)
+drop function if exists public.public_profes();   -- cambió lo que devuelve (alias para transferir)
 create or replace function public.public_profes()
-returns table (id uuid, name text, bio text, avatar_url text, whatsapp text, sports text[])
+returns table (id uuid, name text, bio text, avatar_url text, whatsapp text, sports text[], pay_alias text, pay_holder text)
 language sql stable security definer set search_path = public as $fn$
-  select p.id, p.name, p.bio, p.avatar_url, case when p.public_whatsapp then nullif(btrim(p.phone), '') end, p.sports
+  select p.id, p.name, p.bio, p.avatar_url, case when p.public_whatsapp then nullif(btrim(p.phone), '') end, p.sports,
+         nullif(btrim(p.pay_alias), ''), nullif(btrim(p.pay_holder), '')
   from profiles p
   where p.approved
     and (p.teaches
@@ -311,8 +319,10 @@ $fn$;
 -- Reserva: valida datos y cupo con el horario bloqueado (FOR UPDATE).
 -- p_use_pass: el alumno con cuenta paga con su abono (descuenta clases, queda pagada).
 drop function if exists public.book_slot(uuid, text, text, text, int);
+drop function if exists public.book_slot(uuid, text, text, text, int, boolean);   -- ahora también recibe cómo va a pagar
 create or replace function public.book_slot(
-  p_slot uuid, p_name text, p_phone text, p_email text default null, p_people int default 1, p_use_pass boolean default false
+  p_slot uuid, p_name text, p_phone text, p_email text default null, p_people int default 1, p_use_pass boolean default false,
+  p_pay text default null
 )
 returns table (code text, starts_at timestamptz, title text, profe_name text, people int, amount numeric)
 language plpgsql security definer set search_path = public as $fn$
@@ -381,10 +391,11 @@ begin
     v_amount := round(v_pass.price / v_pass.classes_total) * p_people;   -- valor de cada clase del abono
   end if;
 
-  insert into bookings (slot_id, customer_name, customer_phone, customer_email, people, amount, student_id, pass_id, paid, payment_method)
+  insert into bookings (slot_id, customer_name, customer_phone, customer_email, people, amount, student_id, pass_id, paid, payment_method, pay_pref)
   values (p_slot, p_name, p_phone, p_email, p_people, v_amount,
           (select st.id from students st where st.id = auth.uid()),   -- si reservó con su cuenta
-          v_pass.id, p_use_pass, case when p_use_pass then 'abono' end)
+          v_pass.id, p_use_pass, case when p_use_pass then 'abono' end,
+          case when not p_use_pass and p_pay in ('transferencia', 'efectivo') then p_pay end)
   returning bookings.code into v_code;
 
   return query
@@ -395,17 +406,19 @@ end $fn$;
 
 -- "Mi reserva": el alumno ve su reserva con el código (link nativo…/#r-CÓDIGO).
 -- Devuelve solo datos de la clase y el primer nombre; nada de teléfono ni email.
-drop function if exists public.booking_by_code(text);   -- cambió lo que devuelve (disciplina)
+drop function if exists public.booking_by_code(text);   -- cambió lo que devuelve (alias y forma de pago)
 create or replace function public.booking_by_code(p_code text)
 returns table (
   code text, first_name text, title text, starts_at timestamptz, duration_min int,
   location text, profe_name text, people int, amount numeric, paid boolean,
-  status text, slot_status text, profe_whatsapp text, payment_method text, sport text
+  status text, slot_status text, profe_whatsapp text, payment_method text, sport text,
+  pay_pref text, profe_alias text, profe_holder text
 )
 language sql stable security definer set search_path = public as $fn$
   select b.code, split_part(btrim(b.customer_name), ' ', 1), s.title, s.starts_at, s.duration_min,
          s.location, p.name, b.people, b.amount, b.paid, b.status, s.status,
-         case when p.public_whatsapp then nullif(btrim(p.phone), '') end, b.payment_method, coalesce(ct.sport, 'sup')
+         case when p.public_whatsapp then nullif(btrim(p.phone), '') end, b.payment_method, coalesce(ct.sport, 'sup'),
+         b.pay_pref, nullif(btrim(p.pay_alias), ''), nullif(btrim(p.pay_holder), '')
   from bookings b
   join slots s on s.id = b.slot_id
   join profiles p on p.id = s.profe_id
@@ -620,10 +633,10 @@ grant execute on function public.delete_suspended_slot(uuid) to authenticated;
 
 revoke all on function public.public_slots(timestamptz, timestamptz) from public;
 revoke all on function public.public_profes() from public;
-revoke all on function public.book_slot(uuid, text, text, text, int, boolean) from public;
+revoke all on function public.book_slot(uuid, text, text, text, int, boolean, text) from public;
 grant execute on function public.public_slots(timestamptz, timestamptz) to anon, authenticated;
 grant execute on function public.public_profes() to anon, authenticated;
-grant execute on function public.book_slot(uuid, text, text, text, int, boolean) to anon, authenticated;
+grant execute on function public.book_slot(uuid, text, text, text, int, boolean, text) to anon, authenticated;
 
 -- Alta de profe desde el servidor (/api/invite-profe, con la clave secreta): deja el perfil
 -- aprobado aunque la cuenta ya existiera (ej. un profe que se borró de la tabla y se vuelve a sumar).

@@ -376,6 +376,10 @@ textarea.input{min-height:80px;resize:vertical}
 .skel{display:grid;gap:10px}
 .skel i{display:block;border-radius:16px;background:linear-gradient(90deg,#e6efea 0%,#f4f9f6 50%,#e6efea 100%);background-size:200% 100%;animation:shimmer 1.2s linear infinite}
 @keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+.transfer{border:2px solid var(--sea2);background:#effaf8;margin-top:12px}
+.alias-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 6px;background:#fff;border:1.5px dashed var(--sea2);border-radius:12px;padding:10px 12px}
+.alias-row .alias{font:700 18px var(--f-display);overflow-wrap:anywhere;user-select:all}
+.alias-row .btn{flex:none}
 .live-bar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 32px);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:45;background:var(--sun);color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:10px 18px;font:600 15px var(--f-body);box-shadow:0 4px 0 var(--ink);white-space:nowrap;animation:pop .3s var(--ease) both;cursor:pointer}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 18px rgba(0,0,0,.12)}
 .tabbar button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:#b9c7c3;font-size:11.5px;font-weight:600;padding:6px 2px;border-radius:12px;transition:color .2s,background .2s}
@@ -706,7 +710,13 @@ function supabaseApi() {
     async bookingByCode(code) { const rows = await q(c.rpc('booking_by_code', { p_code: code })); return rows[0] || null; },
     cancelMyBooking: (code, phone) => q(c.rpc('cancel_my_booking', { p_code: code, p_phone: phone || null })),
     async book(b) {
-      const rows = await q(c.rpc('book_slot', { p_slot: b.slot_id, p_name: b.name, p_phone: b.phone, p_email: b.email || null, p_people: b.people, p_use_pass: !!b.usePass }));
+      const args = { p_slot: b.slot_id, p_name: b.name, p_phone: b.phone, p_email: b.email || null, p_people: b.people, p_use_pass: !!b.usePass };
+      let rows;
+      try { rows = await q(c.rpc('book_slot', { ...args, p_pay: b.pay || null })); }
+      catch (e) {   // base sin actualizar todavía (sin p_pay): reservar igual, sin la forma de pago
+        if (!/p_pay|function|schema cache/i.test(e?.message || '')) throw e;
+        rows = await q(c.rpc('book_slot', args));
+      }
       return rows[0];
     },
     staffSlots: (from, to) => q(c.from('slots').select('*, profe:profe_id(name), bookings(*, student:student_id(name,avatar_url,training))')
@@ -836,7 +846,7 @@ function demoApi() {
     passFutureBookings(id) { return wait(db.bookings.filter(b => b.pass_id === id && b.status !== 'cancelled' && new Date(db.slots.find(x => x.id === b.slot_id).starts_at) > new Date()).length); },
     me: () => wait(meP()),
     classTypes: () => wait(db.class_types.slice().sort((a, b) => a.sort - b.sort)),
-    publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp, sports }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null, sports: sports || ['sup'] }))),
+    publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp, sports, pay_alias, pay_holder }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null, sports: sports || ['sup'], pay_alias: pay_alias || null, pay_holder: pay_holder || null }))),
     publicSlots(from, to) {
       const lo = Math.max(+from, Date.now());
       return wait(db.slots.filter(s => s.status === 'open' && !s.members_only && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
@@ -858,7 +868,8 @@ function demoApi() {
       return wait({ code: b.code, first_name: b.customer_name.split(' ')[0], title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location,
         profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount: b.amount, paid: b.paid, status: b.status, slot_status: s.status,
         profe_whatsapp: (pp => pp && pp.public_whatsapp !== false ? pp.phone || null : null)(db.profiles.find(p => p.id === s.profe_id)), payment_method: b.payment_method,
-        sport: db.class_types.find(t => t.id === s.class_type_id)?.sport || 'sup' });
+        sport: db.class_types.find(t => t.id === s.class_type_id)?.sport || 'sup', pay_pref: b.pay_pref || null,
+        profe_alias: db.profiles.find(p => p.id === s.profe_id)?.pay_alias || null, profe_holder: db.profiles.find(p => p.id === s.profe_id)?.pay_holder || null });
     },
     async book(b) {
       const s = db.slots.find(x => x.id === b.slot_id);
@@ -884,7 +895,8 @@ function demoApi() {
       }
       const code = Math.random().toString(16).slice(2, 8).toUpperCase();
       db.bookings.push({ id: uid(), code, slot_id: s.id, customer_name: name, customer_phone: b.phone.trim(), customer_email: b.email || null,
-        people: b.people, amount, status: 'confirmed', paid: !!pass, payment_method: pass ? 'abono' : null, pass_id: pass?.id || null, notes: null, source: 'web', student_id: store.get(SKEY, null), created_at: new Date().toISOString() });
+        people: b.people, amount, status: 'confirmed', paid: !!pass, payment_method: pass ? 'abono' : null, pass_id: pass?.id || null, notes: null, source: 'web', student_id: store.get(SKEY, null), created_at: new Date().toISOString(),
+        pay_pref: !pass && ['transferencia', 'efectivo'].includes(b.pay) ? b.pay : null });
       save();
       return wait({ code, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, people: b.people, amount });
     },
@@ -990,7 +1002,7 @@ function demoSeed() {
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const profiles = [
     { id: 'u-admin', name: 'Dueños Nativo', email: 'admin@nativo.demo', role: 'admin', teaches: false, approved: true, commission_pct: 0, phone: '', bio: '' },
-    { id: 'u-tomi', name: 'Tomi', email: 'tomi@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550101', bio: 'Instructor certificado. 8 años remando en el Paraná.' },
+    { id: 'u-tomi', name: 'Tomi', email: 'tomi@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550101', bio: 'Instructor certificado. 8 años remando en el Paraná.', pay_alias: 'tomi.sup.nativo', pay_holder: 'Tomás Pérez' },
     { id: 'u-flor', name: 'Flor', email: 'flor@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550102', bio: 'Paciencia infinita para la primera remada.' },
     { id: 'u-lucas', name: 'Lucas', email: 'lucas@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550103', bio: 'Guardavidas. Te para arriba de la tabla en 10 minutos.' },
     { id: 'u-mati', name: 'Mati', email: 'mati@nativo.demo', role: 'profe', approved: true, commission_pct: 50, phone: '3415550104', bio: 'Escuela de kayak de Nativo. Travesías por las islas.', sports: ['kayak'], manages: ['kayak'] },
@@ -1266,7 +1278,11 @@ function openBooking(id) {
         <input type="hidden" name="people" value="1"></div>
       ${me ? `<input type="hidden" name="email" value="${esc(me.email || '')}">` : `<details class="field"><summary class="small muted" style="cursor:pointer">Agregar email (opcional)</summary>
         <input class="input" style="margin-top:8px" name="email" type="email" autocomplete="email" maxlength="120" aria-label="Email"></details>`}
-      <p class="tiny muted">${MP_ON ? 'Después de confirmar podés pagar online con Mercado Pago, o abonar en la base el día de la clase.' : 'Se abona en la base el día de la clase (efectivo o transferencia).'} Si hay mal clima, te avisamos para reprogramar.</p>
+      ${(() => { const al = st.profes.find(x => x.id === s.profe_id)?.pay_alias;
+        return al ? `<div class="field pay-pick" id="bk-pay"><span class="flabel">¿Cómo vas a pagar?</span><div class="seg">
+          <label><input type="radio" name="pay" value="transferencia" checked>💸 Transferencia</label><label><input type="radio" name="pay" value="efectivo">💵 Efectivo en la clase</label></div>
+          <div class="tiny muted" style="margin-top:4px">Si elegís transferencia, al confirmar te mostramos el alias de ${esc(s.profe_name.split(' ')[0])} para copiarlo.</div></div>` : ''; })()}
+      <p class="tiny muted">${MP_ON ? 'Después de confirmar podés pagar online con Mercado Pago, o abonar en la base el día de la clase.' : st.profes.find(x => x.id === s.profe_id)?.pay_alias ? '' : 'Se abona en la base el día de la clase.'} Si hay mal clima, te avisamos para reprogramar.</p>
       <div class="sheet-foot">
         <div class="total"><span id="bk-total-l">${pass ? 'Con tu abono' : 'Total'}</span><b class="num" id="bk-total">${pass ? money(0) : money(s.price)}</b></div>
         <button class="btn coral block" id="bk-btn">Confirmar reserva</button>
@@ -1279,6 +1295,7 @@ function stepPeople(d) {
   f.people.value = n; $('bk-people').textContent = n;
   $('bk-total-l').textContent = usePass ? `Con tu abono (${n} ${n === 1 ? 'clase' : 'clases'})` : 'Total';
   $('bk-total').textContent = money(usePass ? 0 : b.price * n);
+  $('bk-pay')?.classList.toggle('hidden', usePass);        // con abono no se paga nada
 }
 
 async function submitBooking(ev, id) {
@@ -1287,7 +1304,7 @@ async function submitBooking(ev, id) {
   btn.disabled = true; btn.textContent = 'Reservando…';
   try {
     const usePass = !!f.usePass?.checked;
-    const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value, usePass });
+    const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value, usePass, pay: usePass ? null : f.pay?.value || null });
     if (usePass) st.myPasses = await api.myPasses().catch(() => st.myPasses);
     rememberBooking(r.code, r.starts_at);
     if (st.student && f.phone.value.trim() !== (st.student.phone || '')) {      // guarda el WhatsApp en su perfil
@@ -1357,11 +1374,17 @@ async function renderTicket(code) {
           <div><span>Profe</span><b>${esc(r.profe_name)}</b></div>
           <div><span>Lugar</span><b>${esc(r.location || CONFIG.LOCATION)}</b></div>
           <div><span>Personas</span><b class="num">${r.people}</b></div>
-          <div><span>Total</span><b class="num">${r.payment_method === 'abono' ? `${r.people} ${r.people > 1 ? 'clases' : 'clase'} de tu abono ✓` : `${money(r.amount)} ${r.paid ? '· pagado ✓' : '· se paga en la base'}`}</b></div>
+          <div><span>Total</span><b class="num">${r.payment_method === 'abono' ? `${r.people} ${r.people > 1 ? 'clases' : 'clase'} de tu abono ✓` : `${money(r.amount)} ${r.paid ? '· pagado ✓' : r.pay_pref === 'transferencia' && r.profe_alias ? '· por transferencia' : r.pay_pref === 'efectivo' ? '· en efectivo en la clase' : '· se paga en la base'}`}</b></div>
         </div>
         <div class="code" style="margin-bottom:0">${esc(r.code)}</div>
       </div>
     </div>
+    ${live && !r.paid && r.amount > 0 && r.pay_pref === 'transferencia' && r.profe_alias ? `<div class="card transfer rise">
+      <b>💸 Transferí ${money(r.amount)}</b>
+      <div class="alias-row"><span class="alias num">${esc(r.profe_alias)}</span><button class="btn coral sm" onclick="copyAlias(this, ${esc(JSON.stringify(r.profe_alias))})">Copiar alias</button></div>
+      ${r.profe_holder ? `<div class="small muted">Titular: <b>${esc(r.profe_holder)}</b> · revisá que coincida antes de transferir</div>` : ''}
+      ${(c => c ? `<a class="btn wa block" style="margin-top:10px" href="${waLink(c, `Hola ${r.profe_name.split(' ')[0]}! Te transferí ${money(r.amount)} por la clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code}). Te paso el comprobante 👇`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Ya transferí: mandar comprobante</a>` : '')(r.profe_whatsapp || sportContact(r.sport, schoolContact())?.whatsapp)}
+      <p class="tiny muted" style="margin:8px 0 0">Tu lugar ya está reservado. ${esc(r.profe_name.split(' ')[0])} lo marca como pagado cuando le llega.</p></div>` : ''}
     <div class="tk-acts">
       ${live && MP_ON && !r.paid && r.amount > 0 ? `<button class="btn mp block" onclick="payBooking('${r.code}', this)">Pagar ahora con Mercado Pago</button><div id="pay-err"></div>` : ''}
       <button class="btn coral block" onclick="saveTicketImage(this)">Guardar comprobante en el celu</button>
@@ -1411,6 +1434,10 @@ function cancelledMine(r) {
       <p class="small muted" style="margin:4px 0 10px">Si querés, avisale a ${r.profe_whatsapp ? esc(r.profe_name.split(' ')[0]) : 'la escuela'} (opcional).</p>
       <a class="btn wa block" href="${waLink(to, msg)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Avisar por WhatsApp</a></div>`);
   });
+}
+async function copyAlias(btn, alias) {
+  try { await navigator.clipboard.writeText(alias); btn.textContent = 'Copiado ✓'; toast('Alias copiado: pegalo en tu app del banco'); setTimeout(() => { btn.textContent = 'Copiar alias'; }, 2500); }
+  catch { toast(alias); }
 }
 async function shareTicket() {
   const r = st.ticket, url = ticketUrl(r.code);
@@ -2214,7 +2241,7 @@ function bookingRow(s, b) {
   return `<div class="bk ${x ? 'x' : ''}">
     ${contactBtn(b.customer_phone, msg)}
     <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${b.student?.avatar_url ? `<img class="mini-av" src="${esc(b.student.avatar_url)}" alt="" referrerpolicy="no-referrer">` : ''}${esc(b.customer_name)}${b.student?.training === 'approved' ? ' 🏅' : ''}${b.people > 1 ? ` ×${b.people}` : ''}</b>
-      <span>${x ? 'Cancelada' : money(b.amount)}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</span></div>
+      <span>${x ? 'Cancelada' : money(b.amount)}${!x && !b.paid && b.pay_pref ? ` · ${b.pay_pref === 'transferencia' ? '💸 va a transferir' : '💵 paga en efectivo'}` : ''}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</span></div>
     ${x ? (b.paid ? `<div class="acts"><button class="tog yes" onclick="payMenu('${b.id}')">✓ Cobrada · ¿devolver?</button></div>` : '') : `<div class="acts">
       ${isPast(s) ? `<button class="tog ${came ? 'yes' : miss ? 'no' : ''}" onclick="toggleCame('${b.id}')">${came ? '✓ Vino' : miss ? 'Faltó' : 'Vino?'}</button>` : ''}
       <button class="tog ${b.paid ? 'yes' : 'pay'}" onclick="payMenu('${b.id}')">${b.paid ? '✓ ' + esc(PAY_SHORT[b.payment_method] || 'Pagó') : 'Cobrar'}</button></div>`}
@@ -2790,6 +2817,9 @@ function profileFields(p, admin) {
     <div class="field"><label for="pf-phone">WhatsApp</label><input class="input" id="pf-phone" name="phone" type="tel" inputmode="tel" maxlength="30" value="${esc(p.phone || '')}" placeholder="341 555 1234"></div>
     <label class="check" style="margin:-6px 0 14px"><input type="checkbox" name="public_whatsapp" ${p.public_whatsapp !== false ? 'checked' : ''}> Mostrar mi WhatsApp a los alumnos (botón "Escribile")</label>
     <div class="field"><label for="pf-bio">Presentación corta</label><textarea class="input" id="pf-bio" name="bio" maxlength="160" placeholder="Ej: Instructor certificado, 5 años dando clases en el Paraná.">${esc(p.bio || '')}</textarea></div>
+    <div class="grid2"><div class="field"><label for="pf-alias">Alias o CBU para transferencias <span class="muted">(opcional)</span></label><input class="input" id="pf-alias" name="pay_alias" maxlength="40" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(p.pay_alias || '')}" placeholder="ej: tomi.sup.mp"></div>
+      <div class="field"><label for="pf-holder">Titular de la cuenta</label><input class="input" id="pf-holder" name="pay_holder" maxlength="60" value="${esc(p.pay_holder || '')}" placeholder="Nombre y apellido"></div></div>
+    <p class="tiny muted" style="margin:-6px 0 14px">Si lo cargás, al reservar tus clases el alumno puede elegir "Transferencia" y copiar tu alias. Si lo dejás vacío, pagan en la clase.</p>
     ${admin ? `<div class="field"><span class="flabel">Rol</span><div class="seg">${Object.entries(ROLES).map(([k, l]) => `<label><input type="radio" name="role" value="${k}" ${roleKey(p) === k ? 'checked' : ''}>${l}</label>`).join('')}</div></div>
       <div class="grid2"><div class="field"><label for="pf-pct">% de cada alumno</label><input class="input" id="pf-pct" name="pct" type="number" inputmode="numeric" min="0" max="100" value="${+p.commission_pct}"></div>
         <div class="field"><span class="flabel">Acceso</span><label class="check" style="min-height:48px"><input type="checkbox" name="approved" ${p.approved ? 'checked' : ''}> Activo</label></div></div>
@@ -2830,7 +2860,9 @@ async function reviveProfe(id) {
 async function saveProfileForm(ev, id, admin) {
   ev.preventDefault();
   const f = ev.target, p = admin ? st.allProfiles.find(x => x.id === id) : st.me, btn = $('pf-btn');
-  const patch = { name: f.name.value.trim(), phone: f.phone.value.trim() || null, bio: f.bio.value.trim() || null, public_whatsapp: f.public_whatsapp.checked };
+  const patch = { name: f.name.value.trim(), phone: f.phone.value.trim() || null, bio: f.bio.value.trim() || null, public_whatsapp: f.public_whatsapp.checked,
+    pay_alias: f.pay_alias.value.trim().replace(/\s+/g, '') || null, pay_holder: f.pay_holder.value.trim() || null };
+  if (patch.pay_alias && !/^(\d{22}|[a-zA-Z0-9.\-]{6,20})$/.test(patch.pay_alias)) { $('pf-err').innerHTML = '<div class="err">El alias tiene que tener entre 6 y 20 letras, números, puntos o guiones (o un CBU/CVU de 22 números).</div>'; return; }
   if (admin) {
     const r = f.role.value;
     if (id === st.me.id && (!f.approved.checked || r === 'profe') && !await askConfirm('Te estás sacando el acceso de admin a vos mismo. ¿Seguro?')) return;
