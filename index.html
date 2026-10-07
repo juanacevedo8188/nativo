@@ -1039,6 +1039,8 @@ function route() {
   const staff = location.hash.startsWith('#staff');
   const ticket = /^#r-([0-9a-f]{6})$/i.exec(location.hash), perfil = location.hash === '#perfil';
   const other = /^#a-([0-9a-z-]{3,40})$/i.exec(location.hash), team = location.hash === '#team';
+  const sportLink = /^#(sup|kayak)$/i.exec(location.hash);      // link directo: nativoescuela.com.ar/#kayak
+  if (sportLink) { st.fSport = sportLink[1].toLowerCase(); st.fType = ''; st.fProfe = ''; st.day = null; }
   $('nav-public').classList.toggle('on', !staff && !perfil && !other && !team);
   $('nav-acct').classList.toggle('on', staff || perfil || !!other || team);
   closeModal();
@@ -1081,7 +1083,9 @@ const KINDS = { iniciacion: 'Iniciación', travesia: 'Travesía', otra: 'Otra' }
 const typeOf = s => st.types.find(t => t.id === s.class_type_id);
 const sportOf = s => typeOf(s)?.sport || 'sup';
 const kindOf = s => typeOf(s)?.kind || 'iniciacion';
-const pubSports = () => Object.keys(SPORTS).filter(k => st.pub.some(s => !s.members_only && sportOf(s) === k));
+// Una disciplina aparece si tiene clases publicadas o algún tipo de clase activo (aunque todavía no haya horarios).
+const pubSports = () => Object.keys(SPORTS).filter(k => st.pub.some(s => !s.members_only && sportOf(s) === k)
+  || st.types.some(t => t.active && !t.members_only && (t.sport || 'sup') === k));
 function curSport() { const av = pubSports(); if (!av.includes(st.fSport)) st.fSport = av[0] || 'sup'; return st.fSport; }
 function filteredPub() {
   const sp = curSport();
@@ -1129,7 +1133,9 @@ function drawPublic() {
         <button class="chip plain ${!st.fProfe ? 'on' : ''}" onclick="setPub('fProfe','')">Cualquier profe</button>
         ${profes.map(p => `<button class="chip ${st.fProfe === p.id ? 'on' : ''}" onclick="setPub('fProfe','${p.id}')">${avatarHtml(p)}${esc(p.name)}</button>`).join('')}
       </div>${prof ? `<div class="prof-card card">${avatarHtml(prof)}<div class="pc-txt"><b>${esc(prof.name)}</b>${prof.bio ? `<div class="small muted">${esc(prof.bio)}</div>` : ''}</div>
-        ${profeWa(prof.name, prof.whatsapp) ? `<a class="btn wa sm pc-wa" href="${profeWa(prof.name, prof.whatsapp, `por una clase de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} Escribile</a>` : ''}</div>` : ''}</div>` : ''}
+        ${profeWa(prof.name, prof.whatsapp) ? `<a class="btn wa sm pc-wa" href="${profeWa(prof.name, prof.whatsapp, `por una clase de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} Escribile</a>` : ''}</div>` : ''}</div>`
+      : profes.length === 1 && sports.length > 1 ? (one => `<div class="section"><div class="label">Tu profe de ${SPORTS[sp].label}</div><div class="prof-card card">${avatarHtml(one)}<div class="pc-txt"><b>${esc(one.name)}</b>${one.bio ? `<div class="small muted">${esc(one.bio)}</div>` : ''}</div>
+        ${profeWa(one.name, one.whatsapp) ? `<a class="btn wa sm pc-wa" href="${profeWa(one.name, one.whatsapp, `por una clase de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} Escribile</a>` : ''}</div></div>`)(profes[0]) : ''}
 
     <div class="daybar" id="daybar"><div class="label" style="margin-bottom:6px">¿Qué día?</div>
       <div class="days" id="days">
@@ -1148,7 +1154,10 @@ function drawPublic() {
             <div class="meta">${s.location ? esc(s.location) + ' · ' : ''}${money(s.price)}</div>
             ${full ? '<span class="pill gray">Completo</span>' : left <= 2 && s.capacity > 2 ? `<span class="pill warn">¡Quedan ${left}!</span>` : `<span class="pill ok">${left} ${left === 1 ? 'lugar libre' : 'lugares libres'}</span>`}</div>
           <span class="go" aria-hidden="true">${full ? '–' : '→'}</span>
-        </button>`; }).join('') : `<div class="card empty">${avail.length ? 'No quedan lugares este día. Probá con otro día marcado con punto.' : 'Todavía no hay clases publicadas para las próximas semanas.'}${CONFIG.WHATSAPP ? `<div style="margin-top:12px"><a class="btn wa sm" href="${waLink(CONFIG.WHATSAPP, 'Hola! Quería consultar por una clase de SUP')}" target="_blank" rel="noopener">Consultanos por WhatsApp</a></div>` : ''}</div>`}
+        </button>`; }).join('') : (() => { const pw = !avail.length && profes.length === 1 && profes[0].whatsapp ? profes[0] : null;
+          return `<div class="card empty">${avail.length ? 'No quedan lugares este día. Probá con otro día marcado con punto.' : `Todavía no hay ${sp === 'kayak' ? 'salidas de kayak publicadas' : 'clases publicadas'} para las próximas semanas.${sp === 'kayak' ? ' ¡Escribinos y te avisamos las próximas!' : ''}`}${pw
+            ? `<div style="margin-top:12px"><a class="btn wa sm" href="${profeWa(pw.name, pw.whatsapp, `por las clases de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">Escribile a ${esc(pw.name.split(' ')[0])}</a></div>`
+            : CONFIG.WHATSAPP ? `<div style="margin-top:12px"><a class="btn wa sm" href="${waLink(CONFIG.WHATSAPP, `Hola! Quería consultar por una clase de ${SPORTS[sp].label}`)}" target="_blank" rel="noopener">Consultanos por WhatsApp</a></div>` : ''}</div>`; })()}
     </div>
     ${trainType ? trainingPromo(trainType) : ''}`;
   document.querySelector('.day.on')?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
@@ -1157,7 +1166,7 @@ function drawPublic() {
 }
 function setPub(k, v) {
   st[k] = v; if (k !== 'day') st.day = null;
-  if (k === 'fSport') { st.fType = ''; st.fProfe = ''; }
+  if (k === 'fSport') { st.fType = ''; st.fProfe = ''; try { history.replaceState(null, '', location.pathname + location.search + (v === 'sup' ? '' : '#' + v)); } catch {} }
   drawPublic();
   if (k === 'day') { const t = document.querySelector('.dayttl'); if (t && t.getBoundingClientRect().top < 120) t.scrollIntoView({ block: 'start' }); }
 }
