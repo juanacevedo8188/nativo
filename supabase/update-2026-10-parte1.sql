@@ -1,5 +1,4 @@
 -- PARTE 1 de 2: tablas nuevas (lista de espera, fichas, reseñas, gift cards, pedidos grupales).
--- Corré esta primero y después la PARTE 2. Se pueden correr más de una vez.
 
 create table if not exists public.waitlist (
   id         uuid primary key default gen_random_uuid(),
@@ -76,7 +75,6 @@ grant select, update on public.reviews to authenticated;
 grant select, update on public.gift_cards to authenticated;
 grant select, update, delete on public.group_requests to authenticated;
 
--- Seguridad (RLS): quién puede ver cada tabla
 alter table public.waitlist enable row level security;
 drop policy if exists "waitlist staff" on public.waitlist;
 create policy "waitlist staff" on public.waitlist for all to authenticated
@@ -96,8 +94,6 @@ alter table public.group_requests enable row level security;
 drop policy if exists "group_requests admin" on public.group_requests;
 create policy "group_requests admin" on public.group_requests for all to authenticated using (is_admin()) with check (is_admin());
 
-
--- Tiempo real para lista de espera, regalos y pedidos grupales.
 do $fn$
 declare t text;
 begin

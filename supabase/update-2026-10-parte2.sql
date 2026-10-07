@@ -1,10 +1,5 @@
 -- PARTE 2 de 2: funciones (correla después de la PARTE 1). Se puede correr más de una vez.
 
--- ═════════ Lista de espera, ficha y deslinde, reseñas, gift cards y pedidos grupales ═════════
--- Clave de un teléfono: los últimos 10 dígitos ("+54 9 341 555-1234" = "3415551234").
-
--- ── Lista de espera: si una clase está completa, el alumno se anota y le avisamos si se libera un lugar.
-
 create or replace function public.join_waitlist(p_slot uuid, p_name text, p_phone text) returns int
 language plpgsql security definer set search_path = public as $fn$
 declare s slots; v_booked int; k text := right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10);
@@ -28,7 +23,6 @@ begin
           and w.created_at <= (select created_at from waitlist where slot_id = p_slot and right(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), 10) = k limit 1));
 end $fn$;
 
--- Del alumno con cuenta: sus esperas y si ya se liberó lugar.
 create or replace function public.my_waitlist()
 returns table (slot_id uuid, title text, starts_at timestamptz, free int)
 language sql stable security definer set search_path = public as $fn$
@@ -41,10 +35,7 @@ language sql stable security definer set search_path = public as $fn$
   order by s.starts_at;
 $fn$;
 
--- Quien ya reservó esa clase no se cuenta más en la lista de espera (se filtra al leerla).
 drop trigger if exists waitlist_cleanup on public.bookings;
-
--- ── Ficha y deslinde: una vez por persona (vale 1 año). Se completa desde el comprobante.
 
 create or replace function public.waiver_status(p_code text) returns boolean
 language sql stable security definer set search_path = public as $fn$
@@ -53,7 +44,6 @@ language sql stable security definer set search_path = public as $fn$
                  where b.code = upper(btrim(p_code)) and w.accepted_at > now() - interval '365 days');
 $fn$;
 
--- Alumno con cuenta: la completa en su perfil (una vez; vale 1 año).
 create or replace function public.my_waiver()
 returns table (name text, birth_date date, swims text, health text, emergency_name text, emergency_phone text, accepted_at timestamptz)
 language sql stable security definer set search_path = public as $fn$
@@ -90,8 +80,6 @@ begin
           btrim(p_em_name), btrim(p_em_phone));
 end $fn$;
 
--- ── Reseñas: el alumno califica su clase (con el código de la reserva) cuando ya terminó.
-
 create or replace function public.leave_review(p_code text, p_stars int, p_comment text) returns void
 language plpgsql security definer set search_path = public as $fn$
 declare b bookings; s slots;
@@ -114,7 +102,6 @@ language sql stable security definer set search_path = public as $fn$
   select r.stars, r.comment from reviews r join bookings b on b.id = r.booking_id where b.code = upper(btrim(p_code));
 $fn$;
 
--- Para la página: las buenas reseñas con comentario (las que un admin no ocultó).
 create or replace function public.public_reviews()
 returns table (first_name text, profe_name text, stars int, comment text, sport text, created_at timestamptz)
 language sql stable security definer set search_path = public as $fn$
@@ -124,9 +111,6 @@ language sql stable security definer set search_path = public as $fn$
   where r.stars >= 4 and r.comment is not null and not r.hidden
   order by r.created_at desc limit 12;
 $fn$;
-
--- ── Gift cards: alguien regala una clase o un abono. Se pide desde la página, el admin la activa
---    cuando cobra, y quien la recibe la canjea con el código.
 
 create or replace function public.request_gift(p_kind text, p_sport text, p_plan uuid, p_buyer text, p_buyer_phone text,
                                                p_recipient text, p_message text) returns text
@@ -166,7 +150,6 @@ language sql stable security definer set search_path = public as $fn$
   from gift_cards g left join plans pl on pl.id = g.plan_id where g.code = upper(btrim(p_code));
 $fn$;
 
--- Canjear una gift card de CLASE en una reserva (se marca pagada; la parte del profe sale del valor de la clase).
 create or replace function public.redeem_gift_booking(p_gift text, p_booking text) returns void
 language plpgsql security definer set search_path = public as $fn$
 declare g gift_cards; b bookings; v_sport text;
@@ -187,7 +170,6 @@ begin
   update gift_cards set status = 'redeemed', redeemed_at = now(), redeemed_booking = b.id where id = g.id;
 end $fn$;
 
--- Canjear una gift card de ABONO: se activa en la cuenta del alumno (tiene que entrar con Google).
 create or replace function public.redeem_gift_pass(p_gift text) returns void
 language plpgsql security definer set search_path = public as $fn$
 declare g gift_cards; pl plans; v_id uuid; v_today date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
@@ -205,8 +187,6 @@ begin
   returning id into v_id;
   update gift_cards set status = 'redeemed', redeemed_at = now(), redeemed_pass = v_id where id = g.id;
 end $fn$;
-
--- ── Clases privadas y grupales (cumpleaños, empresas, grupos): pedido desde la página para el admin.
 
 create or replace function public.request_group(p_name text, p_phone text, p_kind text, p_sport text, p_people int, p_preferred text, p_message text)
 returns void language plpgsql security definer set search_path = public as $fn$
