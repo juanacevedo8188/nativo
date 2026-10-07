@@ -2405,7 +2405,8 @@ async function paneStats() {
     if (!st.types?.length) st.types = await api.classTypes().catch(() => []); }
   catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   // SUP y kayak no se mezclan: cada disciplina tiene sus números (el kayak es de Mati).
-  const statSports = Object.keys(SPORTS).filter(k => [...st.staffSlots, ...past].some(s => sportOf(s) === k) || (isAdmin && st.types.some(t => t.active && (t.sport || 'sup') === k)));
+  // Admins: siempre el selector SUP / Kayak. Profes: solo las disciplinas que tienen en sus clases.
+  const statSports = isAdmin ? Object.keys(SPORTS) : Object.keys(SPORTS).filter(k => [...st.staffSlots, ...past].some(s => sportOf(s) === k));
   if (!statSports.includes(st.statSport)) st.statSport = statSports[0] || 'sup';
   const ssp = st.statSport;
   if (statSports.length > 1) {
