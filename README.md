@@ -50,6 +50,8 @@ Configuración (una vez):
 - En *Más → Precio y cupo* marcá el tipo de clase como **Solo entren.** y usá la descripción para días y horarios. Esas clases **no se publican en la web** (`public_slots` las excluye): se ven solo en la agenda de los profes, que anotan a los chicos con "+ Anotar alumno".
 - En la página aparece una tarjeta de promoción con el WhatsApp de contacto (`CONFIG.TRAINING_CONTACT`, hoy Torita) para pedir info y sumarse.
 - Los chicos del grupo con cuenta de Google piden su insignia desde el perfil; el admin la aprueba en *Equipo → Entrenamiento*. Los aprobados muestran 🏅 en el perfil (y suman un logro) y en la agenda.
+- **Tablón del team** (*Crear → 📣 Tablón del team*): cualquier profe publica avisos (suspensiones, travesías, competencias) y puede fijarlos arriba. Solo los ven los alumnos con 🏅: en su perfil y como aviso en la página de reservas (tabla `team_posts`, protegida por RLS).
+- **Racha y logros del team**: en el perfil de cada 🏅, entrenamientos, semanas seguidas, mejor racha, las últimas 8 semanas y 8 logros propios. Cuentan los entrenamientos donde el profe anota al alumno **eligiéndolo con su cuenta** en "+ Anotar alumno → ¿Tiene cuenta en la web?".
 
 ## Comprobante para el alumno
 Al reservar, el alumno pasa a **"Tu reserva"** (`/#r-CÓDIGO`): la reserva actualizada (pagada, suspendida…), botón para **guardar el comprobante como imagen** en el celu, agregarla al calendario, cómo llegar, compartir el link y escribir por WhatsApp. Ese celular además recuerda sus reservas y las muestra arriba en "Tus próximas clases". La función `booking_by_code` solo devuelve datos de la clase y el primer nombre.

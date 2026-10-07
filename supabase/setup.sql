@@ -385,11 +385,12 @@ language sql stable security definer set search_path = public as $fn$
   where p_code ~* '^[0-9a-f]{6}$' and b.code = upper(btrim(p_code));
 $fn$;
 -- Clases del alumno con cuenta (perfil). Suma las que reservó como invitado con el mismo email de Google.
+drop function if exists public.my_bookings();   -- cambió lo que devuelve (members_only)
 create or replace function public.my_bookings()
 returns table (
   code text, status text, paid boolean, people int, amount numeric, title text,
   starts_at timestamptz, duration_min int, location text, slot_status text,
-  profe_name text, profe_avatar text
+  profe_name text, profe_avatar text, members_only boolean
 )
 language plpgsql security definer set search_path = public as $fn$
 #variable_conflict use_column
@@ -399,7 +400,7 @@ begin
   where b.student_id is null and auth.email() is not null and lower(b.customer_email) = lower(auth.email());
   return query
     select b.code, b.status, b.paid, b.people, b.amount, s.title, s.starts_at, s.duration_min,
-           s.location, s.status, p.name, p.avatar_url
+           s.location, s.status, p.name, p.avatar_url, s.members_only
     from bookings b join slots s on s.id = b.slot_id join profiles p on p.id = s.profe_id
     where b.student_id = auth.uid()
     order by s.starts_at desc;
@@ -613,6 +614,34 @@ end $fn$;
 revoke all on function public.staff_account(text, text, text, numeric) from public, anon, authenticated;
 grant execute on function public.staff_account(text, text, text, numeric) to service_role;
 
+-- Tablón del team: avisos de los profes para el grupo de entrenamiento (solo lo ven ellos y el staff).
+create table if not exists public.team_posts (
+  id          uuid primary key default gen_random_uuid(),
+  author_id   uuid references public.profiles(id) on delete set null,
+  author_name text,
+  body        text not null check (length(btrim(body)) between 1 and 600),
+  pinned      boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+create index if not exists team_posts_created_idx on public.team_posts (created_at desc);
+-- El autor lo pone la base (no se puede publicar a nombre de otro).
+create or replace function public.team_posts_guard() returns trigger
+language plpgsql security definer set search_path = public as $fn$
+begin
+  if tg_op = 'INSERT' then
+    if auth.uid() is not null then new.author_id := auth.uid(); end if;
+    new.author_name := (select name from profiles where id = new.author_id);
+    new.created_at := now();
+  else
+    new.author_id := old.author_id; new.author_name := old.author_name; new.created_at := old.created_at;
+  end if;
+  return new;
+end $fn$;
+drop trigger if exists team_posts_guard on public.team_posts;
+create trigger team_posts_guard before insert or update on public.team_posts
+  for each row execute function public.team_posts_guard();
+grant select, insert, update, delete on public.team_posts to authenticated;
+
 -- ───────────────────────────── 5) Permisos (RLS) ─────────────────────────────
 
 alter table public.profiles    enable row level security;
@@ -727,6 +756,19 @@ drop policy if exists "avatars delete" on storage.objects;
 create policy "avatars delete" on storage.objects for delete to authenticated
   using (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
 
+alter table public.team_posts enable row level security;
+drop policy if exists "team_posts select" on public.team_posts;
+create policy "team_posts select" on public.team_posts for select to authenticated
+  using (is_staff() or exists (select 1 from students where id = auth.uid() and training = 'approved'));
+drop policy if exists "team_posts insert" on public.team_posts;
+create policy "team_posts insert" on public.team_posts for insert to authenticated with check (is_staff());
+drop policy if exists "team_posts update" on public.team_posts;
+create policy "team_posts update" on public.team_posts for update to authenticated
+  using (is_admin() or author_id = auth.uid()) with check (is_admin() or author_id = auth.uid());
+drop policy if exists "team_posts delete" on public.team_posts;
+create policy "team_posts delete" on public.team_posts for delete to authenticated
+  using (is_admin() or author_id = auth.uid());
+
 -- Tiempo real: la app de profes se actualiza sola cuando otro carga, cobra o borra algo.
 -- Cada uno recibe solo los cambios que sus permisos (RLS) ya le dejan ver.
 do $fn$
@@ -735,7 +777,7 @@ begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     create publication supabase_realtime;
   end if;
-  foreach t in array array['slots', 'bookings', 'passes', 'students', 'profiles'] loop
+  foreach t in array array['slots', 'bookings', 'passes', 'students', 'profiles', 'team_posts'] loop
     if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
       execute format('alter publication supabase_realtime add table public.%I', t);
     end if;

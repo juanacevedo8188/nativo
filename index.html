@@ -179,7 +179,7 @@ img.avatar.xl{border:4px solid var(--ink)}
 .sp-stats div{background:var(--card);border:1.5px solid var(--ink);border-radius:16px;padding:10px 6px;text-align:center;box-shadow:3px 3px 0 var(--ink)}
 .sp-stats b{display:block;font-family:var(--f-display);font-size:26px;line-height:1.1}
 .sp-stats span{font-size:12.5px;color:var(--ink2)}
-.badges{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.badges{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 @media(max-width:360px){.badges{grid-template-columns:repeat(3,1fr)}}
 .badge-i{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:10px 4px;text-align:center;font-size:11.5px;font-weight:700;line-height:1.2}
 .badge-i i{display:block;font-style:normal;font-size:30px;line-height:1.2}
@@ -329,6 +329,23 @@ textarea.input{min-height:80px;resize:vertical}
 .tuto .dots i.on{width:22px;background:var(--ink)}
 .tuto .nav{display:flex;gap:8px;margin-top:10px}
 .tuto .nav .btn{flex:1}
+.post{border-top:1px solid var(--line);padding:10px 0}
+.post:first-child{border-top:0}
+.post.pin{background:var(--coral-soft);border-radius:12px;padding:10px 12px;border:0;margin-bottom:6px}
+.post-b{margin-top:4px;font-size:15px;overflow-wrap:anywhere}
+.team{background:linear-gradient(135deg,#1f1d1e,#0e4f52);color:#fff;border-radius:var(--r);padding:16px;margin-top:14px}
+.team h3{color:var(--sun);margin:0 0 10px;font-family:var(--f-display)}
+.team .ts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+.team .ts div{background:rgba(255,255,255,.08);border-radius:12px;padding:10px 4px}
+.team .ts b{display:block;font:700 26px var(--f-display);color:var(--sun)}
+.team .ts span{font-size:12px;opacity:.85}
+.team .weeks{display:flex;gap:4px;margin:12px 0 2px}
+.team .weeks i{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.15)}
+.team .weeks i.on{background:var(--sun)}
+.team .badges{grid-template-columns:repeat(4,minmax(0,1fr))}
+.team .badges .badge-i{overflow-wrap:anywhere;background:rgba(255,255,255,.06);color:#fff;border-color:rgba(255,255,255,.18)}
+.team .badges .badge-i.on{background:rgba(251,239,70,.15);border-color:var(--sun)}
+.board-pub{border-left:4px solid var(--sun)}
 .live-bar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 32px);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:45;background:var(--sun);color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:10px 18px;font:600 15px var(--f-body);box-shadow:0 4px 0 var(--ink);white-space:nowrap;animation:pop .3s var(--ease) both;cursor:pointer}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 18px rgba(0,0,0,.12)}
 .tabbar button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:#b9c7c3;font-size:11.5px;font-weight:600;padding:6px 2px;border-radius:12px;transition:color .2s,background .2s}
@@ -599,7 +616,7 @@ function supabaseApi() {
     // Tiempo real: avisa cuando cambia algo que este usuario puede ver. Devuelve cómo cortarlo.
     live(cb) {
       const ch = c.channel('staff-live');
-      ['slots', 'bookings', 'passes', 'students', 'profiles'].forEach(table => ch.on('postgres_changes', { event: '*', schema: 'public', table }, cb));
+      ['slots', 'bookings', 'passes', 'students', 'profiles', 'team_posts'].forEach(table => ch.on('postgres_changes', { event: '*', schema: 'public', table }, cb));
       ch.subscribe();
       return () => c.removeChannel(ch);
     },
@@ -660,6 +677,11 @@ function supabaseApi() {
     deleteSuspended: id => q(c.rpc('delete_suspended_slot', { p_slot: id })),
     deleteSlotForce: (id, force) => q(c.rpc('delete_slot', { p_slot: id, p_force: !!force })),
     createBooking: row => q(c.from('bookings').insert(row)),
+    // Tablón del team (entrenamiento)
+    teamPosts: () => q(c.from('team_posts').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(30)),
+    addPost: (body, pinned) => q(c.from('team_posts').insert({ body, pinned })),
+    updatePost: (id, patch) => q(c.from('team_posts').update(patch).eq('id', id)),
+    deletePost: id => q(c.from('team_posts').delete().eq('id', id)),
     updateBooking: (id, patch) => q(c.from('bookings').update(patch).eq('id', id)),
     // El monto lo calcula el servidor a partir de la reserva: el navegador solo manda el código.
     async checkout(code) {
@@ -734,7 +756,7 @@ function demoApi() {
     myBookings() {
       const sid = store.get(SKEY, null);
       return wait(db.bookings.filter(b => sid && b.student_id === sid).map(b => { const s = db.slots.find(x => x.id === b.slot_id), p = db.profiles.find(x => x.id === s.profe_id);
-        return { code: b.code, status: b.status, paid: b.paid, people: b.people, amount: b.amount, title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location, slot_status: s.status, profe_name: p?.name, profe_avatar: p?.avatar_url }; })
+        return { code: b.code, status: b.status, paid: b.paid, people: b.people, amount: b.amount, title: s.title, starts_at: s.starts_at, duration_min: s.duration_min, location: s.location, slot_status: s.status, profe_name: p?.name, profe_avatar: p?.avatar_url, members_only: !!s.members_only }; })
         .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
     updateStudent(id, patch) {
@@ -846,6 +868,13 @@ function demoApi() {
       if (db.bookings.some(b => b.slot_id === id)) return fail('Ese horario tiene reservas: cancelalo en vez de borrarlo');
       db.slots = db.slots.filter(s => s.id !== id); save(); return wait(null);
     },
+    teamPosts() {
+      const me = store.get(SKEY, null), ok = meP() || db.students.find(x => x.id === me && x.training === 'approved');
+      return wait(ok ? [...(db.team_posts ||= [])].sort((a, b) => (b.pinned - a.pinned) || b.created_at.localeCompare(a.created_at)) : []);
+    },
+    addPost(body, pinned) { const a = meP(); (db.team_posts ||= []).push({ id: uid(), body, pinned: !!pinned, author_id: a?.id, author_name: a?.name, created_at: new Date().toISOString() }); save(); return wait(null); },
+    updatePost(id, patch) { Object.assign((db.team_posts ||= []).find(x => x.id === id), patch); save(); return wait(null); },
+    deletePost(id) { db.team_posts = (db.team_posts || []).filter(x => x.id !== id); save(); return wait(null); },
     createBooking(row) { db.bookings.push({ id: uid(), code: Math.random().toString(16).slice(2, 8).toUpperCase(), status: 'confirmed', created_at: new Date().toISOString(), ...row }); save(); return wait(null); },
     updateBooking(id, patch) { Object.assign(db.bookings.find(b => b.id === id), patch); save(); return wait(null); },
     // Simula Checkout Pro: misma validación que mp-checkout.js y el "webhook" marca la reserva como paga.
@@ -946,7 +975,10 @@ function demoSeed() {
   bookings.forEach(b => { if (b.customer_name === 'Sofía Gómez') b.student_id = 'st-demo'; });
   const plans = [{ id: 'pl-1', name: 'Abono mensual', description: '1 clase por semana durante un mes', price: 90000, classes: 4, days_valid: 30, active: true, sort: 1 }];
   const passes = [{ id: 'ps-demo', student_id: 'st-3', plan_id: 'pl-1', name: 'Abono mensual', price: 90000, classes_total: 4, days_valid: 30, status: 'pending', created_at: new Date().toISOString() }];
-  return { profiles, class_types, slots, bookings, students, plans, passes };
+  const team_posts = [
+    { id: uid(), author_id: 'u-lucas', author_name: 'Lucas', pinned: true, body: 'Entrenamientos: martes y jueves 19 hs en la guardería. Traigan agua y ropa para cambiarse 💪', created_at: addDays(today, -6).toISOString() },
+    { id: uid(), author_id: 'u-lucas', author_name: 'Lucas', pinned: false, body: 'Sábado travesía a la isla, salimos 9:30. ¡Avisen quién se suma!', created_at: addDays(today, -1).toISOString() }];
+  return { profiles, class_types, slots, bookings, students, plans, passes, team_posts };
 }
 
 /* ════════════════════════════ ESTADO + RUTEO ════════════════════════════ */
@@ -1019,6 +1051,10 @@ function drawPublic() {
   const plans = (st.plans || []).filter(p => p.active);
   $('pub').innerHTML = `
     ${myPass ? myPassCard(myPass, true) : plans.map(planCard).join('')}
+    ${(() => { const ps = st.student?.training === 'approved' ? st.teamPosts || [] : [];
+        const p = [...ps].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(x => new Date(x.created_at) > addDays(new Date(), -7)) || ps.find(x => x.pinned);
+        return p ? `<a class="card board-pub" href="#perfil" style="display:block;text-decoration:none;color:inherit;margin-top:14px"><div class="row between"><b>📣 Aviso del team</b><span class="tiny muted">${esc(p.author_name || 'Nativo')} · ${ago(p.created_at)}</span></div>
+          <div class="post-b">${esc(p.body.length > 160 ? p.body.slice(0, 157) + '…' : p.body)}</div><div class="tiny" style="margin-top:6px;color:var(--sea)">Ver tablón y tu racha ›</div></a>` : ''; })()}
     ${mine.length ? `<div class="section"><div class="label">Tus próximas clases</div><div class="mine" style="margin-top:0">${mine.map(m => `<a href="#r-${esc(m.code)}">
         <span class="t num">${hhmm(m.starts_at)}</span><span class="who"><b>${esc(fmtDayLong(m.starts_at))}</b><br><span class="muted">Reserva ${esc(m.code)}</span></span><span aria-hidden="true">›</span></a>`).join('')}</div></div>` : ''}
     ${activeTypes.length > 1 ? `<div class="section"><div class="label">Clase</div><div class="chips">
@@ -1494,6 +1530,7 @@ function tutoDone(go) {
 async function refreshAccount() {
   try { [st.student, st.me] = await Promise.all([api.student(), api.me()]); } catch { st.student = null; }
   st.myPasses = st.student ? await api.myPasses().catch(() => []) : [];
+  st.teamPosts = st.student?.training === 'approved' ? await api.teamPosts().catch(() => []) : [];
   drawNav();
   if ($('pub') && st.pub?.length) drawPublic();          // muestra "Tu abono" en vez de la oferta
   setTimeout(maybeTutorial, 700);
@@ -1521,6 +1558,36 @@ async function finishLogin() {
   route();
 }
 
+/* ── Team Nativo (entrenamiento): racha semanal, logros propios y tablón ── */
+const weekKey = d => { const x = startOfDay(new Date(d)); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return dayKey(x); };   // lunes de esa semana
+function trainStats(tr) {
+  const weeks = new Set(tr.map(b => weekKey(b.starts_at)));
+  const thisW = startOfDay(new Date(weekKey(new Date()) + 'T12:00'));
+  // Racha actual: semanas seguidas entrenando. La semana en curso todavía no la corta.
+  let w = weeks.has(dayKey(thisW)) ? thisW : addDays(thisW, -7), streak = 0;
+  while (weeks.has(dayKey(w))) { streak++; w = addDays(w, -7); }
+  let best = 0, run = 0, prev = null;
+  [...weeks].sort().forEach(k => { const d = new Date(k + 'T12:00'); run = prev && Math.round((d - prev) / 864e5) === 7 ? run + 1 : 1; best = Math.max(best, run); prev = d; });
+  const last8 = Array.from({ length: 8 }, (_, i) => weeks.has(dayKey(addDays(thisW, (i - 7) * 7))));
+  return { n: tr.length, streak, best, last8 };
+}
+function teamSection(tr) {
+  const t = trainStats(tr), h = b => new Date(b.starts_at).getHours();
+  const badges = [
+    ['🎯', '1er entreno', t.n >= 1], ['💪', '10 entrenos', t.n >= 10], ['🦾', '25 entrenos', t.n >= 25], ['🏆', '50 entrenos', t.n >= 50],
+    ['🔥', 'Racha 4 semanas', t.best >= 4], ['⚡', 'Racha 8 semanas', t.best >= 8],
+    ['🌄', 'Madrugador', tr.filter(b => h(b) < 9).length >= 5], ['🌙', 'Nocturno', tr.filter(b => h(b) >= 19).length >= 5],
+  ];
+  const posts = st.teamPosts || [];
+  return `<div class="team rise"><h3>🏅 Team Nativo</h3>
+      <div class="ts"><div><b class="num">${t.n}</b><span>entrenamientos</span></div><div><b class="num">${t.streak}${t.streak ? '🔥' : ''}</b><span>${t.streak === 1 ? 'semana seguida' : 'semanas seguidas'}</span></div><div><b class="num">${t.best}</b><span>mejor racha</span></div></div>
+      <div class="weeks" aria-label="Últimas 8 semanas">${t.last8.map(on => `<i class="${on ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="tiny" style="opacity:.75;display:flex;justify-content:space-between"><span>hace 8 semanas</span><span>esta semana</span></div>
+      <div class="label" style="color:#fff;opacity:.8;margin:14px 0 8px">Logros del team · ${badges.filter(b => b[2]).length} de ${badges.length}</div>
+      <div class="badges">${badges.map(([i, x, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${x}</div>`).join('')}</div>
+      <p class="tiny" style="opacity:.7;margin:10px 0 0">${t.streak ? '¡No cortes la racha: entrená al menos una vez por semana!' : 'Entrená una vez por semana para arrancar tu racha 🔥'} Cuentan los entrenamientos en los que el profe te anota con tu cuenta.</p></div>
+    ${posts.length ? `<div class="section"><div class="label">📣 Tablón del team</div><div class="card" style="padding:4px 14px">${posts.slice(0, 8).map(p => postHtml(p, false)).join('')}</div></div>` : ''}`;
+}
 async function renderStudent() {
   $('app').innerHTML = `<div class="wrap" id="sp"><div class="loading">Cargando…</div></div>`;
   if (st.student === undefined) await refreshAccount();
@@ -1537,7 +1604,8 @@ async function renderStudent() {
     return;
   }
   let list = [];
-  try { [list, st.myPasses, st.plans] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans()]); } catch (e) { toast(errMsg(e)); }
+  try { [list, st.myPasses, st.plans, st.teamPosts] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
+    me.training === 'approved' ? api.teamPosts().catch(() => []) : []]); } catch (e) { toast(errMsg(e)); }
   if (!$('sp')) return;
   const now = new Date(), ok = b => b.status !== 'cancelled' && b.slot_status !== 'cancelled';
   const past = list.filter(b => ok(b) && b.status !== 'no_show' && new Date(b.starts_at) < now);
@@ -1564,6 +1632,7 @@ async function renderStudent() {
       <div style="text-align:center;margin-top:8px"><a href="#" class="small" onclick="showTutorial();return false">¿Cómo funciona Nativo? Ver tutorial</a></div>
     </div>
     <div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>
+    ${me.training === 'approved' || past.some(b => b.members_only) ? teamSection(past.filter(b => b.members_only)) : ''}
     ${(() => { const ps = (st.myPasses || []).filter(p => p.status === 'pending' || (p.status === 'active' && p.expires_on >= dayKey(new Date())));
         return ps.length ? ps.map(p => myPassCard(p)).join('') : (st.plans || []).filter(p => p.active).map(planCard).join(''); })()}
     ${me.training === 'approved' ? '' : `<div class="train-card"><i>🏅</i><div style="flex:1">${me.training === 'requested'
@@ -1917,13 +1986,18 @@ async function delSlot(id) {
   if (!await askConfirm('¿Borrar este horario?', 'Borrar')) return;
   try { await api.deleteSlot(id); toast('Horario borrado'); paneAgenda(); } catch (e) { toast(errMsg(e)); }
 }
-function manualBooking(id) {
+async function manualBooking(id) {
   const s = st.staffSlots.find(x => x.id === id);
+  // Alumnos con cuenta: si lo elegís, la clase le suma en su perfil (racha y logros de entrenamiento).
+  if (!st.students) st.students = await api.students().catch(() => []);
+  const studs = [...(st.students || [])].sort((a, b) => s.members_only ? (b.training === 'approved') - (a.training === 'approved') || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
   const left = s.capacity - s.bookings.filter(b => b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
   openModal(`<h2>Anotar alumno</h2>
     <div class="sum">${esc(s.title)} · ${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)} · quedan ${Math.max(left, 0)} lugares</div>
     <div id="mb-err"></div>
     <form onsubmit="saveManual(event,'${id}')">
+      ${studs.length ? `<div class="field"><span class="flabel">¿Tiene cuenta en la web? <span class="muted">(opcional)</span></span>${studentPicker('mb', studs, 'Buscalo por nombre o WhatsApp…')}
+        <div class="tiny muted" style="margin-top:4px">${s.members_only ? 'Así el entrenamiento le suma a su racha y logros 🏅.' : 'Así la clase le aparece en su perfil.'}</div></div>` : ''}
       <div class="field"><label>¿Por dónde reservó?</label><div class="seg">
         ${['whatsapp', 'instagram', 'presencial', 'otro'].map((k, i) => `<label><input type="radio" name="source" value="${k}" ${i ? '' : 'checked'} onchange="$('mb-contact-l').textContent=this.value==='instagram'?'Usuario de Instagram':'WhatsApp';this.form.phone.placeholder=this.value==='instagram'?'@usuario':'341 555 1234'">${SOURCES[k]}</label>`).join('')}</div></div>
       <div class="field"><label for="mb-name">Nombre y apellido</label><input class="input" id="mb-name" name="name" required minlength="2" maxlength="80"></div>
@@ -1946,7 +2020,7 @@ async function saveManual(ev, id) {
     const source = f.source.value, contact = f.phone.value.trim();
     await api.createBooking({ slot_id: id, customer_name: f.name.value.trim(), people: +f.people.value, source, notes: f.notes.value.trim() || null,
       customer_phone: source === 'instagram' && contact && !contact.startsWith('@') && isIg(contact) ? '@' + contact : contact,
-      amount: +f.amount.value, paid: !!f.pay.value, payment_method: f.pay.value || null,
+      amount: +f.amount.value, paid: !!f.pay.value, payment_method: f.pay.value || null, student_id: pickerValue('mb') || null,
       status: isPast(s) ? 'attended' : 'confirmed' });
     closeModal(); toast(`Reserva de ${f.name.value.trim().split(' ')[0]} agregada`); paneAgenda();
   } catch (e) { $('mb-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; }
@@ -1996,8 +2070,40 @@ async function paneCreate() {
         <div class="field"><label for="cf-notes">Nota para el alumno <span class="muted">(opcional)</span></label><input class="input" id="cf-notes" name="notes" placeholder="Traer protector solar y ropa que se pueda mojar"></div>
       </details>
       <div class="row between wrapf"><span id="cf-prev" class="small muted"></span><button class="btn coral" id="cf-btn">Crear clase</button></div>
-    </form></div>`;
+    </form></div>
+    <div id="board-ed"></div>`;
   if ($('cf')) previewCreate();                 // si cambió de pestaña mientras cargaba, no hay formulario
+  boardEditor();
+}
+
+/* ── Tablón del team (staff): avisos para el grupo de entrenamiento ── */
+const ago = d => { const m = Math.round((Date.now() - new Date(d)) / 60000);
+  return m < 1 ? 'recién' : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : m < 2880 ? 'ayer' : fmtDayShort(d); };
+const postHtml = (p, tools) => `<div class="post ${p.pinned ? 'pin' : ''}">
+  <div class="row between" style="gap:8px"><span class="tiny muted">${p.pinned ? '📌 ' : ''}<b>${esc(p.author_name || 'Nativo')}</b> · ${ago(p.created_at)}</span>
+    ${tools ? `<span class="row" style="flex:none;gap:4px"><button class="btn ghost sm" onclick="pinPost('${p.id}',${!p.pinned})" aria-label="${p.pinned ? 'Desfijar' : 'Fijar arriba'}">${p.pinned ? 'Desfijar' : '📌'}</button><button class="btn ghost sm" onclick="dropPost('${p.id}')" aria-label="Borrar">🗑</button></span>` : ''}</div>
+  <div class="post-b">${esc(p.body).replace(/\n/g, '<br>')}</div></div>`;
+async function boardEditor() {
+  if (!$('board-ed')) return;
+  let posts = []; try { posts = await api.teamPosts(); } catch {}
+  if (!$('board-ed')) return;
+  const mine = p => st.me.role === 'admin' || p.author_id === st.me.id;
+  $('board-ed').innerHTML = `<div class="card" style="max-width:560px"><h2>📣 Tablón del team</h2>
+    <p class="small muted" style="margin-bottom:10px">Avisos para el grupo de entrenamiento: lo ven solo los alumnos con 🏅 en su perfil y en la página de reservas.</p>
+    <form onsubmit="sendPost(event)"><div id="bp-err"></div>
+      <textarea class="input" name="body" required maxlength="600" rows="3" placeholder="Ej: Mañana se suspende por viento. El sábado salimos 9:30 a la isla 🏝️"></textarea>
+      <div class="row between wrapf" style="margin-top:8px"><label class="check"><input type="checkbox" name="pinned"> Fijar arriba</label><button class="btn coral" id="bp-btn">Publicar</button></div></form>
+    ${posts.length ? `<div style="margin-top:12px">${posts.map(p => postHtml(p, mine(p))).join('')}</div>` : ''}</div>`;
+}
+async function sendPost(ev) {
+  ev.preventDefault(); const f = ev.target, btn = $('bp-btn'); btn.disabled = true;
+  try { await api.addPost(f.body.value.trim(), f.pinned.checked); toast('Aviso publicado ✓'); boardEditor(); }
+  catch (e) { $('bp-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
+}
+async function pinPost(id, v) { try { await api.updatePost(id, { pinned: v }); boardEditor(); } catch (e) { toast(errMsg(e)); } }
+async function dropPost(id) {
+  if (!await askConfirm('¿Borrar este aviso?', 'Borrar')) return;
+  try { await api.deletePost(id); boardEditor(); } catch (e) { toast(errMsg(e)); }
 }
 function setCreateMode() {
   const rep = $('cf').mode.value === 'rep';
@@ -2340,11 +2446,12 @@ function pickerFilter(key) {
   const pk = st.pickers[key], q = norm($(`pk-${key}-q`).value).trim(), box = $(`pk-${key}-list`);
   if (!q) { box.innerHTML = ''; return; }
   const hits = pk.list.filter(x => norm(`${x.name} ${x.email || ''} ${x.phone || ''}`).includes(q)).slice(0, 8);
-  box.innerHTML = hits.length ? hits.map(x => `<button type="button" onclick="pickerPick('${key}','${x.id}')">${avatarHtml(x)}<span><b>${esc(x.name)}</b><br><span class="tiny muted">${esc(x.email || x.phone || '')}</span></span></button>`).join('')
+  box.innerHTML = hits.length ? hits.map(x => `<button type="button" onclick="pickerPick('${key}','${x.id}')">${avatarHtml(x)}<span><b>${esc(x.name)}${x.training === 'approved' ? ' 🏅' : ''}</b><br><span class="tiny muted">${esc(x.email || x.phone || '')}</span></span></button>`).join('')
     : '<p class="small muted" style="padding:6px 2px">No hay alumnos con ese nombre. Tiene que haber entrado al menos una vez con Google.</p>';
 }
 function pickerPick(key, id) {
   const pk = st.pickers[key], x = pk.list.find(y => y.id === id); pk.sel = id;
+  if (key === 'mb' && $('mb-name')) { $('mb-name').value = x.name; if (x.phone && !$('mb-phone').value) $('mb-phone').value = x.phone; }
   $(`pk-${key}`).innerHTML = `<div class="picked">${avatarHtml(x)}<span style="flex:1;min-width:0"><b>${esc(x.name)}</b><br><span class="tiny muted">${esc(x.email || x.phone || '')}</span></span>
     <button type="button" class="btn ghost sm" onclick="pickerReset('${key}')" aria-label="Cambiar alumno">Cambiar</button></div>`;
 }
