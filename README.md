@@ -51,7 +51,9 @@ Configuración (una vez):
 - En la página aparece una tarjeta de promoción con el WhatsApp de contacto (`CONFIG.TRAINING_CONTACT`, hoy Torita) para pedir info y sumarse.
 - Los chicos del grupo con cuenta de Google piden su insignia desde el perfil; el admin la aprueba en *Equipo → Entrenamiento*. Los aprobados muestran 🏅 en el perfil (y suman un logro) y en la agenda.
 - **Tablón del team** (*Crear → 📣 Tablón del team*): cualquier profe publica avisos (suspensiones, travesías, competencias) y puede fijarlos arriba. Solo los ven los alumnos con 🏅: en su perfil y como aviso en la página de reservas (tabla `team_posts`, protegida por RLS).
-- **Racha y logros del team**: en el perfil de cada 🏅, entrenamientos, semanas seguidas, mejor racha, las últimas 8 semanas y 8 logros propios. Cuentan los entrenamientos donde el profe anota al alumno **eligiéndolo con su cuenta** en "+ Anotar alumno → ¿Tiene cuenta en la web?".
+- **"Hoy entrené"**: cada alumno con 🏅 suma su entrenamiento con un botón (uno por día, se puede deshacer), desde su perfil, la página de reservas o el portal del team. También cuentan los entrenamientos donde el profe lo anota eligiéndolo con su cuenta.
+- **Racha y logros del team**: entrenamientos, semanas seguidas, mejor racha, las últimas 8 semanas y 8 logros propios.
+- **Portal del team** (`#team`): integrantes ordenados por racha, cada uno con su perfil y logros, y el tablón. Lo ven el grupo y el staff. El staff puede abrir el perfil de cualquier alumno (desde la reserva en la agenda o desde *Equipo → Entrenamiento*).
 
 ## Comprobante para el alumno
 Al reservar, el alumno pasa a **"Tu reserva"** (`/#r-CÓDIGO`): la reserva actualizada (pagada, suspendida…), botón para **guardar el comprobante como imagen** en el celu, agregarla al calendario, cómo llegar, compartir el link y escribir por WhatsApp. Ese celular además recuerda sus reservas y las muestra arriba en "Tus próximas clases". La función `booking_by_code` solo devuelve datos de la clase y el primer nombre.

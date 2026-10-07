@@ -346,6 +346,15 @@ textarea.input{min-height:80px;resize:vertical}
 .team .badges .badge-i{overflow-wrap:anywhere;background:rgba(255,255,255,.06);color:#fff;border-color:rgba(255,255,255,.18)}
 .team .badges .badge-i.on{background:rgba(251,239,70,.15);border-color:var(--sun)}
 .board-pub{border-left:4px solid var(--sun)}
+.checkin-btn{font-size:18px;padding:14px}
+.checkin.done{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(251,239,70,.15);border:1.5px solid var(--sun);border-radius:14px;padding:10px 12px;font-weight:700}
+.team .checkin.done .btn{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.6)}
+.checkin-card{display:flex;align-items:center;gap:12px;margin-top:14px;background:linear-gradient(135deg,#1f1d1e,#0e4f52);color:#fff}
+.checkin-card .btn{flex:none}
+.rank{flex:none;width:22px;text-align:center;font:700 15px var(--f-display);color:var(--ink3)}
+.mini-weeks{display:flex;gap:3px;margin-top:5px;max-width:140px}
+.mini-weeks i{flex:1;height:5px;border-radius:3px;background:#e3e9e6}
+.mini-weeks i.on{background:var(--sea2)}
 .live-bar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 32px);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:45;background:var(--sun);color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:10px 18px;font:600 15px var(--f-body);box-shadow:0 4px 0 var(--ink);white-space:nowrap;animation:pop .3s var(--ease) both;cursor:pointer}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 18px rgba(0,0,0,.12)}
 .tabbar button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:#b9c7c3;font-size:11.5px;font-weight:600;padding:6px 2px;border-radius:12px;transition:color .2s,background .2s}
@@ -678,6 +687,9 @@ function supabaseApi() {
     deleteSlotForce: (id, force) => q(c.rpc('delete_slot', { p_slot: id, p_force: !!force })),
     createBooking: row => q(c.from('bookings').insert(row)),
     // Tablón del team (entrenamiento)
+    logTraining: undo => q(c.rpc('log_training', { p_undo: !!undo })),
+    studentProfile: id => q(c.rpc('student_profile', { p_id: id })),
+    teamMembers: () => q(c.rpc('team_members')),
     teamPosts: () => q(c.from('team_posts').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(30)),
     addPost: (body, pinned) => q(c.from('team_posts').insert({ body, pinned })),
     updatePost: (id, patch) => q(c.from('team_posts').update(patch).eq('id', id)),
@@ -739,6 +751,9 @@ function demoApi() {
   const demoUsed = pid => db.bookings.filter(b => b.pass_id === pid && b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
   const demoActive = days => { const t = dayKey(new Date()); return { starts_on: t, expires_on: dayKey(addDays(new Date(), days - 1)), paid_at: new Date().toISOString() }; };
   const fail = m => Promise.reject(new Error(m));
+  const demoDays = sid => [...new Set([...(db.training_logs || []).filter(x => x.student_id === sid).map(x => x.day),
+    ...db.bookings.filter(b => b.student_id === sid && !['cancelled', 'no_show'].includes(b.status)).map(b => db.slots.find(x => x.id === b.slot_id))
+      .filter(s => s?.members_only && s.status !== 'cancelled' && new Date(s.starts_at) < new Date()).map(s => dayKey(s.starts_at))])].sort();
   let authCb = () => {};
   return {
     demo: true,
@@ -868,6 +883,19 @@ function demoApi() {
       if (db.bookings.some(b => b.slot_id === id)) return fail('Ese horario tiene reservas: cancelalo en vez de borrarlo');
       db.slots = db.slots.filter(s => s.id !== id); save(); return wait(null);
     },
+    logTraining(undo) {
+      const sid = store.get(SKEY, null), s0 = db.students.find(x => x.id === sid);
+      if (s0?.training !== 'approved') return fail('Es para el grupo de entrenamiento');
+      const d = dayKey(new Date()); db.training_logs = (db.training_logs || []).filter(x => !(x.student_id === sid && x.day === d));
+      if (!undo) db.training_logs.push({ student_id: sid, day: d }); save(); return wait(demoDays(sid));
+    },
+    studentProfile(id) {
+      const s0 = db.students.find(x => x.id === id); if (!s0) return fail('No encontramos ese perfil');
+      const bks = db.bookings.filter(b => b.student_id === id).map(b => { const s = db.slots.find(x => x.id === b.slot_id);
+        return { starts_at: s.starts_at, duration_min: s.duration_min, people: b.people, profe_name: db.profiles.find(x => x.id === s.profe_id)?.name, members_only: !!s.members_only, status: b.status, slot_status: s.status }; });
+      return wait({ student: { ...s0, phone: meP() ? s0.phone : null }, bookings: bks, train_days: demoDays(id) });
+    },
+    teamMembers() { return wait(db.students.filter(x => x.training === 'approved').map(x => ({ id: x.id, name: x.name, avatar_url: x.avatar_url, instagram: x.instagram, level: x.level, train_days: demoDays(x.id) }))); },
     teamPosts() {
       const me = store.get(SKEY, null), ok = meP() || db.students.find(x => x.id === me && x.training === 'approved');
       return wait(ok ? [...(db.team_posts ||= [])].sort((a, b) => (b.pinned - a.pinned) || b.created_at.localeCompare(a.created_at)) : []);
@@ -995,10 +1023,12 @@ const st = {
 function route() {
   const staff = location.hash.startsWith('#staff');
   const ticket = /^#r-([0-9a-f]{6})$/i.exec(location.hash), perfil = location.hash === '#perfil';
-  $('nav-public').classList.toggle('on', !staff && !perfil);
-  $('nav-acct').classList.toggle('on', staff || perfil);
+  const other = /^#a-([0-9a-z-]{3,40})$/i.exec(location.hash), team = location.hash === '#team';
+  $('nav-public').classList.toggle('on', !staff && !perfil && !other && !team);
+  $('nav-acct').classList.toggle('on', staff || perfil || !!other || team);
   closeModal();
-  staff ? renderStaff() : perfil ? renderStudent() : ticket ? renderTicket(ticket[1].toUpperCase()) : renderPublic();
+  staff ? renderStaff() : perfil ? renderStudent() : team ? renderTeam() : other ? renderOtherStudent(other[1].toLowerCase())
+    : ticket ? renderTicket(ticket[1].toUpperCase()) : renderPublic();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
@@ -1051,10 +1081,13 @@ function drawPublic() {
   const plans = (st.plans || []).filter(p => p.active);
   $('pub').innerHTML = `
     ${myPass ? myPassCard(myPass, true) : plans.map(planCard).join('')}
+    ${st.student?.training === 'approved' ? (() => { const t = trainStats(st.myDays || []);
+        return `<div class="card checkin-card"><div style="flex:1;min-width:0"><b>${t.today ? '✓ Hoy entrenaste 💪' : '¿Entrenaste hoy?'}</b><div class="small" style="opacity:.8">${t.streak ? `🔥 ${t.streak} ${t.streak === 1 ? 'semana seguida' : 'semanas seguidas'}` : 'Sumá tu entreno y arrancá la racha'} · <a href="#team" style="color:var(--sun)">Ver el team</a></div></div>
+          ${t.today ? '' : '<button class="btn coral" onclick="checkIn()">💪 Hoy entrené</button>'}</div>`; })() : ''}
     ${(() => { const ps = st.student?.training === 'approved' ? st.teamPosts || [] : [];
         const p = [...ps].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(x => new Date(x.created_at) > addDays(new Date(), -7)) || ps.find(x => x.pinned);
-        return p ? `<a class="card board-pub" href="#perfil" style="display:block;text-decoration:none;color:inherit;margin-top:14px"><div class="row between"><b>📣 Aviso del team</b><span class="tiny muted">${esc(p.author_name || 'Nativo')} · ${ago(p.created_at)}</span></div>
-          <div class="post-b">${esc(p.body.length > 160 ? p.body.slice(0, 157) + '…' : p.body)}</div><div class="tiny" style="margin-top:6px;color:var(--sea)">Ver tablón y tu racha ›</div></a>` : ''; })()}
+        return p ? `<a class="card board-pub" href="#team" style="display:block;text-decoration:none;color:inherit;margin-top:14px"><div class="row between"><b>📣 Aviso del team</b><span class="tiny muted">${esc(p.author_name || 'Nativo')} · ${ago(p.created_at)}</span></div>
+          <div class="post-b">${esc(p.body.length > 160 ? p.body.slice(0, 157) + '…' : p.body)}</div><div class="tiny" style="margin-top:6px;color:var(--sea)">Ver el tablón y el team ›</div></a>` : ''; })()}
     ${mine.length ? `<div class="section"><div class="label">Tus próximas clases</div><div class="mine" style="margin-top:0">${mine.map(m => `<a href="#r-${esc(m.code)}">
         <span class="t num">${hhmm(m.starts_at)}</span><span class="who"><b>${esc(fmtDayLong(m.starts_at))}</b><br><span class="muted">Reserva ${esc(m.code)}</span></span><span aria-hidden="true">›</span></a>`).join('')}</div></div>` : ''}
     ${activeTypes.length > 1 ? `<div class="section"><div class="label">Clase</div><div class="chips">
@@ -1531,6 +1564,7 @@ async function refreshAccount() {
   try { [st.student, st.me] = await Promise.all([api.student(), api.me()]); } catch { st.student = null; }
   st.myPasses = st.student ? await api.myPasses().catch(() => []) : [];
   st.teamPosts = st.student?.training === 'approved' ? await api.teamPosts().catch(() => []) : [];
+  st.myDays = st.student?.training === 'approved' ? (await api.studentProfile(st.student.id).catch(() => null))?.train_days || [] : [];
   drawNav();
   if ($('pub') && st.pub?.length) drawPublic();          // muestra "Tu abono" en vez de la oferta
   setTimeout(maybeTutorial, 700);
@@ -1558,35 +1592,116 @@ async function finishLogin() {
   route();
 }
 
-/* ── Team Nativo (entrenamiento): racha semanal, logros propios y tablón ── */
+/* ── Team Nativo (entrenamiento): "Hoy entrené", racha semanal, logros propios, tablón y portal ──
+   Días entrenados = sus "Hoy entrené" + los entrenamientos donde el profe lo anotó con su cuenta (lo arma la base). */
 const weekKey = d => { const x = startOfDay(new Date(d)); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return dayKey(x); };   // lunes de esa semana
-function trainStats(tr) {
-  const weeks = new Set(tr.map(b => weekKey(b.starts_at)));
-  const thisW = startOfDay(new Date(weekKey(new Date()) + 'T12:00'));
+const dk = d => new Date(String(d).slice(0, 10) + 'T12:00');
+function trainStats(days = []) {
+  const ds = [...new Set(days.map(d => String(d).slice(0, 10)))].sort();
+  const perWeek = {}; ds.forEach(d => { const k = weekKey(dk(d)); perWeek[k] = (perWeek[k] || 0) + 1; });
+  const thisW = dk(weekKey(new Date()));
   // Racha actual: semanas seguidas entrenando. La semana en curso todavía no la corta.
-  let w = weeks.has(dayKey(thisW)) ? thisW : addDays(thisW, -7), streak = 0;
-  while (weeks.has(dayKey(w))) { streak++; w = addDays(w, -7); }
+  let w = perWeek[dayKey(thisW)] ? thisW : addDays(thisW, -7), streak = 0;
+  while (perWeek[dayKey(w)]) { streak++; w = addDays(w, -7); }
   let best = 0, run = 0, prev = null;
-  [...weeks].sort().forEach(k => { const d = new Date(k + 'T12:00'); run = prev && Math.round((d - prev) / 864e5) === 7 ? run + 1 : 1; best = Math.max(best, run); prev = d; });
-  const last8 = Array.from({ length: 8 }, (_, i) => weeks.has(dayKey(addDays(thisW, (i - 7) * 7))));
-  return { n: tr.length, streak, best, last8 };
+  Object.keys(perWeek).sort().forEach(k => { const d = dk(k); run = prev && Math.round((d - prev) / 864e5) === 7 ? run + 1 : 1; best = Math.max(best, run); prev = d; });
+  let month = 0; ds.forEach((d, i) => { const lim = addDays(dk(d), -29); month = Math.max(month, ds.slice(0, i + 1).filter(x => dk(x) >= lim).length); });
+  return { n: ds.length, streak, best, week: Math.max(0, ...Object.values(perWeek)), month, today: ds.includes(dayKey(new Date())),
+    last8: Array.from({ length: 8 }, (_, i) => !!perWeek[dayKey(addDays(thisW, (i - 7) * 7))]) };
 }
-function teamSection(tr) {
-  const t = trainStats(tr), h = b => new Date(b.starts_at).getHours();
-  const badges = [
-    ['🎯', '1er entreno', t.n >= 1], ['💪', '10 entrenos', t.n >= 10], ['🦾', '25 entrenos', t.n >= 25], ['🏆', '50 entrenos', t.n >= 50],
-    ['🔥', 'Racha 4 semanas', t.best >= 4], ['⚡', 'Racha 8 semanas', t.best >= 8],
-    ['🌄', 'Madrugador', tr.filter(b => h(b) < 9).length >= 5], ['🌙', 'Nocturno', tr.filter(b => h(b) >= 19).length >= 5],
-  ];
-  const posts = st.teamPosts || [];
-  return `<div class="team rise"><h3>🏅 Team Nativo</h3>
+const teamBadges = t => [
+  ['🎯', '1er entreno', t.n >= 1], ['💪', '10 entrenos', t.n >= 10], ['🦾', '25 entrenos', t.n >= 25], ['🏆', '50 entrenos', t.n >= 50],
+  ['🔥', 'Racha 4 semanas', t.best >= 4], ['⚡', 'Racha 8 semanas', t.best >= 8], ['📅', '3 en una semana', t.week >= 3], ['🗓️', '12 en un mes', t.month >= 12]];
+const weeksBar = t => `<div class="weeks" aria-label="Últimas 8 semanas">${t.last8.map(on => `<i class="${on ? 'on' : ''}"></i>`).join('')}</div>`;
+const checkInHtml = t => t.today
+  ? `<div class="checkin done"><span>✓ Hoy entrenaste 💪</span><button class="btn ghost sm" onclick="checkIn(true)">Deshacer</button></div>`
+  : `<button class="btn coral block checkin-btn" onclick="checkIn()">💪 Hoy entrené</button>`;
+function teamSection(days, own) {
+  const t = trainStats(days), b = teamBadges(t), posts = own ? st.teamPosts || [] : [];
+  return `<div class="team rise"><div class="row between"><h3 style="margin:0">🏅 Team Nativo</h3>${own || st.me?.approved ? '<a href="#team" class="small" style="color:var(--sun)">Ver el team ›</a>' : ''}</div>
+      ${own ? `<div style="margin:12px 0">${checkInHtml(t)}</div>` : '<div style="height:10px"></div>'}
       <div class="ts"><div><b class="num">${t.n}</b><span>entrenamientos</span></div><div><b class="num">${t.streak}${t.streak ? '🔥' : ''}</b><span>${t.streak === 1 ? 'semana seguida' : 'semanas seguidas'}</span></div><div><b class="num">${t.best}</b><span>mejor racha</span></div></div>
-      <div class="weeks" aria-label="Últimas 8 semanas">${t.last8.map(on => `<i class="${on ? 'on' : ''}"></i>`).join('')}</div>
+      ${weeksBar(t)}
       <div class="tiny" style="opacity:.75;display:flex;justify-content:space-between"><span>hace 8 semanas</span><span>esta semana</span></div>
-      <div class="label" style="color:#fff;opacity:.8;margin:14px 0 8px">Logros del team · ${badges.filter(b => b[2]).length} de ${badges.length}</div>
-      <div class="badges">${badges.map(([i, x, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${x}</div>`).join('')}</div>
-      <p class="tiny" style="opacity:.7;margin:10px 0 0">${t.streak ? '¡No cortes la racha: entrená al menos una vez por semana!' : 'Entrená una vez por semana para arrancar tu racha 🔥'} Cuentan los entrenamientos en los que el profe te anota con tu cuenta.</p></div>
+      <div class="label" style="color:#fff;opacity:.8;margin:14px 0 8px">Logros del team · ${b.filter(x => x[2]).length} de ${b.length}</div>
+      <div class="badges">${b.map(([i, x, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${x}</div>`).join('')}</div>
+      ${own ? `<p class="tiny" style="opacity:.7;margin:10px 0 0">${t.streak ? '¡No cortes la racha: entrená al menos una vez por semana!' : 'Entrená una vez por semana para arrancar tu racha 🔥'}</p>` : ''}</div>
     ${posts.length ? `<div class="section"><div class="label">📣 Tablón del team</div><div class="card" style="padding:4px 14px">${posts.slice(0, 8).map(p => postHtml(p, false)).join('')}</div></div>` : ''}`;
+}
+async function checkIn(undo) {
+  try {
+    st.myDays = await api.logTraining(undo);
+    const t = trainStats(st.myDays);
+    toast(undo ? 'Listo, lo sacamos' : `¡Sumado! 💪 ${t.streak ? `Racha: ${t.streak} ${t.streak === 1 ? 'semana' : 'semanas'} 🔥` : ''}`);
+    if (location.hash === '#perfil') renderStudent(); else if (location.hash === '#team') renderTeam(); else if ($('pub')) drawPublic();
+  } catch (e) { toast(errMsg(e)); }
+}
+
+/* Perfil (propio o de otro): cabecera, estadísticas, team y logros */
+function profileParts(me, list, days) {
+  const now = new Date(), ok = b => b.status !== 'cancelled' && b.slot_status !== 'cancelled';
+  const past = list.filter(b => ok(b) && b.status !== 'no_show' && new Date(b.starts_at) < now);
+  const hours = past.reduce((a, b) => a + (b.duration_min || 60), 0) / 60;
+  const byProfe = {}; past.forEach(b => { byProfe[b.profe_name] = (byProfe[b.profe_name] || 0) + 1; });
+  const badges = [
+    ['🏄', 'Primera remada', past.length >= 1], ['🔥', '5 clases', past.length >= 5], ['🏆', '10 clases', past.length >= 10],
+    ['🌅', 'Madrugador', past.some(b => new Date(b.starts_at).getHours() < 9)], ['🌇', 'Atardecer', past.some(b => new Date(b.starts_at).getHours() >= 18)],
+    ['🤝', 'En grupo', past.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', Object.values(byProfe).some(n => n >= 3)],
+    ['🏅', 'Entrenamiento', me.training === 'approved'],
+  ];
+  const ig = me.instagram ? me.instagram.replace(/^@/, '') : '';
+  return {
+    head: `<div class="sp-cover"><svg class="waves" viewBox="0 0 2400 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18C150 4 300 4 450 16S750 32 900 18 1050 4 1200 18 1500 32 1650 18 1950 4 2100 16 2250 30 2400 18V34H0Z"/></svg></div>
+    <div class="sp-head">${avatarHtml(me, 'xl')}
+      <h1>${esc(me.name)}</h1>
+      <div class="tags">${me.training === 'approved' ? '<span class="pill train" style="margin:0">🏅 Team Nativo</span>' : ''}${me.level ? `<span class="pill" style="margin:0">${esc(LEVELS[me.level])}</span>` : ''}${ig ? `<a class="pill" style="margin:0;background:#fbe7f1;color:#c13584;text-decoration:none" href="https://instagram.com/${encodeURIComponent(ig)}" target="_blank" rel="noopener">@${esc(ig)}</a>` : ''}</div>
+      ${me.bio ? `<p class="bio-t">${esc(me.bio)}</p>` : ''}`,
+    stats: `<div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>`,
+    team: me.training === 'approved' || (days || []).length ? days : null,
+    logros: `<div class="section"><div class="label">Logros · ${badges.filter(b => b[2]).length} de ${badges.length}</div>
+      <div class="badges">${badges.map(([i, t, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${t}</div>`).join('')}</div></div>`,
+  };
+}
+
+// Perfil de otro alumno: el staff ve a todos; los del team se ven entre sí.
+async function renderOtherStudent(id) {
+  $('app').innerHTML = `<div class="wrap" id="sp"><div class="loading">Cargando perfil…</div></div>`;
+  if (st.student === undefined) await refreshAccount();
+  if (st.student?.id === id) { location.replace('#perfil'); return; }
+  let r; try { r = await api.studentProfile(id); } catch (e) { if ($('sp')) $('sp').innerHTML = `<div class="card empty" style="margin-top:16px">${esc(errMsg(e))}<div style="margin-top:12px"><a class="btn coral sm" href="#">Volver</a></div></div>`; return; }
+  if (!$('sp')) return;
+  const x = r.student, P = profileParts(x, r.bookings || [], r.train_days || []);
+  $('sp').innerHTML = `<div style="margin-top:10px"><a href="#" onclick="history.length > 1 ? history.back() : (location.hash = '');return false" class="small">‹ Volver</a></div>
+    ${P.head}
+      ${x.phone && st.me?.approved ? `<div class="row" style="justify-content:center;margin-top:12px"><a class="btn wa sm" href="${waLink(x.phone, `Hola ${x.name.split(' ')[0]}!`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} WhatsApp</a></div>` : ''}
+    </div>
+    ${P.stats}${P.team ? teamSection(P.team, false) : ''}${P.logros}<div style="height:30px"></div>`;
+}
+
+// Portal del team: integrantes, su racha y el tablón. Para el grupo y el staff.
+async function renderTeam() {
+  $('app').innerHTML = `<div class="wrap" id="tm"><div class="loading">Cargando el team…</div></div>`;
+  if (st.student === undefined) await refreshAccount();
+  let members, posts = [];
+  try { [members, posts] = await Promise.all([api.teamMembers(), api.teamPosts().catch(() => [])]); }
+  catch (e) { if ($('tm')) $('tm').innerHTML = `<div class="card empty" style="margin-top:16px">🏅 ${esc(errMsg(e))}. Pedí tu insignia desde tu perfil.<div style="margin-top:12px"><a class="btn coral sm" href="#perfil">Ir a mi perfil</a></div></div>`; return; }
+  if (!$('tm')) return;
+  const me = st.student, rows = members.map(m => ({ ...m, t: trainStats(m.train_days || []) }))
+    .sort((a, b) => b.t.streak - a.t.streak || b.t.n - a.t.n || a.name.localeCompare(b.name));
+  const mine = rows.find(m => m.id === me?.id);
+  if (mine) st.myDays = mine.train_days;
+  $('tm').innerHTML = `
+    <div class="team rise" style="margin-top:16px"><h3 style="margin:0 0 4px">🏅 Team Nativo</h3>
+      <p class="small" style="opacity:.8;margin:0 0 12px">${rows.length} ${rows.length === 1 ? 'integrante' : 'integrantes'} · ordenados por racha</p>
+      ${mine ? checkInHtml(mine.t) : ''}</div>
+    <div class="section"><div class="label">Integrantes</div><div class="card" style="padding:4px 14px">
+      ${rows.map((m, i) => `<a class="hist" href="#a-${m.id}" style="text-decoration:none;color:inherit">
+        <span class="rank">${i + 1}</span>${avatarHtml(m)}
+        <span class="who"><b>${esc(m.name)}${m.id === me?.id ? ' (vos)' : ''}</b><br><span class="muted small">${m.t.streak ? `🔥 ${m.t.streak} ${m.t.streak === 1 ? 'semana' : 'semanas'} · ` : ''}${m.t.n} ${m.t.n === 1 ? 'entreno' : 'entrenos'}</span>
+          <span class="mini-weeks">${m.t.last8.map(on => `<i class="${on ? 'on' : ''}"></i>`).join('')}</span></span>
+        <span class="muted">›</span></a>`).join('') || '<p class="muted" style="padding:12px 0">Todavía no hay integrantes.</p>'}</div></div>
+    ${posts.length ? `<div class="section"><div class="label">📣 Tablón del team</div><div class="card" style="padding:4px 14px">${posts.slice(0, 10).map(p => postHtml(p, false)).join('')}</div></div>` : ''}
+    <div style="height:30px"></div>`;
 }
 async function renderStudent() {
   $('app').innerHTML = `<div class="wrap" id="sp"><div class="loading">Cargando…</div></div>`;
@@ -1603,36 +1718,24 @@ async function renderStudent() {
       <p class="small muted" style="margin-top:16px">¿Sos profe? <a href="#staff">Entrá acá</a></p></div>`;
     return;
   }
-  let list = [];
-  try { [list, st.myPasses, st.plans, st.teamPosts] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
-    me.training === 'approved' ? api.teamPosts().catch(() => []) : []]); } catch (e) { toast(errMsg(e)); }
+  let list = [], prof = null;
+  try { [list, st.myPasses, st.plans, st.teamPosts, prof] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
+    me.training === 'approved' ? api.teamPosts().catch(() => []) : [], api.studentProfile(me.id).catch(() => null)]); } catch (e) { toast(errMsg(e)); }
   if (!$('sp')) return;
+  st.myDays = prof?.train_days || st.myDays || [];
   const now = new Date(), ok = b => b.status !== 'cancelled' && b.slot_status !== 'cancelled';
-  const past = list.filter(b => ok(b) && b.status !== 'no_show' && new Date(b.starts_at) < now);
   const next = list.filter(b => ok(b) && addMin(b.starts_at, b.duration_min || 60) >= now).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
-  const hours = past.reduce((a, b) => a + (b.duration_min || 60), 0) / 60;
-  const byProfe = {}; past.forEach(b => { byProfe[b.profe_name] = (byProfe[b.profe_name] || 0) + 1; });
-  const badges = [
-    ['🏄', 'Primera remada', past.length >= 1], ['🔥', '5 clases', past.length >= 5], ['🏆', '10 clases', past.length >= 10],
-    ['🌅', 'Madrugador', past.some(b => new Date(b.starts_at).getHours() < 9)], ['🌇', 'Atardecer', past.some(b => new Date(b.starts_at).getHours() >= 18)],
-    ['🤝', 'En grupo', past.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', Object.values(byProfe).some(n => n >= 3)],
-    ['🏅', 'Entrenamiento', me.training === 'approved'],
-  ];
-  const got = badges.filter(b => b[2]).length;
+  const P = profileParts(me, list, st.myDays);
   const row = b => `<a class="hist" href="#r-${esc(b.code)}" style="text-decoration:none;color:inherit">${avatarHtml({ name: b.profe_name, avatar_url: b.profe_avatar })}
       <span class="who"><b>${esc(fmtDayLong(b.starts_at))} · ${hhmm(b.starts_at)}</b><br><span class="muted">con ${esc(b.profe_name)}${b.people > 1 ? ` · ${b.people} personas` : ''}</span></span>
       ${!ok(b) ? '<span class="pill bad" style="margin:0">Cancelada</span>' : b.status === 'no_show' ? '<span class="pill warn" style="margin:0">No fuiste</span>' : new Date(b.starts_at) < now ? '<span class="pill ok" style="margin:0">✓</span>' : '<span class="muted">›</span>'}</a>`;
-  $('sp').innerHTML = `
-    <div class="sp-cover"><svg class="waves" viewBox="0 0 2400 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18C150 4 300 4 450 16S750 32 900 18 1050 4 1200 18 1500 32 1650 18 1950 4 2100 16 2250 30 2400 18V34H0Z"/></svg></div>
-    <div class="sp-head">${avatarHtml(me, 'xl')}
-      <h1>${esc(me.name)}</h1>
-      <div class="tags">${me.training === 'approved' ? '<span class="pill train" style="margin:0">🏅 Alumno de entrenamiento</span>' : ''}${me.level ? `<span class="pill" style="margin:0">${esc(LEVELS[me.level])}</span>` : ''}${me.instagram ? `<a class="pill" style="margin:0;background:#fbe7f1;color:#c13584;text-decoration:none" href="https://instagram.com/${encodeURIComponent(me.instagram.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(me.instagram.replace(/^@/, ''))}</a>` : ''}</div>
-      ${me.bio ? `<p class="bio-t">${esc(me.bio)}</p>` : ''}
+ $('sp').innerHTML = `
+    ${P.head}
       <div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost sm" onclick="editStudent()">Editar perfil</button><a class="btn coral sm" href="#">Reservar clase</a></div>
       <div style="text-align:center;margin-top:8px"><a href="#" class="small" onclick="showTutorial();return false">¿Cómo funciona Nativo? Ver tutorial</a></div>
     </div>
-    <div class="sp-stats"><div><b class="num">${past.length}</b><span>clases</span></div><div><b class="num">${String(Math.round(hours * 10) / 10).replace('.', ',')}</b><span>horas en el agua</span></div><div><b class="num">${Object.keys(byProfe).length}</b><span>${Object.keys(byProfe).length === 1 ? 'profe' : 'profes'}</span></div></div>
-    ${me.training === 'approved' || past.some(b => b.members_only) ? teamSection(past.filter(b => b.members_only)) : ''}
+    ${P.stats}
+    ${P.team ? teamSection(P.team, me.training === 'approved') : ''}
     ${(() => { const ps = (st.myPasses || []).filter(p => p.status === 'pending' || (p.status === 'active' && p.expires_on >= dayKey(new Date())));
         return ps.length ? ps.map(p => myPassCard(p)).join('') : (st.plans || []).filter(p => p.active).map(planCard).join(''); })()}
     ${me.training === 'approved' ? '' : `<div class="train-card"><i>🏅</i><div style="flex:1">${me.training === 'requested'
@@ -1640,8 +1743,7 @@ async function renderStudent() {
         : `<b>¿Entrenás con nosotros?</b><div class="small">Si ya sos del grupo, pedí tu insignia 🏅. Si te querés sumar, escribile a ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')}.</div>
           <div class="row wrapf" style="margin-top:8px"><button class="btn coral sm" onclick="requestTraining()">Ya entreno: pedir 🏅</button>
           ${CONFIG.TRAINING_CONTACT?.whatsapp ? `<a class="btn wa sm" href="${waLink(CONFIG.TRAINING_CONTACT.whatsapp, `Hola ${CONFIG.TRAINING_CONTACT.name}! Quería info para sumarme a los entrenamientos de SUP de Nativo 🏅`)}" target="_blank" rel="noopener">Quiero sumarme</a>` : ''}</div></div>`}</div>`}
-    <div class="section"><div class="label">Logros · ${got} de ${badges.length}</div>
-      <div class="badges">${badges.map(([i, t, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${t}</div>`).join('')}</div></div>
+    ${P.logros}
     <div class="section"><div class="label">Próximas clases</div>
       ${next.length ? `<div class="card" style="padding:4px 14px">${next.map(row).join('')}</div>` : `<div class="card empty" style="padding:18px">No tenés clases reservadas.<div style="margin-top:10px"><a class="btn coral sm" href="#">Reservar una clase</a></div></div>`}</div>
     ${list.length > next.length ? `<div class="section"><div class="label">Historial</div><div class="card" style="padding:4px 14px">${list.filter(b => !next.includes(b)).map(row).join('')}</div></div>` : ''}
@@ -1915,6 +2017,7 @@ function bookingMenu(id) {
   openModal(`<h2>${esc(b.customer_name)}</h2>
     <div class="sum">${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)} · ${b.people} ${b.people > 1 ? 'personas' : 'persona'} · ${money(b.amount)}<br>
       <span class="muted">Código ${esc(b.code)}${b.customer_phone ? ' · ' + esc(b.customer_phone) : ''}${b.source ? ' · ' + esc(SOURCES[b.source] || b.source) : ''}</span>${b.notes ? `<br><span class="muted">${esc(b.notes)}</span>` : ''}</div>
+    ${b.student_id ? `<a class="btn ghost block" style="margin-bottom:10px" href="#a-${b.student_id}">${b.student?.training === 'approved' ? '🏅 ' : ''}Ver perfil y logros</a>` : ''}
     <div class="label">Estado</div>
     <div class="choice">${Object.entries(STATUS).map(([k, l]) => `<button class="btn ${b.status === k ? 'dark' : k === 'cancelled' ? 'danger' : 'ghost'} block" onclick="closeModal();updBooking('${b.id}',{status:'${k}'})">${b.status === k ? '✓ ' : ''}${k === 'cancelled' ? 'Cancelar reserva' : l}</button>`).join('')}</div>`);
 }
@@ -2353,7 +2456,7 @@ function trainingSection() {
     <p class="small muted" style="margin-bottom:6px">Los aprobados muestran 🏅 en su perfil. Las clases "Solo entrenamiento" no se publican en la web: se manejan por WhatsApp y los profes anotan a los chicos desde la agenda.</p>
     ${req.map(x => `<div class="prow" style="cursor:default">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.training_note || 'Sin mensaje')}</span></span>
       <span class="row" style="flex:none"><button class="btn sm" onclick="setTraining('${x.id}','approved')">Aprobar</button><button class="btn ghost sm" onclick="setTraining('${x.id}','none')" aria-label="Rechazar">✕</button></span></div>`).join('')}
-    ${ok.length ? `<div class="label" style="margin-top:12px">Grupo (${ok.length})</div>${ok.map(x => `<div class="prow" style="cursor:default">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.phone || x.email || '')}</span></span>
+    ${ok.length ? `<div class="row between" style="margin-top:12px"><div class="label" style="margin:0">Grupo (${ok.length})</div><a class="small" href="#team">Ver portal del team ›</a></div>${ok.map(x => `<div class="prow" style="cursor:default"><a href="#a-${x.id}" style="display:contents;color:inherit;text-decoration:none">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.phone || x.email || '')} · ver perfil ›</span></span></a>
       <button class="btn ghost sm" onclick="setTraining('${x.id}','none')">Quitar</button></div>`).join('')}` : ''}
     ${rest.length ? `<div class="label" style="margin-top:14px">Dar acceso a un alumno</div>${studentPicker('tr', rest, 'Buscá por nombre, email o WhatsApp…')}
       <button class="btn block" style="margin-top:8px" onclick="pickerValue('tr') ? setTraining(pickerValue('tr'),'approved') : toast('Buscá y elegí un alumno')">Dar acceso 🏅</button>

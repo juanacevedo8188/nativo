@@ -642,6 +642,86 @@ create trigger team_posts_guard before insert or update on public.team_posts
   for each row execute function public.team_posts_guard();
 grant select, insert, update, delete on public.team_posts to authenticated;
 
+-- "Hoy entrené": cada alumno del grupo suma su entrenamiento con un botón (uno por día).
+create table if not exists public.training_logs (
+  id         uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  day        date not null,
+  created_at timestamptz not null default now(),
+  unique (student_id, day)
+);
+grant select on public.training_logs to authenticated;
+
+-- Días entrenados de un alumno: sus "Hoy entrené" + los entrenamientos donde el profe lo anotó con su cuenta.
+create or replace function public.training_days(p_id uuid) returns date[]
+language sql stable security definer set search_path = public as $fn$
+  select coalesce(array_agg(distinct d order by d), '{}') from (
+    select day as d from training_logs where student_id = p_id
+    union
+    select (s.starts_at at time zone 'America/Argentina/Buenos_Aires')::date
+    from bookings b join slots s on s.id = b.slot_id
+    where b.student_id = p_id and s.members_only and s.starts_at < now()
+      and b.status not in ('cancelled', 'no_show') and s.status <> 'cancelled'
+  ) x;
+$fn$;
+
+create or replace function public.log_training(p_undo boolean default false) returns date[]
+language plpgsql security definer set search_path = public as $fn$
+declare d date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+begin
+  if not exists (select 1 from students where id = auth.uid() and training = 'approved') then
+    raise exception 'Es para el grupo de entrenamiento';
+  end if;
+  if p_undo then delete from training_logs where student_id = auth.uid() and day = d;
+  else insert into training_logs (student_id, day) values (auth.uid(), d) on conflict do nothing;
+  end if;
+  return training_days(auth.uid());
+end $fn$;
+
+-- ¿Puedo ver el perfil de este alumno? El propio, el staff a todos, y el team entre sí.
+create or replace function public.can_view_student(p_id uuid) returns boolean
+language sql stable security definer set search_path = public as $fn$
+  select auth.uid() = p_id or is_staff()
+      or (exists (select 1 from students where id = auth.uid() and training = 'approved')
+          and exists (select 1 from students where id = p_id and training = 'approved'));
+$fn$;
+
+-- Perfil de un alumno para verlo (logros, clases, racha). Sin datos de contacto salvo para el staff.
+create or replace function public.student_profile(p_id uuid) returns json
+language plpgsql stable security definer set search_path = public as $fn$
+declare r json;
+begin
+  if not can_view_student(p_id) then raise exception 'No tenés acceso a este perfil'; end if;
+  select json_build_object(
+    'student', json_build_object('id', st.id, 'name', st.name, 'avatar_url', st.avatar_url, 'bio', st.bio,
+                                 'instagram', st.instagram, 'level', st.level, 'training', st.training,
+                                 'phone', case when is_staff() then st.phone end, 'created_at', st.created_at),
+    'bookings', coalesce((select json_agg(json_build_object('starts_at', s.starts_at, 'duration_min', s.duration_min, 'people', b.people,
+                  'profe_name', p.name, 'members_only', s.members_only, 'status', b.status, 'slot_status', s.status) order by s.starts_at desc)
+                from bookings b join slots s on s.id = b.slot_id join profiles p on p.id = s.profe_id where b.student_id = p_id), '[]'::json),
+    'train_days', to_json(training_days(p_id)))
+  into r from students st where st.id = p_id;
+  if r is null then raise exception 'No encontramos ese perfil'; end if;
+  return r;
+end $fn$;
+
+-- Integrantes del grupo de entrenamiento (para el portal del team). Solo lo ven el team y el staff.
+create or replace function public.team_members()
+returns table (id uuid, name text, avatar_url text, instagram text, level text, train_days date[])
+language plpgsql stable security definer set search_path = public as $fn$
+#variable_conflict use_column
+begin
+  if not (is_staff() or exists (select 1 from students where id = auth.uid() and training = 'approved')) then
+    raise exception 'Es para el grupo de entrenamiento';
+  end if;
+  return query select st.id, st.name, st.avatar_url, st.instagram, st.level, training_days(st.id)
+    from students st where st.training = 'approved' order by st.name;
+end $fn$;
+
+revoke all on function public.training_days(uuid), public.log_training(boolean), public.can_view_student(uuid),
+                       public.student_profile(uuid), public.team_members() from public;
+grant execute on function public.log_training(boolean), public.student_profile(uuid), public.team_members() to authenticated;
+
 -- ───────────────────────────── 5) Permisos (RLS) ─────────────────────────────
 
 alter table public.profiles    enable row level security;
@@ -755,6 +835,11 @@ create policy "avatars update" on storage.objects for update to authenticated
 drop policy if exists "avatars delete" on storage.objects;
 create policy "avatars delete" on storage.objects for delete to authenticated
   using (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
+alter table public.training_logs enable row level security;
+drop policy if exists "training_logs select" on public.training_logs;
+create policy "training_logs select" on public.training_logs for select to authenticated
+  using (student_id = auth.uid() or is_staff());
 
 alter table public.team_posts enable row level security;
 drop policy if exists "team_posts select" on public.team_posts;
