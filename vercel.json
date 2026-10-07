@@ -1,6 +1,45 @@
 {
   "rewrites": [
-    { "source": "/kayak", "destination": "/api/page?sport=kayak" },
-    { "source": "/c/:slot", "destination": "/api/page?slot=:slot" }
+    {
+      "source": "/kayak",
+      "destination": "/api/page?sport=kayak"
+    },
+    {
+      "source": "/c/:slot",
+      "destination": "/api/page?slot=:slot"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/img/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    }
   ]
 }

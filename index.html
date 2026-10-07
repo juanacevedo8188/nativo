@@ -21,14 +21,22 @@
 <meta property="og:image:alt" content="Nativo: Sup, Windsurf y Kayak. Reservá tu clase de SUP en Rosario.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#1f1d1e">
-<link rel="icon" type="image/png" href="img/icon.png">
+<link rel="icon" type="image/png" href="img/favicon.png">
 <link rel="preload" as="image" href="img/icon-sm.webp">
-<link rel="apple-touch-icon" href="img/icon.png">
+<link rel="apple-touch-icon" href="img/apple-touch.png">
+<!-- Instalable como app (Agregar a inicio): ícono propio y pantalla completa -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nativo">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://teoqnlebaglaewbbuyai.supabase.co" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Yellowtail&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<!-- Cliente oficial de Supabase (auth + base de datos). -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Cliente oficial de Supabase (auth + base de datos): se empieza a bajar ya, pero no frena el dibujo
+     de la página (el <script> va al final del body, justo antes del código de la app). -->
+<link rel="preload" as="script" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 <style>
 /* Pensado primero para el celu: botones grandes, todo a un toque, nada que deslizar de costado
    salvo la tira de días. En compu se acomoda en columnas más anchas. */
@@ -365,6 +373,9 @@ textarea.input{min-height:80px;resize:vertical}
 .mini-weeks{display:flex;gap:3px;margin-top:5px;max-width:140px}
 .mini-weeks i{flex:1;height:5px;border-radius:3px;background:#e3e9e6}
 .mini-weeks i.on{background:var(--sea2)}
+.skel{display:grid;gap:10px}
+.skel i{display:block;border-radius:16px;background:linear-gradient(90deg,#e6efea 0%,#f4f9f6 50%,#e6efea 100%);background-size:200% 100%;animation:shimmer 1.2s linear infinite}
+@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
 .live-bar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 32px);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:45;background:var(--sun);color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:10px 18px;font:600 15px var(--f-body);box-shadow:0 4px 0 var(--ink);white-space:nowrap;animation:pop .3s var(--ease) both;cursor:pointer}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 18px rgba(0,0,0,.12)}
 .tabbar button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:#b9c7c3;font-size:11.5px;font-weight:600;padding:6px 2px;border-radius:12px;transition:color .2s,background .2s}
@@ -451,6 +462,7 @@ details.more[open]>summary::after{content:"－"}
 </div></div>
 <div id="toast" class="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ════════════════════════════ CONFIGURACIÓN ════════════════════════════
    Completá con los datos de tu proyecto de Supabase
@@ -1074,19 +1086,32 @@ async function renderPublic() {
     </div>
     <svg class="waves" viewBox="0 0 2400 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18C150 4 300 4 450 16S750 32 900 18 1050 4 1200 18 1500 32 1650 18 1950 4 2100 16 2250 30 2400 18V34H0Z"/></svg>
     </section>
-    <div class="wrap" id="pub"><div class="loading">Cargando horarios…</div></div>
+    <div class="wrap" id="pub">${pubSkeleton()}</div>
     <div class="foot wrap">
       <a class="btn wa ${CONFIG.WHATSAPP ? '' : 'hidden'}" id="foot-wa" href="${CONFIG.WHATSAPP ? waLink(CONFIG.WHATSAPP, 'Hola Nativo! Tengo una consulta') : '#'}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} ¿Dudas? Escribinos</a>
       <div class="links"><a href="#" onclick="showTutorial();return false">¿Cómo funciona?</a>${MP_ON ? `<a href="#" onclick="openPayByCode();return false">Pagar mi reserva</a>` : ''}<a href="#staff">Acceso profes</a></div>
     </div>`;
+  // Abre al instante con lo último que vio (guardado en el celu) y se actualiza solo en un segundo.
+  const cached = DEMO ? null : store.get(PUB_CACHE, null);
+  let shown = false;
+  if (cached && Date.now() - cached.at < 12 * 3600e3) {
+    Object.assign(st, { types: cached.types, profes: cached.profes, plans: cached.plans, pub: cached.pub.filter(x => new Date(x.starts_at) > new Date()) });
+    if ($('pub') && st.pub.length) { drawPublic(); shown = true; }
+  }
   try {
     const from = startOfDay(new Date()), to = addDays(from, CONFIG.DAYS_AHEAD);
-    [st.types, st.profes, st.pub, st.plans] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => []), syncMine()]);
-    if ($('pub')) drawPublic();
+    const [types, profes, pub, plans] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => []), syncMine()]);
+    Object.assign(st, { types, profes, pub, plans });
+    if (!DEMO) store.set(PUB_CACHE, { at: Date.now(), types, profes, pub, plans });
+    if ($('pub') && (!shown || $('modal').classList.contains('hidden'))) { const y = window.scrollY; drawPublic(); if (shown) window.scrollTo(0, y); }
   } catch (e) {
-    if ($('pub')) $('pub').innerHTML = `<div class="card empty" style="margin-top:14px">No pudimos cargar los horarios. ${esc(errMsg(e))}</div>`;
+    if ($('pub') && !shown) $('pub').innerHTML = `<div class="card empty" style="margin-top:14px">No pudimos cargar los horarios. ${esc(errMsg(e))}</div>`;
   }
 }
+const PUB_CACHE = 'nativo_pub_v1';
+// Mientras llegan los horarios: la forma de la página (no un "Cargando…").
+const pubSkeleton = () => `<div class="skel" aria-label="Cargando horarios" style="margin-top:16px"><i style="height:84px"></i><i style="height:18px;width:40%"></i>
+  <div class="row" style="gap:6px">${'<i style="height:62px;flex:1"></i>'.repeat(5)}</div><i style="height:96px"></i><i style="height:96px"></i></div>`;
 const heroFacts = t => `<span><b>${t.duration_min}</b> min</span><span><b>${money(t.price)}</b> por persona</span><span>${(t.sport || 'sup') === 'kayak' ? 'kayak, pala y chaleco incluidos' : 'tabla, remo y chaleco incluidos'}</span>`;
 
 /* Disciplinas: SUP y kayak comparten página y agenda; se eligen con pestañas arriba. */
@@ -1697,9 +1722,10 @@ function tutoDone(go) {
 }
 async function refreshAccount() {
   try { [st.student, st.me] = await Promise.all([api.student(), api.me()]); } catch { st.student = null; }
-  st.myPasses = st.student ? await api.myPasses().catch(() => []) : [];
-  st.teamPosts = st.student?.training === 'approved' ? await api.teamPosts().catch(() => []) : [];
-  st.myDays = st.student?.training === 'approved' ? (await api.studentProfile(st.student.id).catch(() => null))?.train_days || [] : [];
+  const tr = st.student?.training === 'approved';   // lo que falta, todo junto (no uno atrás del otro)
+  const [passes, posts, prof] = await Promise.all([st.student ? api.myPasses().catch(() => []) : [], tr ? api.teamPosts().catch(() => []) : [],
+    tr ? api.studentProfile(st.student.id).catch(() => null) : null]);
+  st.myPasses = passes; st.teamPosts = posts; st.myDays = prof?.train_days || [];
   drawNav();
   if ($('pub') && st.pub?.length) drawPublic();          // muestra "Tu abono" en vez de la oferta
   setTimeout(maybeTutorial, 700);
@@ -2036,7 +2062,7 @@ async function refreshPublic() {
     if ($('pub') && $('modal').classList.contains('hidden')) { const y = window.scrollY; drawPublic(); window.scrollTo(0, y); }
   } catch {}
 }
-async function logout() { stopLive(); await api.signOut(); st.me = null; st.student = null; st.tab = null; drawNav(); renderStaff(); }
+async function logout() { stopLive(); try { Object.keys(localStorage).filter(k => k.startsWith('nativo_agenda_')).forEach(k => localStorage.removeItem(k)); } catch {} await api.signOut(); st.me = null; st.student = null; st.tab = null; drawNav(); renderStaff(); }
 function paneMore() {
   paneEl().innerHTML = `<div class="menu">
     <button class="btn ghost block" onclick="setTab('abonos')"><span>💳 Abonos</span><span>›</span></button>
@@ -2118,12 +2144,27 @@ async function paneAgenda() {
   const now = new Date();
   const from = st.agendaPast ? addDays(startOfDay(now), -30) : startOfDay(now);
   const to = st.agendaPast ? now : addDays(startOfDay(now), 60);
-  const isAdmin = st.me.role === 'admin';
+  const isAdmin = st.me.role === 'admin', key = 'nativo_agenda_' + st.me.id;
+  // Abre al instante con la última agenda guardada en este celu y se actualiza sola enseguida.
+  const cached = !st.agendaPast && !DEMO ? store.get(key, null) : null;
+  let shown = false;
+  if (cached && Date.now() - cached.at < 6 * 3600e3 && !paneEl().querySelector('.sslot')) {
+    st.staffSlots = cached.slots; if (!st.types?.length) st.types = cached.types || [];
+    if (isAdmin && !st.allProfiles.length) st.allProfiles = cached.profiles || [];
+    drawAgenda(isAdmin); shown = true;
+  }
   try {
-    st.staffSlots = await api.staffSlots(from, to);
-    if (!st.types?.length) st.types = await api.classTypes().catch(() => []);
-    if (isAdmin && !st.allProfiles.length) st.allProfiles = await api.profiles();
-  } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+    const [slots, types, profiles] = await Promise.all([api.staffSlots(from, to), st.types?.length && !shown ? st.types : api.classTypes().catch(() => st.types || []),
+      isAdmin && (!st.allProfiles.length || shown) ? api.profiles() : st.allProfiles]);
+    st.staffSlots = slots; st.types = types; if (isAdmin) st.allProfiles = profiles;
+    if (!st.agendaPast && !DEMO) store.set(key, { at: Date.now(), slots, types, profiles: isAdmin ? profiles : [] });
+  } catch (e) { if (!shown) paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  if (st.tab !== 'agenda' || !$('pane')) return;
+  if (shown && staffBusy()) return;              // no pisar lo que estás haciendo; se ve al cerrar
+  const y = window.scrollY; drawAgenda(isAdmin); if (shown) window.scrollTo(0, y);
+}
+function drawAgenda(isAdmin) {
+  const now = new Date();
   let list = st.staffSlots.filter(s => !st.agendaProfe || s.profe_id === st.agendaProfe);
   if (st.agendaPast) list = list.reverse();
   // Las suspendidas no ocupan lugar: quedan ocultas y se pueden ver o borrar desde un botón.
@@ -2985,6 +3026,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
   if (cm) st.openSlot = cm[1].toLowerCase();
   if (km) st.fSport = km[1].toLowerCase();
   if (cm || km) history.replaceState(null, '', '/' + location.search + location.hash); }
+// Service worker (abre rápido y aguanta mala señal). Solo en el sitio real, no en la demo.
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !DEMO) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 const QS = new URLSearchParams(location.search);
 if (QS.has('code') || QS.has('error_description')) {
   // Vuelta desde Google: supabase-js canjea el ?code= por la sesión; después seguimos donde estaba.
