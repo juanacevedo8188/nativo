@@ -183,7 +183,7 @@ img.avatar.xl{border:4px solid var(--ink)}
 .sp-stats span{font-size:12.5px;color:var(--ink2)}
 .badges{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 @media(max-width:360px){.badges{grid-template-columns:repeat(3,1fr)}}
-.badge-i{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:10px 4px;text-align:center;font-size:11.5px;font-weight:700;line-height:1.2}
+.badge-i{cursor:pointer;color:inherit;font-family:inherit;width:100%;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:10px 4px;text-align:center;font-size:11.5px;font-weight:700;line-height:1.2}
 .badge-i i{display:block;font-style:normal;font-size:30px;line-height:1.2}
 .badge-i.off{opacity:.45;filter:grayscale(1)}
 .badge-i.on{border-color:var(--ink);background:var(--coral-soft);animation:pop .4s var(--ease) both}
@@ -1607,7 +1607,7 @@ function maybeTutorial() {
     return showTutorial(true);
   }
   // Ya vio el tutorial antes de que existiera lo del team: si es del grupo, le mostramos solo esa parte una vez.
-  if (me.training === 'approved' && !store.get(TUTO_TEAM, []).includes(me.id)) {
+  if (me.training === 'approved' && st.fSport !== 'kayak' && !store.get(TUTO_TEAM, []).includes(me.id)) {
     store.set(TUTO_TEAM, [...new Set([...store.get(TUTO_TEAM, []), me.id])]);
     showTutorial(false, [{ em: '🎉', h: `¡Novedades del team${me.name ? ', ' + esc(me.name.split(' ')[0]) : ''}!`, p: 'Sumamos cosas nuevas para los que entrenan. Te las mostramos en 30 segundos.' }, ...TEAM_SLIDES]);
   }
@@ -1620,7 +1620,8 @@ async function showTutorial(first, only) {
   const t = (st.types || []).find(x => x.active && !x.members_only && (x.sport || 'sup') === 'sup'), plan = (st.plans || []).find(p => p.active && (p.sport || 'sup') === 'sup');
   const tc = CONFIG.TRAINING_CONTACT, pc = CONFIG.PASS_CONTACT;
   if (!st.profes?.length) st.profes = await api.publicProfes().catch(() => []);
-  const kay = (st.types || []).filter(x => x.active && !x.members_only && x.sport === 'kayak').sort((a, b) => a.price - b.price)[0], kc = sportContact('kayak', null);
+  // Tutorial según la pestaña: en Kayak, el de kayak; en SUP, el de SUP (el de siempre).
+  if (st.fSport === 'kayak') return kayakTutorial(first);
   const S = [
     { em: '🏄', h: name ? `¡Bienvenido/a, ${esc(name)}!` : '¡Bienvenido/a a Nativo!',
       p: `Somos una escuela de stand up paddle en ${esc(CONFIG.LOCATION)}. Te mostramos en 1 minuto cómo funciona todo.` },
@@ -1630,8 +1631,6 @@ async function showTutorial(first, only) {
       steps: [`¿No podés ir? Cancelala desde la reserva hasta ${CONFIG.CANCEL_HOURS} h antes`, 'Tus clases quedan en "Tus próximas clases" y en tu perfil'] },
     plan && { em: '💳', h: `${esc(plan.name)}`, p: `${money(plan.price)} = ${plan.classes} clases en ${plan.days_valid} días (${money(Math.round(plan.price / plan.classes))} c/u${t ? `, ahorrás ${money(t.price * plan.classes - plan.price)}` : ''}).`,
       steps: [`Tocá "Lo quiero" y le escribís a ${esc(pc?.name || 'la escuela')} para pagarlo`, 'Cuando se confirma el pago, se activa en tu cuenta', 'Al reservar elegís "Usar mi abono"; en tu perfil ves clases y días que te quedan'] },
-    kay && { em: '🛶', h: 'Escuela de kayak', p: `También tenemos kayak${kc?.name ? ` con ${esc(kc.name)}` : ''}: clases de iniciación y <b>travesías</b> por el río${kay.price ? ` (desde ${money(kay.price)})` : ''}.`,
-      steps: ['Arriba de los horarios elegí la pestaña "🛶 Kayak"', 'Las travesías se ven resaltadas con 🧭', `Su abono es aparte, y las dudas van directo${kc?.name ? ` a ${esc(kc.name)}` : ' al profe de kayak'} por WhatsApp`] },
     { em: '🏅', h: 'Grupo de entrenamiento', p: `Para los que ya reman seguido: días fijos con profe. Se coordina por WhatsApp${tc?.name ? ` con ${esc(tc.name)}` : ''}.`,
       steps: ['Desde tu perfil: "Quiero sumarme" para pedir info', 'Si ya entrenás: "Ya entreno: pedir 🏅"', me?.training === 'approved' ? 'Ya sos del team: te mostramos cómo funciona 👉' : 'Ya en el team: sumás tus entrenos con "Hoy entrené", tenés racha, logros y el portal del grupo'] },
     ...(me?.training === 'approved' ? TEAM_SLIDES : []),
@@ -1639,6 +1638,30 @@ async function showTutorial(first, only) {
   ].filter(Boolean);
   st.tuto = { S, i: 0, first: !!first };
   if (me) store.set(TUTO, [...new Set([...store.get(TUTO, []), me.id])]);   // visto (aunque lo cierre con ✕)
+  openModal(`<div class="tuto" id="tuto"></div>`);
+  drawTuto(); tutoSwipe();
+}
+function kayakTutorial(first) {
+  const me = st.student, name = me?.name?.split(' ')[0], kc = sportContact('kayak', null);
+  const kt = (st.types || []).filter(x => x.active && !x.members_only && x.sport === 'kayak');
+  const ini = kt.find(x => (x.kind || 'iniciacion') === 'iniciacion'), trav = kt.find(x => x.kind === 'travesia');
+  const plan = (st.plans || []).find(p => p.active && p.sport === 'kayak');
+  const who = kc?.name ? esc(kc.name) : 'el profe de kayak';
+  const S = [
+    { em: '🛶', h: name ? `¡Bienvenido/a al kayak, ${esc(name)}!` : '¡Bienvenido/a a Nativo Kayak!',
+      p: `La escuela de kayak de Nativo${kc?.name ? `, con ${esc(kc.name)}` : ''}, en ${esc(CONFIG.LOCATION)}. Te mostramos en 1 minuto cómo funciona.` },
+    { em: '📅', h: 'Reservar una salida', p: ini ? `${esc(ini.name)}: ${ini.duration_min} min${ini.price ? `, ${money(ini.price)} por persona` : ''}. Kayak, pala y chaleco incluidos.` : 'Elegís la salida, el día y el horario.',
+      steps: ['Quedate en la pestaña "🛶 Kayak"', 'Elegí el día y el horario', 'Confirmá: tu nombre y WhatsApp ya están cargados'] },
+    { em: '🧭', h: 'Travesías', p: `Salidas más largas por el río, resaltadas en la agenda con 🧭${trav ? `. Ej.: ${esc(trav.name)}, ${trav.duration_min >= 120 ? String(Math.round(trav.duration_min / 6) / 10).replace('.', ',') + ' h' : trav.duration_min + ' min'}${trav.price ? `, ${money(trav.price)}` : ''}` : ''}.`,
+      steps: ['Si te pasan el link de una travesía, entrás directo a reservarla', `¿Dudas sobre el recorrido? Escribile a ${who}`] },
+    { em: '🎟️', h: 'Tu reserva', p: 'Te queda un comprobante para guardar en el celu, agregar al calendario y ver cómo llegar.',
+      steps: [`¿No podés ir? Cancelala desde la reserva hasta ${CONFIG.CANCEL_HOURS} h antes`, `Para cambios o consultas, el WhatsApp va directo a ${who}`] },
+    plan && { em: '💳', h: esc(plan.name), p: `${money(plan.price)} = ${plan.classes} salidas en ${plan.days_valid} días (${money(Math.round(plan.price / plan.classes))} c/u). Es solo para kayak.`,
+      steps: [`Tocá "Lo quiero" y le escribís a ${who} para pagarlo`, 'Cuando se confirma, al reservar elegís "Usar mi abono"'] },
+    { em: '🏆', h: 'Tus logros de kayak', p: 'En tu perfil tenés tus logros de kayak: primera salida, 5 y 10 salidas, primera travesía, 3 travesías, remada larga y más.', last: true },
+  ].filter(Boolean);
+  st.tuto = { S, i: 0, first: !!first };
+  if (me) store.set(TUTO, [...new Set([...store.get(TUTO, []), me.id])]);
   openModal(`<div class="tuto" id="tuto"></div>`);
   drawTuto(); tutoSwipe();
 }
@@ -1714,9 +1737,29 @@ function trainStats(days = []) {
   return { n: ds.length, streak, best, week: Math.max(0, ...Object.values(perWeek)), month, today: ds.includes(dayKey(new Date())),
     last8: Array.from({ length: 8 }, (_, i) => !!perWeek[dayKey(addDays(thisW, (i - 7) * 7))]) };
 }
+// Cada logro: [ícono, nombre, logrado, cómo se consigue, [progreso, meta]]
 const teamBadges = t => [
-  ['🎯', '1er entreno', t.n >= 1], ['💪', '10 entrenos', t.n >= 10], ['🦾', '25 entrenos', t.n >= 25], ['🏆', '50 entrenos', t.n >= 50],
-  ['🔥', 'Racha 4 semanas', t.best >= 4], ['⚡', 'Racha 8 semanas', t.best >= 8], ['📅', '3 en una semana', t.week >= 3], ['🗓️', '12 en un mes', t.month >= 12]];
+  ['🎯', '1er entreno', t.n >= 1, 'Sumá tu primer entrenamiento con "💪 Hoy entrené".', [t.n, 1]],
+  ['💪', '10 entrenos', t.n >= 10, 'Llegá a 10 entrenamientos.', [t.n, 10]],
+  ['🦾', '25 entrenos', t.n >= 25, 'Llegá a 25 entrenamientos.', [t.n, 25]],
+  ['🏆', '50 entrenos', t.n >= 50, 'Llegá a 50 entrenamientos.', [t.n, 50]],
+  ['🔥', 'Racha 4 semanas', t.best >= 4, 'Entrená al menos 1 vez por semana, 4 semanas seguidas.', [t.best, 4]],
+  ['⚡', 'Racha 8 semanas', t.best >= 8, 'Entrená al menos 1 vez por semana, 8 semanas seguidas.', [t.best, 8]],
+  ['📅', '3 en una semana', t.week >= 3, 'Entrená 3 veces en una misma semana (de lunes a domingo).', [t.week, 3]],
+  ['🗓️', '12 en un mes', t.month >= 12, 'Entrená 12 veces en 30 días.', [t.month, 12]]];
+const badgeHtml = ([i, x, on, how, pr]) => `<button type="button" class="badge-i ${on ? 'on' : 'off'}" onclick="badgeInfo(this)" data-i="${esc(i)}" data-t="${esc(x)}" data-on="${on ? 1 : ''}" data-h="${esc(how || '')}" data-p="${pr ? Math.min(pr[0], pr[1]) + '/' + pr[1] : ''}"><i>${i}</i>${x}</button>`;
+// Tocar un logro: qué hace falta para conseguirlo y cuánto falta.
+function badgeInfo(el) {
+  const d = el.dataset, [cur, goal] = (d.p || '').split('/').map(Number), on = !!d.on;
+  openModal(`<div style="text-align:center"><div class="big-emoji" style="${on ? '' : 'filter:grayscale(1);opacity:.6'}">${d.i}</div>
+    <h2 style="margin:4px 0 6px">${d.t}</h2>
+    ${on ? '<span class="pill ok">✓ ¡Logrado!</span>' : '<span class="pill gray">Todavía no</span>'}
+    <p style="margin:12px auto 0;max-width:320px">${d.h}</p>
+    ${!on && goal > 1 ? `<div style="max-width:280px;margin:14px auto 0"><div class="pass-bar" style="height:10px"><i style="width:${Math.round(cur / goal * 100)}%"></i></div>
+      <p class="small muted" style="margin-top:6px">Vas ${cur} de ${goal} · ${goal - cur === 1 ? 'te falta 1' : `te faltan ${goal - cur}`}</p></div>` : ''}
+    <p class="tiny muted" style="margin-top:12px">Cuentan las clases ya hechas, no las reservas a futuro.</p></div>
+    <div class="sheet-foot"><button class="btn block" onclick="closeModal()">Listo</button></div>`);
+}
 const weeksBar = t => `<div class="weeks" aria-label="Últimas 8 semanas">${t.last8.map(on => `<i class="${on ? 'on' : ''}"></i>`).join('')}</div>`;
 const checkInHtml = t => t.today
   ? `<div class="checkin done"><span>✓ Hoy entrenaste 💪</span><button class="btn ghost sm" onclick="checkIn(true)">Deshacer</button></div>`
@@ -1729,7 +1772,7 @@ function teamSection(days, own) {
       ${weeksBar(t)}
       <div class="tiny" style="opacity:.75;display:flex;justify-content:space-between"><span>hace 8 semanas</span><span>esta semana</span></div>
       <div class="label" style="color:#fff;opacity:.8;margin:14px 0 8px">Logros del team · ${b.filter(x => x[2]).length} de ${b.length}</div>
-      <div class="badges">${b.map(([i, x, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${x}</div>`).join('')}</div>
+      <div class="badges">${b.map(badgeHtml).join('')}</div>
       ${own ? `<p class="tiny" style="opacity:.7;margin:10px 0 0">${t.streak ? '¡No cortes la racha: entrená al menos una vez por semana!' : 'Entrená una vez por semana para arrancar tu racha 🔥'}</p>` : ''}</div>
     ${posts.length ? `<div class="section"><div class="label">📣 Tablón del team</div><div class="card" style="padding:4px 14px">${posts.slice(0, 8).map(p => postHtml(p, false)).join('')}</div></div>` : ''}`;
 }
@@ -1750,23 +1793,33 @@ function profileParts(me, list, days) {
   const byProfe = {}; past.forEach(b => { byProfe[b.profe_name] = (byProfe[b.profe_name] || 0) + 1; });
   // Logros por disciplina: los de SUP y los de kayak van aparte (un alumno puede hacer las dos).
   const sup = past.filter(b => (b.sport || 'sup') === 'sup'), kay = past.filter(b => b.sport === 'kayak');
-  const fiel = list => { const c = {}; list.forEach(b => { c[b.profe_name] = (c[b.profe_name] || 0) + 1; }); return Object.values(c).some(n => n >= 3); };
+  const sameProfe = list => { const c = {}; list.forEach(b => { c[b.profe_name] = (c[b.profe_name] || 0) + 1; }); return Math.max(0, ...Object.values(c)); };
+  const fiel = list => sameProfe(list) >= 3;
   const hr = b => new Date(b.starts_at).getHours();
   const badges = [
-    ['🏄', 'Primera remada', sup.length >= 1], ['🔥', '5 clases', sup.length >= 5], ['🏆', '10 clases', sup.length >= 10],
-    ['🌅', 'Madrugador', sup.some(b => hr(b) < 9)], ['🌇', 'Atardecer', sup.some(b => hr(b) >= 18)],
-    ['🤝', 'En grupo', sup.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', fiel(sup)],
-    ['🏅', 'Entrenamiento', me.training === 'approved'],
+    ['🏄', 'Primera remada', sup.length >= 1, 'Hacé tu primera clase de SUP.', [sup.length, 1]],
+    ['🔥', '5 clases', sup.length >= 5, 'Completá 5 clases de SUP.', [sup.length, 5]],
+    ['🏆', '10 clases', sup.length >= 10, 'Completá 10 clases de SUP.', [sup.length, 10]],
+    ['🌅', 'Madrugador', sup.some(b => hr(b) < 9), 'Hacé una clase que empiece antes de las 9 de la mañana.'],
+    ['🌇', 'Atardecer', sup.some(b => hr(b) >= 18), 'Hacé una clase que empiece a las 18 o más tarde.'],
+    ['🤝', 'En grupo', sup.some(b => b.people >= 2), 'Reservá una clase para 2 personas o más: venite con alguien.'],
+    ['⭐', 'Fiel a su profe', fiel(sup), 'Hacé 3 clases con el mismo profe.', [sameProfe(sup), 3]],
+    ['🏅', 'Entrenamiento', me.training === 'approved', 'Sumate al grupo de entrenamiento: pedí tu 🏅 desde tu perfil.'],
   ];
   const trav = kay.filter(b => b.kind === 'travesia');
   const kBadges = [
-    ['🛶', 'Primera salida', kay.length >= 1], ['🔥', '5 salidas', kay.length >= 5], ['🏆', '10 salidas', kay.length >= 10],
-    ['🧭', 'Primera travesía', trav.length >= 1], ['🗺️', '3 travesías', trav.length >= 3], ['⏱️', 'Remada larga (3 h+)', kay.some(b => (b.duration_min || 0) >= 180)],
-    ['🤝', 'En grupo', kay.some(b => b.people >= 2)], ['⭐', 'Fiel a su profe', fiel(kay)],
+    ['🛶', 'Primera salida', kay.length >= 1, 'Hacé tu primera salida en kayak.', [kay.length, 1]],
+    ['🔥', '5 salidas', kay.length >= 5, 'Completá 5 salidas en kayak.', [kay.length, 5]],
+    ['🏆', '10 salidas', kay.length >= 10, 'Completá 10 salidas en kayak.', [kay.length, 10]],
+    ['🧭', 'Primera travesía', trav.length >= 1, 'Hacé tu primera travesía en kayak (las marcadas con 🧭).', [trav.length, 1]],
+    ['🗺️', '3 travesías', trav.length >= 3, 'Completá 3 travesías en kayak.', [trav.length, 3]],
+    ['⏱️', 'Remada larga (3 h+)', kay.some(b => (b.duration_min || 0) >= 180), 'Hacé una salida de 3 horas o más.'],
+    ['🤝', 'En grupo', kay.some(b => b.people >= 2), 'Reservá una salida para 2 personas o más.'],
+    ['⭐', 'Fiel a su profe', fiel(kay), 'Hacé 3 salidas con el mismo profe.', [sameProfe(kay), 3]],
   ];
   const doneK = list.some(b => b.sport === 'kayak' && b.status !== 'cancelled'), doneS = list.some(b => (b.sport || 'sup') === 'sup' && b.status !== 'cancelled');
   const grid = (title, bs) => `<div class="section"><div class="label">${title} · ${bs.filter(b => b[2]).length} de ${bs.length}</div>
-      <div class="badges">${bs.map(([i, t, on]) => `<div class="badge-i ${on ? 'on' : 'off'}"><i>${i}</i>${t}</div>`).join('')}</div></div>`;
+      <div class="badges">${bs.map(badgeHtml).join('')}</div></div>`;
   const ig = me.instagram ? me.instagram.replace(/^@/, '') : '';
   return {
     head: `<div class="sp-cover"><svg class="waves" viewBox="0 0 2400 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18C150 4 300 4 450 16S750 32 900 18 1050 4 1200 18 1500 32 1650 18 1950 4 2100 16 2250 30 2400 18V34H0Z"/></svg></div>
