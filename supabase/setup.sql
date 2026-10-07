@@ -1200,10 +1200,10 @@ drop policy if exists "reviews hide" on public.reviews;
 create policy "reviews hide" on public.reviews for update to authenticated using (is_admin()) with check (is_admin());
 alter table public.gift_cards enable row level security;
 drop policy if exists "gift_cards admin" on public.gift_cards;
-create policy "gift_cards admin" on public.gift_cards for all to authenticated using (is_admin()) with check (is_admin());
+create policy "gift_cards admin" on public.gift_cards for all to authenticated using (can_manage_sport(sport)) with check (can_manage_sport(sport));
 alter table public.group_requests enable row level security;
 drop policy if exists "group_requests admin" on public.group_requests;
-create policy "group_requests admin" on public.group_requests for all to authenticated using (is_admin()) with check (is_admin());
+create policy "group_requests admin" on public.group_requests for all to authenticated using (can_manage_sport(sport)) with check (can_manage_sport(sport));
 
 alter table public.training_logs enable row level security;
 drop policy if exists "training_logs select" on public.training_logs;

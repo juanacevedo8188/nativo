@@ -515,7 +515,7 @@ const CONFIG = {
   MAPS: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Guardería Barlovento Rosario'),  // botón "Cómo llegar"
   DAYS_AHEAD: 21,
   // Pronóstico en cada clase (Open-Meteo, gratis y sin clave). Aviso si el viento o las ráfagas pasan estos km/h.
-  WEATHER: { lat: -32.905, lon: -60.672, windWarn: 25, gustWarn: 40 },
+  WEATHER: { lat: -32.905, lon: -60.672, windWarn: 35, gustWarn: 50 },
   // Link para dejar reseña en Google (Google Maps → tu negocio → "Pedir reseñas"). Vacío = no se muestra.
   GOOGLE_REVIEW_URL: '',
   // Texto del deslinde que acepta cada alumno (revisalo con un abogado y cambialo acá).
@@ -673,6 +673,8 @@ function sportContact(sport, fallback) {
   return fallback;
 }
 const schoolContact = () => CONFIG.WHATSAPP ? { name: '', whatsapp: CONFIG.WHATSAPP } : null;
+// Regla de la escuela: lo de SUP lo atiende Torita, lo de kayak lo atiende Mati.
+const sportOwner = sport => sportContact(sport, CONFIG.PASS_CONTACT?.whatsapp ? CONFIG.PASS_CONTACT : schoolContact());
 // WhatsApp para escribirle a un profe desde la página pública. Si el profe no muestra su número,
 // el mensaje va al WhatsApp de la escuela nombrando al profe.
 function profeWa(name, phone, extra = '') {
@@ -1432,12 +1434,12 @@ async function openSharedSlot() {
 }
 /* ── Gift cards: regalar una clase o un abono ── */
 function openGift() {
-  const opts = [];
-  Object.entries(SPORTS).forEach(([k, x]) => { const t = (st.types || []).filter(t => t.active && !t.members_only && (t.sport || 'sup') === k && +t.price).sort((a, b) => a.price - b.price)[0];
-    if (t) opts.push({ v: `clase:${k}`, l: `1 clase de ${x.label}`, p: t.price, em: x.em }); });
-  (st.plans || []).filter(p => p.active).forEach(p => opts.push({ v: `abono:${p.id}`, l: p.name, p: p.price, em: '💳' }));
-  if (!opts.length) return toast('Todavía no hay clases para regalar');
-  openModal(`<h2>🎁 Regalá una clase</h2>
+  const sp = st.fSport || 'sup', x = SPORTS[sp], opts = [];   // lo de la pestaña en la que estás
+  const t = (st.types || []).filter(t => t.active && !t.members_only && (t.sport || 'sup') === sp && +t.price).sort((a, b) => a.price - b.price)[0];
+  if (t) opts.push({ v: `clase:${sp}`, l: `1 clase de ${x.label}`, p: t.price, em: x.em });
+  (st.plans || []).filter(p => p.active && (p.sport || 'sup') === sp).forEach(p => opts.push({ v: `abono:${p.id}`, l: p.name, p: p.price, em: '💳' }));
+  if (!opts.length) return toast(`Todavía no hay clases de ${x.label} para regalar`);
+  openModal(`<h2>🎁 Regalá ${sp === 'kayak' ? 'kayak' : 'una clase de SUP'}</h2>
     <p class="small muted" style="margin-bottom:12px">Pedís el regalo, coordinás el pago por WhatsApp y te mandamos la tarjeta con el código para que se la pases.</p>
     <div id="gf-err"></div>
     <form onsubmit="doGift(event)">
@@ -1453,7 +1455,7 @@ async function doGift(ev) {
   const g = { kind, sport: kind === 'clase' ? ref : null, plan: kind === 'abono' ? ref : null, buyer: f.buyer.value.trim(), buyerPhone: f.buyerPhone.value.trim(), recipient: f.recipient.value.trim(), message: f.message.value.trim() };
   try {
     const code = await api.requestGift(g);
-    const sp = kind === 'clase' ? ref : (st.plans || []).find(p => p.id === ref)?.sport || 'sup', c = sportContact(sp, CONFIG.PASS_CONTACT?.whatsapp ? CONFIG.PASS_CONTACT : schoolContact());
+    const sp = kind === 'clase' ? ref : (st.plans || []).find(p => p.id === ref)?.sport || 'sup', c = sportOwner(sp);
     const what = f.querySelector('input[name=what]:checked')?.parentElement.textContent.replace(/\s+/g, ' ').trim() || '';
     $('modal-body').innerHTML = `<button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button><div style="text-align:center"><div class="big-emoji">🎁</div><h2>¡Regalo pedido!</h2>
       <p>Código: <b class="num" style="font-size:20px">${esc(code)}</b></p>
@@ -1494,13 +1496,13 @@ async function redeemGiftPage(code) {
 
 /* ── Clases privadas y grupales ── */
 function openGroup() {
-  const kay = (st.types || []).some(t => t.active && t.sport === 'kayak');
-  openModal(`<h2>👥 Clases privadas y grupales</h2>
+  const sp = st.fSport || 'sup';
+  openModal(`<h2>👥 Clases privadas y grupales de ${SPORTS[sp].label}</h2>
     <p class="small muted" style="margin-bottom:12px">Cumpleaños, empresas, grupos de amigos o una clase solo para vos. Dejanos los datos y te escribimos con opciones y precio.</p>
     <div id="gr-err"></div>
     <form onsubmit="doGroup(event)">
       <div class="field"><span class="flabel">¿Qué tenés en mente?</span><div class="seg">${[['cumple', '🎂 Cumple'], ['empresa', '🏢 Empresa'], ['grupo', '👯 Grupo'], ['privada', '🙋 Privada']].map(([k, l], i) => `<label><input type="radio" name="kind" value="${k}" ${i ? '' : 'checked'}>${l}</label>`).join('')}</div></div>
-      ${kay ? `<div class="field"><span class="flabel">Actividad</span><div class="seg"><label><input type="radio" name="sport" value="sup" checked>🏄 SUP</label><label><input type="radio" name="sport" value="kayak">🛶 Kayak</label></div></div>` : '<input type="hidden" name="sport" value="sup">'}
+      <input type="hidden" name="sport" value="${sp}">
       <div class="grid2"><div class="field"><label for="gr-people">¿Cuántos son?</label><input class="input" id="gr-people" name="people" type="number" inputmode="numeric" min="1" max="200" value="6"></div>
         <div class="field"><label for="gr-when">¿Cuándo?</label><input class="input" id="gr-when" name="preferred" maxlength="120" placeholder="Ej: un sábado de noviembre"></div></div>
       <div class="grid2"><div class="field"><label for="gr-name">Tu nombre</label><input class="input" id="gr-name" name="name" required maxlength="60" value="${esc(st.student?.name || '')}"></div>
@@ -1513,7 +1515,9 @@ async function doGroup(ev) {
   try {
     await api.requestGroup({ name: f.name.value.trim(), phone: f.phone.value.trim(), kind: f.kind.value, sport: f.sport.value, people: +f.people.value || null, preferred: f.preferred.value.trim(), message: f.message.value.trim() });
     $('modal-body').innerHTML = `<button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button><div style="text-align:center"><div class="big-emoji">👥</div><h2>¡Pedido enviado!</h2>
-      <p class="muted">Te escribimos por WhatsApp con opciones y precio.</p></div><div class="sheet-foot"><button class="btn block" onclick="closeModal()">Listo</button></div>`;
+      <p class="muted">${(c => c?.name ? `${esc(c.name)} te escribe` : 'Te escribimos')(sportOwner(f.sport.value))} por WhatsApp con opciones y precio.</p></div>
+      <div class="choice">${(c => c?.whatsapp ? `<a class="btn wa block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Te mandé un pedido de clase ${f.kind.value === 'privada' ? 'privada' : 'grupal'} de ${SPORTS[f.sport.value].label} desde la web. Soy ${f.name.value.trim()}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Escribirle ahora (opcional)</a>` : '')(sportOwner(f.sport.value))}
+        <button class="btn ghost block" onclick="closeModal()">Listo</button></div>`;
   } catch (e) { $('gr-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
 }
 
@@ -2400,9 +2404,9 @@ async function renderStaff() {
   const tabs = admin
     ? [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['resumen', 'Resumen', ICON.chart], ['profes', 'Equipo', ICON.team], ['mas', 'Más', ICON.more]]
     : [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['numeros', 'Mis números', ICON.chart], ['perfil', 'Perfil', ICON.user]];
-  const all = [...tabs.map(t => t[0]), 'clases', 'perfil', ...(admin ? ['abonos', 'grupos'] : [])];
+  const all = [...tabs.map(t => t[0]), 'clases', 'perfil', ...(admin ? ['abonos', 'grupos'] : st.me.manages?.length ? ['regalos', 'grupos'] : [])];
   if (!all.includes(st.tab)) st.tab = 'agenda';
-  const onTab = ['clases', 'perfil', 'abonos', 'grupos'].includes(st.tab) && admin ? 'mas' : st.tab;
+  const onTab = ['clases', 'perfil', 'abonos', 'grupos'].includes(st.tab) && admin ? 'mas' : ['clases', 'regalos', 'grupos'].includes(st.tab) ? 'cargar' : st.tab;
   $('staff').innerHTML = `
     <div class="hello"><div><div class="tiny muted">${ROLES[roleKey(st.me)]} · Nativo</div><b>Hola, ${esc(st.me.name.split(' ')[0])} 👋</b></div>
       <button class="btn ghost sm" onclick="logout()">Salir</button></div>
@@ -2412,13 +2416,13 @@ async function renderStaff() {
   PANES[st.tab]();
   startLive();
 }
-const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos(), grupos: () => paneGroups() };
+const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos(), grupos: () => paneGroups(), regalos: () => paneGifts() };
 function setTab(t) { st.tab = t; renderStaff(); window.scrollTo({ top: 0 }); }
 
 /* ── Tiempo real: lo que hace otro profe aparece sin recargar ──
    Si estás a mitad de algo (formulario, ventana abierta, escribiendo) no se pisa:
    aparece "Hay cambios · Actualizar" y se aplica cuando terminás. */
-const LIVE_TABS = ['agenda', 'resumen', 'numeros', 'profes', 'abonos', 'grupos'];
+const LIVE_TABS = ['agenda', 'resumen', 'numeros', 'profes', 'abonos', 'grupos', 'regalos'];
 let liveOff = null, liveT = null, livePending = false;
 // ¿Hay algo escrito/elegido en la pantalla que todavía no se guardó?
 const paneDirty = () => [...document.querySelectorAll('#pane input, #pane textarea, #pane select')].some(i =>
@@ -2897,10 +2901,15 @@ async function paneCreate() {
     </form></div>
     ${!isAdmin && st.me.manages?.length ? `<div class="card" style="max-width:560px"><h2>⚙️ Tus tipos de clase</h2>
       <p class="small muted" style="margin-bottom:10px">Configurá precio, cupo, duración y si es iniciación o travesía de las clases de ${st.me.manages.map(k => SPORTS[k]?.label || k).join(' y ')}.</p>
-      <button class="btn block" onclick="setTab('clases')">Configurar tipos de clase</button></div>` : ''}
+      <button class="btn block" onclick="setTab('clases')">Configurar tipos de clase</button></div>
+    <div class="card" style="max-width:560px"><h2>📥 Pedidos de ${st.me.manages.map(k => SPORTS[k]?.label || k).join(' y ')}</h2>
+      <p class="small muted" style="margin-bottom:10px">Los regalos y las clases privadas o grupales de tu deporte te llegan a vos.</p>
+      <div class="choice"><button class="btn ghost block" onclick="setTab('regalos')"><span>🎁 Gift cards <b id="gift-n"></b></span><span>›</span></button>
+      <button class="btn ghost block" onclick="setTab('grupos')"><span>👥 Clases privadas y grupales <b id="grp-n"></b></span><span>›</span></button></div></div>` : ''}
     <div id="board-ed"></div>`;
   if ($('cf')) { profeOptions(t0.sport || 'sup'); previewCreate(); }   // si cambió de pestaña mientras cargaba, no hay formulario
   boardEditor();
+  if (!isAdmin && st.me.manages?.length) pendingBadges();
 }
 
 /* ── Tablón del team (staff): avisos para el grupo de entrenamiento ── */
@@ -3422,7 +3431,7 @@ async function paneAbonos() {
 // Gift cards (admin): pedidos a cobrar, activas y usadas.
 function giftsCard(gifts, plans) {
   if (!gifts.length) return `<div class="card"><h2>🎁 Gift cards</h2><p class="small muted">Todavía no hay regalos. Se piden desde la página con "🎁 Regalá una clase".</p></div>`;
-  const what = g => g.kind === 'abono' ? (plans.find(p => p.id === g.plan_id)?.name || 'Abono') : `1 clase de ${SPORTS[g.sport]?.label || 'SUP'}`;
+  const what = g => `${SPORTS[g.sport || 'sup']?.em || ''} ${g.kind === 'abono' ? (plans.find(p => p.id === g.plan_id)?.name || 'Abono') : `1 clase de ${SPORTS[g.sport]?.label || 'SUP'}`}`.trim();
   const pend = gifts.filter(g => g.status === 'pending'), act = gifts.filter(g => g.status === 'active'), used = gifts.filter(g => ['redeemed', 'cancelled'].includes(g.status));
   const row = (g, acts) => `<div class="prow" style="cursor:default;align-items:flex-start"><span class="who"><b>${esc(what(g))} · ${money(g.value)}</b>
       <span>${esc(g.code)} · de ${esc(g.buyer_name)} para ${esc(g.recipient_name)}${g.status === 'redeemed' ? ` · usado ${esc(fmtDate(dayKey(g.redeemed_at)))}` : g.status === 'cancelled' ? ' · anulado' : ''}</span></span>
@@ -3443,24 +3452,43 @@ async function giftPaid(id) {
     openModal(`<div style="text-align:center"><div class="big-emoji">🎁</div><h2>Gift card activa</h2><p class="small muted">Mandale el link a ${esc(g.buyer_name.split(' ')[0])} para que se la pase a ${esc(g.recipient_name)}.</p></div>
       <div class="choice"><a class="btn wa block" href="${waLink(g.buyer_phone, giftMsg(g, what))}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Mandar el link</a>
       <button class="btn ghost block" onclick="closeModal()">Listo</button></div>`);
-    paneAbonos();
+    PANES[st.tab]();
   } catch (e) { toast(errMsg(e)); }
 }
 async function giftCancel(id) {
   if (!await askConfirm('¿Anular este pedido de regalo?', 'Anular')) return;
-  try { await api.updateGift(id, { status: 'cancelled' }); paneAbonos(); } catch (e) { toast(errMsg(e)); }
+  try { await api.updateGift(id, { status: 'cancelled' }); PANES[st.tab](); } catch (e) { toast(errMsg(e)); }
 }
 
-/* ── Pedidos de clases privadas y grupales (admin) ── */
+// Lo de cada deporte lo ve quien lo maneja (Torita SUP, Mati kayak). El admin ve todo.
+const mySport = x => st.me?.role === 'admin' || (st.me?.manages || []).includes(x.sport || 'sup');
+// Gift cards para el profe que maneja un deporte (el admin las ve en Abonos).
+async function paneGifts() {
+  let gifts = [], plans = [];
+  try { [gifts, plans] = await Promise.all([api.giftCards(), api.plans().catch(() => [])]); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  st.plans = plans;
+  paneEl().innerHTML = `<div style="margin-bottom:10px"><a href="#" class="small" onclick="setTab('cargar');return false">‹ Crear</a></div>
+    ${giftsCard(gifts.filter(mySport), plans)}`;
+}
+async function pendingBadges() {
+  const [g, r] = await Promise.all([api.giftCards().catch(() => []), api.groupRequests().catch(() => [])]);
+  const pill = (n, w) => n ? `<span class="pill warn" style="margin:0 0 0 6px">${n} ${w}</span>` : '';
+  if ($('gift-n')) $('gift-n').innerHTML = pill(g.filter(mySport).filter(x => x.status === 'pending').length, 'a cobrar');
+  const n = r.filter(mySport).filter(x => x.status === 'nuevo').length;
+  if ($('grp-n')) $('grp-n').innerHTML = pill(n, n > 1 ? 'nuevos' : 'nuevo');
+}
+
+/* ── Pedidos de clases privadas y grupales ── */
 const GROUP_KIND = { cumple: '🎂 Cumpleaños', empresa: '🏢 Empresa', grupo: '👯 Grupo', privada: '🙋 Privada', otro: 'Otro' };
 async function paneGroups() {
-  let list = []; try { list = await api.groupRequests(); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  let list = []; try { list = (await api.groupRequests()).filter(mySport); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const by = k => list.filter(g => g.status === k);
-  const row = g => `<div class="card" style="margin-bottom:10px"><div class="row between"><b>${GROUP_KIND[g.kind] || g.kind} · ${SPORTS[g.sport]?.em || ''} ${g.people ? g.people + ' personas' : ''}</b><span class="tiny muted">${esc(fmtDayShort(g.created_at))}</span></div>
+  const row = g => `<div class="card" style="margin-bottom:10px"><div class="row between"><b>${SPORTS[g.sport || 'sup']?.em || ''} ${GROUP_KIND[g.kind] || g.kind}${g.people ? ` · ${g.people} personas` : ''}</b><span class="tiny muted">${esc(fmtDayShort(g.created_at))}</span></div>
     <div class="small" style="margin:4px 0">${esc(g.name)} · ${esc(g.phone)}${g.preferred ? `<br>Cuándo: ${esc(g.preferred)}` : ''}${g.message ? `<br>“${esc(g.message)}”` : ''}</div>
     <div class="row wrapf" style="gap:6px"><a class="btn wa sm" href="${waLink(g.phone, `Hola ${g.name.split(' ')[0]}! Te escribo de Nativo por tu pedido de clase ${(GROUP_KIND[g.kind] || '').replace(/^\S+ /, '').toLowerCase()} de ${SPORTS[g.sport]?.label || 'SUP'}${g.people ? ` para ${g.people}` : ''} 🏄`)}" target="_blank" rel="noopener" onclick="${g.status === 'nuevo' ? `api.updateGroup('${g.id}', { status: 'contactado' }).then(paneGroups)` : ''}">Escribirle</a>
       ${g.status !== 'cerrado' ? `<button class="btn ghost sm" onclick="api.updateGroup('${g.id}', { status: 'cerrado' }).then(paneGroups)">Cerrar</button>` : `<button class="btn ghost sm" onclick="api.updateGroup('${g.id}', { status: 'nuevo' }).then(paneGroups)">Reabrir</button>`}</div></div>`;
-  paneEl().innerHTML = `<div style="margin-bottom:10px"><a href="#" class="small" onclick="setTab('mas');return false">‹ Más</a></div>
+  const back = st.me.role === 'admin' ? ['mas', 'Más'] : ['cargar', 'Crear'];
+  paneEl().innerHTML = `<div style="margin-bottom:10px"><a href="#" class="small" onclick="setTab('${back[0]}');return false">‹ ${back[1]}</a></div>
     <h2 style="margin:0 0 10px">👥 Clases privadas y grupales</h2>
     ${list.length ? '' : '<div class="card empty">Todavía no hay pedidos. Llegan desde la página: "👥 Clases privadas y grupales".</div>'}
     ${by('nuevo').length ? `<div class="label">Nuevos (${by('nuevo').length})</div>${by('nuevo').map(row).join('')}` : ''}
