@@ -951,7 +951,7 @@ async function renderPublic() {
     </div>`;
   try {
     const from = startOfDay(new Date()), to = addDays(from, CONFIG.DAYS_AHEAD);
-    [st.types, st.profes, st.pub, st.plans] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => [])]);
+    [st.types, st.profes, st.pub, st.plans] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => []), syncMine()]);
     if ($('pub')) drawPublic();
   } catch (e) {
     if ($('pub')) $('pub').innerHTML = `<div class="card empty" style="margin-top:14px">No pudimos cargar los horarios. ${esc(errMsg(e))}</div>`;
@@ -1096,6 +1096,19 @@ const MINE = 'nativo_mis_reservas';
 function rememberBooking(code, starts_at) {
   const list = store.get(MINE, []).filter(x => x.code !== code && new Date(x.starts_at) > addDays(new Date(), -1));
   list.push({ code, starts_at }); store.set(MINE, list.slice(-10));
+}
+// Las reservas guardadas en el celu se revisan contra la base: si se borró la clase, se canceló
+// o se suspendió, deja de aparecer en "Tus próximas clases"; si cambió el horario, se actualiza.
+async function syncMine() {
+  const list = myUpcoming(); if (!list.length) return;
+  const found = await Promise.all(list.map(x => api.bookingByCode(x.code).then(r => r || null, () => undefined)));
+  const drop = new Set(), moved = {};
+  list.forEach((x, i) => {
+    const r = found[i];
+    if (r === null || (r && (r.status === 'cancelled' || r.slot_status === 'cancelled'))) drop.add(x.code);
+    else if (r?.starts_at) moved[x.code] = r.starts_at;      // undefined = sin conexión: no se toca
+  });
+  store.set(MINE, store.get(MINE, []).filter(x => !drop.has(x.code)).map(x => moved[x.code] ? { ...x, starts_at: moved[x.code] } : x));
 }
 const myUpcoming = () => store.get(MINE, []).filter(x => new Date(x.starts_at) > addMin(new Date(), -120)).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 const ticketUrl = code => location.origin + location.pathname + '#r-' + code;
