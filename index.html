@@ -99,6 +99,7 @@ h2{font-size:20px;margin-bottom:10px} h3{font-size:16px;margin-bottom:8px}
 .top nav a.on{background:var(--sun);color:var(--ink)}
 @media(max-width:430px){.logo span{font-size:12px}.logo b{font-size:21px}.top nav a{padding:8px 11px}}
 @media(max-width:380px){.logo span{display:none}.logo b{font-size:21px}.top nav a{padding:7px 10px;font-size:13.5px}}
+@media(max-width:340px){.logo .wm{display:none}}
 .demo-bar{background:var(--coral-soft);color:#6b5200;font-size:12.5px;text-align:center;padding:6px 16px}
 
 /* ── Portada ── */
@@ -282,6 +283,10 @@ img.avatar.xl{border:4px solid var(--ink)}
 .btn.wa{background:#1fa855;color:#fff}
 .btn.sm{padding:7px 12px;min-height:36px;font-size:14px;border-radius:10px}
 .btn.block{width:100%}
+/* En celus angostos (320px) nada se sale del ancho: los botones anchos bajan de renglón y las grillas se achican */
+.btn.block{white-space:normal;text-align:center}
+.grid2>*,.two>*,.kpis>*,.choice>*,.field{min-width:0}
+.input{min-width:0;max-width:100%}
 .btn.mp{background:#009ee3;color:#fff}
 .icon-btn{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:50%;border:0;background:var(--sea-soft);color:var(--sea);flex:none;text-decoration:none;transition:transform .1s}
 .icon-btn:active{transform:scale(.92)}
@@ -1387,7 +1392,7 @@ function drawPublic() {
       return rv.length ? `<div class="section"><div class="label">⭐ Lo que dicen los alumnos</div><div class="reviews">${rv.map(r => `<div class="card rv"><div class="rv-st">${'★'.repeat(r.stars)}<span>${'★'.repeat(5 - r.stars)}</span></div>
         <p>“${esc(r.comment)}”</p><div class="tiny muted">${esc(r.first_name || '')}${r.profe_name ? ` · clase con ${esc(r.profe_name.split(' ')[0])}` : ''}</div></div>`).join('')}</div></div>` : ''; })()}
     <div class="cta2">
-      <button class="card cta" onclick="openGift()"><i>🎁</i><b>Regalá una clase</b><span class="small muted">o un abono, con tarjeta de regalo</span></button>
+      <button class="card cta" onclick="openGift()"><i>🎁</i><b>Regalá ${sp === 'kayak' ? 'kayak' : 'una clase'}</b><span class="small muted">${(st.plans || []).some(p => p.active && (p.sport || 'sup') === sp) ? 'una clase o un abono' : 'una clase'}, con tarjeta de regalo</span></button>
       <button class="card cta" onclick="openGroup()"><i>👥</i><b>Clases privadas y grupales</b><span class="small muted">cumples, empresas, grupos de amigos</span></button>
     </div>`;   // el grupo de entrenamiento es de SUP
   // "¿Dudas?": en kayak va al WhatsApp del profe de kayak (Mati); en SUP, al de la escuela.
@@ -1679,7 +1684,7 @@ async function renderTicket(code) {
       <b>💸 Transferí ${money(r.amount)}</b>
       <div class="alias-row"><span class="alias num">${esc(r.profe_alias)}</span><button class="btn coral sm" onclick="copyAlias(this, ${esc(JSON.stringify(r.profe_alias))})">Copiar alias</button></div>
       ${r.profe_holder ? `<div class="small muted">Titular: <b>${esc(r.profe_holder)}</b> · revisá que coincida antes de transferir</div>` : ''}
-      ${(c => c ? `<a class="btn wa block" style="margin-top:10px" href="${waLink(c, `Hola ${r.profe_name.split(' ')[0]}! Te transferí ${money(r.amount)} por la clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code}). Te paso el comprobante 👇`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Ya transferí: mandar comprobante</a>` : '')(r.profe_whatsapp || sportContact(r.sport, schoolContact())?.whatsapp)}
+      ${(c => c ? `<a class="btn wa block" style="margin-top:10px" href="${waLink(c, `Hola ${r.profe_name.split(' ')[0]}! Te transferí ${money(r.amount)} por la clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code}). Te paso el comprobante 👇`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Ya transferí: mandar comprobante</a>` : '')(r.profe_whatsapp || sportOwner(r.sport)?.whatsapp)}
       <p class="tiny muted" style="margin:8px 0 0">Tu lugar ya está reservado. ${esc(r.profe_name.split(' ')[0])} lo marca como pagado cuando le llega.</p></div>` : ''}
     <div class="tk-acts">
       ${live && MP_ON && !r.paid && r.amount > 0 ? `<button class="btn mp block" onclick="payBooking('${r.code}', this)">Pagar ahora con Mercado Pago</button><div id="pay-err"></div>` : ''}
@@ -1692,7 +1697,7 @@ async function renderTicket(code) {
       ${live && r.profe_whatsapp ? `<a class="btn wa block" href="${profeWa(r.profe_name, r.profe_whatsapp, `por mi clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code})`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Escribirle a ${esc(r.profe_name.split(' ')[0])}</a>` : ''}
       ${live ? (canSelfCancel(r) ? `<button class="btn danger block" onclick="askCancelMine()">No puedo ir · cancelar mi reserva</button>`
         : `<p class="tiny muted" style="text-align:center;margin:2px 0">${r.paid && r.payment_method !== 'abono' ? 'Ya está paga: para cancelarla escribinos.' : `Faltan menos de ${CONFIG.CANCEL_HOURS} h: para cancelar escribinos.`}</p>`) : ''}
-      ${(c => c?.whatsapp ? `<a class="btn ${live && r.profe_whatsapp ? 'ghost' : 'wa'} block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar (${c.name ? esc(c.name) : 'escuela'})</a>` : '')(sportContact(r.sport, schoolContact()))}
+      ${(c => c?.whatsapp ? `<a class="btn ${live && r.profe_whatsapp ? 'ghost' : 'wa'} block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar (${c.name ? esc(c.name) : 'escuela'})</a>` : '')(sportOwner(r.sport))}
       <a class="btn ghost block" href="#">Ver más clases</a>
     </div>`;
   ticketExtras(r);
@@ -1726,7 +1731,7 @@ function cancelledMine(r) {
   renderTicket(r.code).then(() => {
     toast(r.payment_method === 'abono' ? 'Reserva cancelada: la clase volvió a tu abono' : 'Reserva cancelada. ¡Gracias por avisar!');
     const msg = `Hola! Cancelé mi reserva ${r.code} del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)}. ¡Perdón y gracias!`;
-    const to = r.profe_whatsapp || sportContact(r.sport, schoolContact())?.whatsapp;
+    const to = r.profe_whatsapp || sportOwner(r.sport)?.whatsapp;
     if (to && $('tk')) $('tk').insertAdjacentHTML('afterbegin', `<div class="card" style="margin-top:14px;text-align:center"><b>Listo, cancelaste tu clase</b>
       <p class="small muted" style="margin:4px 0 10px">Si querés, avisale a ${r.profe_whatsapp ? esc(r.profe_name.split(' ')[0]) : 'la escuela'} (opcional).</p>
       <a class="btn wa block" href="${waLink(to, msg)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Avisar por WhatsApp</a></div>`);
@@ -1897,7 +1902,7 @@ function myPassCard(p, compact) {
   const left = p.classes_total - p.used;
   if (p.status === 'pending') return `<div class="plan-card"><span class="pc-ic">⏳</span><div class="pc-body"><b class="t">${esc(p.name)}: pedido</b>
       <div class="small">Pagalo (${money(p.price)}) y se activan tus clases.</div></div>
-      ${(c => c?.whatsapp ? `<a class="btn dark sm" href="${waLink(c.whatsapp, `Hola ${c.name || ''}! Pedí el ${p.name} (${money(p.price)}). Soy ${st.student?.name || ''}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">Escribile a ${esc(c.name || 'la escuela')}</a>` : '')(sportContact(passSport(p), CONFIG.PASS_CONTACT?.whatsapp ? CONFIG.PASS_CONTACT : schoolContact()))}</div>`;
+      ${(c => c?.whatsapp ? `<a class="btn dark sm" href="${waLink(c.whatsapp, `Hola ${c.name || ''}! Pedí el ${p.name} (${money(p.price)}). Soy ${st.student?.name || ''}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">Escribile a ${esc(c.name || 'la escuela')}</a>` : '')(sportOwner(passSport(p)))}</div>`;
   const days = passDaysLeft(p);
   return `<div class="plan-card"><span class="pc-ic">💳</span><div class="pc-body"><b class="t">${esc(p.name)}</b>
       <div class="pass-count"><span><b class="num">${left}</b>${left === 1 ? 'clase' : 'clases'}</span><span class="${days <= 5 ? 'soon' : ''}"><b class="num">${days <= 1 ? '¡Hoy!' : days}</b>${days <= 1 ? 'último día' : 'días'}</span></div>
@@ -1922,7 +1927,7 @@ async function sendPassRequest(planId) {
     openModal(`<div style="text-align:center"><div class="big-emoji">💳</div><h2>¡Pedido enviado!</h2>
       <p class="muted">Coordiná el pago (${money(pl.price)}) y la escuela activa tu abono.</p></div>
       <div class="choice" style="margin-top:14px">
-        ${(c => c?.whatsapp ? `<a class="btn wa block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Pedí el ${pl.name} (${money(pl.price)}) desde la página. Soy ${st.student.name}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Coordinar el pago por WhatsApp</a>` : '')(sportContact(pl.sport, schoolContact()))}
+        ${(c => c?.whatsapp ? `<a class="btn wa block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Pedí el ${pl.name} (${money(pl.price)}) desde la página. Soy ${st.student.name}. ¿Cómo lo pago?`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Coordinar el pago por WhatsApp</a>` : '')(sportOwner(pl.sport))}
         <button class="btn ghost block" onclick="closeModal();route()">Listo</button></div>`);
   } catch (e) { $('ps-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
 }
@@ -2921,6 +2926,7 @@ const postHtml = (p, tools) => `<div class="post ${p.pinned ? 'pin' : ''}">
   <div class="post-b">${esc(p.body).replace(/\n/g, '<br>')}</div></div>`;
 async function boardEditor() {
   if (!$('board-ed')) return;
+  if (st.me.role !== 'admin' && !(st.me.sports || ['sup']).includes('sup')) return;   // el team es de SUP: a Mati no le aparece
   let posts = []; try { posts = await api.teamPosts(); } catch {}
   if (!$('board-ed')) return;
   const mine = p => st.me.role === 'admin' || p.author_id === st.me.id;
@@ -3392,11 +3398,11 @@ async function paneAbonos() {
   const done = passes.filter(p => p.status === 'cancelled' || (p.status === 'active' && (p.expires_on < today || p.used >= p.classes_total)));
   const who = p => `${avatarHtml({ name: p.student_name, avatar_url: p.student_avatar })}<span class="who"><b>${esc(p.student_name)}</b>`;
   const planRow = pl => `<tr data-id="${pl.id || ''}">
-    <td><input class="input sm" style="min-width:140px;width:100%" data-k="name" value="${esc(pl.name || '')}" placeholder="Nombre"></td>
+    <td><input class="input sm" style="min-width:120px;width:100%" data-k="name" value="${esc(pl.name || '')}" placeholder="Nombre"></td>
     <td><input class="input sm" style="width:100px" data-k="price" type="number" min="0" step="1000" value="${+pl.price || 0}"></td>
     <td><input class="input sm" style="width:60px" data-k="classes" type="number" min="1" value="${pl.classes || 4}"></td>
     <td><input class="input sm" style="width:60px" data-k="days_valid" type="number" min="1" value="${pl.days_valid || 30}"></td>
-    <td><input class="input sm" style="min-width:160px;width:100%" data-k="description" value="${esc(pl.description || '')}" placeholder="1 clase por semana"></td>
+    <td><input class="input sm" style="min-width:120px;width:100%" data-k="description" value="${esc(pl.description || '')}" placeholder="1 clase por semana"></td>
     <td style="display:none"><input data-k="sport" value="${pl.sport || 'sup'}"></td>
     <td><input type="checkbox" data-k="active" ${pl.active !== false ? 'checked' : ''}></td>
     <td><button class="btn sm" onclick="savePlanRow(this)">Guardar</button></td></tr>`;
