@@ -1009,7 +1009,7 @@ function demoApi() {
       if (!db.waitlist.some(w => w.slot_id === slot && pk(w.phone) === k)) db.waitlist.push({ id: uid(), slot_id: slot, name: name.trim(), phone, student_id: store.get(SKEY, null), created_at: new Date().toISOString() });
       save(); return wait(db.waitlist.filter(w => w.slot_id === slot).findIndex(w => pk(w.phone) === k) + 1);
     },
-    myWaitlist() { const sid = store.get(SKEY, null); return wait((db.waitlist || []).filter(w => sid && w.student_id === sid).map(w => { const s = db.slots.find(x => x.id === w.slot_id);
+    myWaitlist() { const sid = store.get(SKEY, null); return wait((db.waitlist || []).filter(w => sid && w.student_id === sid && !db.bookings.some(b => b.slot_id === w.slot_id && b.status !== 'cancelled' && (pk(b.customer_phone) === pk(w.phone) || b.student_id === sid))).map(w => { const s = db.slots.find(x => x.id === w.slot_id);
       return { slot_id: s.id, title: s.title, starts_at: s.starts_at, free: Math.max(0, s.capacity - db.bookings.filter(b => b.slot_id === s.id && b.status !== 'cancelled').reduce((a, b) => a + b.people, 0)) }; })); },
     slotWaitlist: ids => wait((db.waitlist || []).filter(w => ids.includes(w.slot_id))),
     updateWaitlist(id, patch) { Object.assign((db.waitlist || []).find(w => w.id === id) || {}, patch); save(); return wait(null); },
@@ -2571,7 +2571,9 @@ async function loadAgendaExtras() {
   const ids = st.staffSlots.filter(s => s.status !== 'cancelled' && !isPast(s)).map(s => s.id);
   const keys = [...new Set(st.staffSlots.flatMap(s => s.bookings.map(b => phoneKey(b.customer_phone))).filter(k => k.length >= 8))];
   const [wl, wv] = await Promise.all([api.slotWaitlist(ids).catch(() => []), api.waivers(keys).catch(() => null)]);
-  st.waitBySlot = {}; wl.forEach(w => (st.waitBySlot[w.slot_id] ||= []).push(w));
+  // quien ya reservó esa clase deja de contar en la espera
+  const booked = new Set(st.staffSlots.flatMap(s => s.bookings.filter(b => b.status !== 'cancelled').map(b => s.id + phoneKey(b.customer_phone))));
+  st.waitBySlot = {}; wl.filter(w => !booked.has(w.slot_id + phoneKey(w.phone))).forEach(w => (st.waitBySlot[w.slot_id] ||= []).push(w));
   if (wv) { st.waiverBy = {}; wv.forEach(w => { if (!st.waiverBy[w.phone_key]) st.waiverBy[w.phone_key] = w; }); }
 }
 const phoneKey = p => String(p || '').replace(/\D/g, '').slice(-10);

@@ -38,18 +38,13 @@ language sql stable security definer set search_path = public as $fn$
          greatest(s.capacity - coalesce((select sum(b.people) from bookings b where b.slot_id = s.id and b.status <> 'cancelled'), 0), 0)::int
   from waitlist w join slots s on s.id = w.slot_id
   where w.student_id = auth.uid() and s.status = 'open' and s.starts_at > now()
+    and not exists (select 1 from bookings b where b.slot_id = s.id and b.status <> 'cancelled'
+                    and (phone_key(b.customer_phone) = phone_key(w.phone) or b.student_id = auth.uid()))
   order by s.starts_at;
 $fn$;
 
--- Al reservar, sale solo de la lista de espera de esa clase.
-create or replace function public.waitlist_cleanup() returns trigger
-language plpgsql security definer set search_path = public as $fn$
-begin
-  delete from waitlist where slot_id = new.slot_id and phone_key(phone) = phone_key(new.customer_phone);
-  return new;
-end $fn$;
+-- Quien ya reservó esa clase no se cuenta más en la lista de espera (se filtra al leerla).
 drop trigger if exists waitlist_cleanup on public.bookings;
-create trigger waitlist_cleanup after insert on public.bookings for each row execute function public.waitlist_cleanup();
 
 -- ── Ficha y deslinde: una vez por persona (vale 1 año). Se completa desde el comprobante.
 
