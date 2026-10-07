@@ -1476,7 +1476,14 @@ function demoMpResult(code, result) {
 }
 
 /* ── Abonos ── */
-const singlePrice = () => +(st.types.find(t => t.active && !t.members_only)?.price || 0);
+// Precio de una clase suelta de esa disciplina (para calcular cuánto ahorra el abono). 0 = no se sabe.
+const singlePrice = (sport = 'sup') => {
+  const ts = (st.types || []).filter(t => t.active && !t.members_only && (t.sport || 'sup') === sport);
+  const t = ts.find(x => (x.kind || 'iniciacion') === 'iniciacion') || ts[0];
+  if (+t?.price) return +t.price;
+  const ps = (st.pub || []).filter(x => !x.members_only && sportOf(x) === sport && +x.price).map(x => +x.price);
+  return ps.length ? Math.min(...ps) : 0;
+};
 // Abono del alumno que cubre una fecha y todavía tiene clases.
 // Disciplina del abono (la del plan; los viejos o sin plan son de SUP).
 const passSport = p => p.sport || (st.plans || []).find(x => x.id === p.plan_id)?.sport || 'sup';
@@ -1487,7 +1494,7 @@ function activePassFor(dateIso, sport = 'sup') {
 }
 const fmtDate = d => new Date(d + 'T12:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
 function planCard(pl) {
-  const full = singlePrice() * pl.classes, save = full - pl.price;
+  const one = singlePrice(pl.sport || 'sup'), save = one ? one * pl.classes - pl.price : 0;
   return `<div class="plan-card rise"><span class="pc-ic" aria-hidden="true">💳</span><div class="pc-body">
       <b class="t">${esc(pl.name)} · ${money(pl.price)}</b>
       <div class="small">${pl.classes} clases${pl.description ? ' · ' + esc(pl.description) : ''} · ${money(Math.round(pl.price / pl.classes))} c/u</div>
@@ -1831,7 +1838,8 @@ function profileParts(me, list, days) {
     team: me.training === 'approved' || (days || []).length ? days : null,
     // Si la escuela tiene kayak, se ven las dos secciones (las de kayak bloqueadas hasta la primera salida).
     // Quien hace solo kayak ve primero las suyas.
-    logros: (() => { const kOn = doneK || (st.types || []).some(t => t.active && !t.members_only && t.sport === 'kayak');
+    logros: (() => { const kOn = doneK || (st.types || []).some(t => t.active && !t.members_only && t.sport === 'kayak')
+        || (st.plans || []).some(p => p.active && p.sport === 'kayak') || (st.pub || []).some(x => sportOf(x) === 'kayak');
       if (!kOn) return grid('Logros', badges);
       const S = grid('🏄 Logros de SUP', badges), K = grid('🛶 Logros de kayak', kBadges);
       return doneK && !doneS ? K + S : S + K; })(),
