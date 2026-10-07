@@ -315,6 +315,7 @@ textarea.input{min-height:80px;resize:vertical}
 .hello b{font-family:var(--f-display);font-size:21px;font-weight:600}
 .pane{padding-bottom:calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom,0px));animation:rise .3s var(--ease) both}
 /* Barra de pestañas abajo, como una app */
+.live-bar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;max-width:calc(100% - 32px);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:45;background:var(--sun);color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:10px 18px;font:600 15px var(--f-body);box-shadow:0 4px 0 var(--ink);white-space:nowrap;animation:pop .3s var(--ease) both;cursor:pointer}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 18px rgba(0,0,0,.12)}
 .tabbar button{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;color:#b9c7c3;font-size:11.5px;font-weight:600;padding:6px 2px;border-radius:12px;transition:color .2s,background .2s}
 .tabbar button svg{width:24px;height:24px;transition:transform .2s var(--ease)}
@@ -527,7 +528,10 @@ function openModal(html) {
   $('modal-body').innerHTML = `<button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button>` + html;
   $('modal').classList.remove('hidden'); lockScroll();
 }
-function closeModal() { $('modal').classList.add('hidden'); $('modal-body').innerHTML = ''; unlockScroll(); }
+function closeModal() {
+  $('modal').classList.add('hidden'); $('modal-body').innerHTML = ''; unlockScroll();
+  if (livePending && !paneDirty()) setTimeout(() => liveRefresh(), 50);   // cambios que llegaron con la ventana abierta
+}
 function errMsg(e) {
   const m = e?.message || String(e);
   if (/Invalid login/i.test(m)) return 'Email o contraseña incorrectos';
@@ -576,6 +580,13 @@ function supabaseApi() {
   return {
     // Solo login/logout: ignora refrescos de token para no re-dibujar mientras alguien edita.
     ready: () => c.auth.getSession(),
+    // Tiempo real: avisa cuando cambia algo que este usuario puede ver. Devuelve cómo cortarlo.
+    live(cb) {
+      const ch = c.channel('staff-live');
+      ['slots', 'bookings', 'passes', 'students', 'profiles'].forEach(table => ch.on('postgres_changes', { event: '*', schema: 'public', table }, cb));
+      ch.subscribe();
+      return () => c.removeChannel(ch);
+    },
     onAuth: cb => c.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' || (ev === 'SIGNED_IN' && !st.me)) cb(); }),
     async signIn(email, password) { await q(c.auth.signInWithPassword({ email, password })); },
     async signUp(name, email, password) {
@@ -694,6 +705,8 @@ function demoApi() {
     demo: true,
     reset() { db = demoSeed(); save(); },
     onAuth: cb => { authCb = cb; },
+    // Demo: otra pestaña abierta con la demo hace de "otro profe".
+    live(cb) { const f = e => { if (e.key === KEY) { db = store.get(KEY, db); cb(); } }; addEventListener('storage', f); return () => removeEventListener('storage', f); },
     loginAs(id) { store.set(UKEY, id); authCb(); },
     async signIn() { return fail('En modo demo elegí un perfil de la lista'); },
     async signUp() { return fail('En modo demo no se crean cuentas'); },
@@ -1497,10 +1510,59 @@ async function renderStaff() {
       <button class="btn ghost sm" onclick="logout()">Salir</button></div>
     <div id="pane" class="pane"><div class="loading">Cargando…</div></div>
     <nav class="tabbar" aria-label="Secciones">${tabs.map(([k, l, ic]) => `<button class="${onTab === k ? 'on' : ''} ${k === 'cargar' ? 'plus' : ''}" onclick="setTab('${k}')" aria-current="${onTab === k ? 'page' : 'false'}">${ic}<span>${l}</span></button>`).join('')}</nav>`;
-  ({ resumen: paneStats, numeros: paneStats, agenda: paneAgenda, cargar: paneCreate, profes: paneProfes, clases: paneTypes, perfil: paneProfile, mas: paneMore, abonos: paneAbonos })[st.tab]();
+  hideLiveBar();
+  PANES[st.tab]();
+  startLive();
 }
+const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos() };
 function setTab(t) { st.tab = t; renderStaff(); window.scrollTo({ top: 0 }); }
-async function logout() { await api.signOut(); st.me = null; st.student = null; st.tab = null; drawNav(); renderStaff(); }
+
+/* ── Tiempo real: lo que hace otro profe aparece sin recargar ──
+   Si estás a mitad de algo (formulario, ventana abierta, escribiendo) no se pisa:
+   aparece "Hay cambios · Actualizar" y se aplica cuando terminás. */
+const LIVE_TABS = ['agenda', 'resumen', 'numeros', 'profes', 'abonos'];
+let liveOff = null, liveT = null, livePending = false;
+// ¿Hay algo escrito/elegido en la pantalla que todavía no se guardó?
+const paneDirty = () => [...document.querySelectorAll('#pane input, #pane textarea, #pane select')].some(i =>
+  i.type === 'checkbox' || i.type === 'radio' ? i.checked !== i.defaultChecked
+  : i.tagName === 'SELECT' ? [...i.options].some(o => o.selected !== o.defaultSelected)
+  : i.value !== i.defaultValue);
+function startLive() {
+  if (liveOff || !st.me?.approved || !api.live) return;
+  try { liveOff = api.live(() => { clearTimeout(liveT); liveT = setTimeout(liveRefresh, 800); }); } catch { liveOff = null; }
+}
+function stopLive() { if (liveOff) { try { liveOff(); } catch {} } liveOff = null; hideLiveBar(); }
+const staffBusy = () => !$('modal').classList.contains('hidden') || !$('ask').classList.contains('hidden') || paneDirty();
+async function liveRefresh(force) {
+  if (!$('pane') || !st.me?.approved || !LIVE_TABS.includes(st.tab)) return;
+  if (!force && staffBusy()) { showLiveBar(); return; }
+  hideLiveBar();
+  const y = window.scrollY, open = [...document.querySelectorAll('#pane details[open] > summary')].map(x => x.textContent);
+  try { await PANES[st.tab](); } catch { return; }
+  document.querySelectorAll('#pane details > summary').forEach(x => { if (open.includes(x.textContent)) x.parentElement.open = true; });
+  window.scrollTo(0, y);
+}
+function showLiveBar() {
+  livePending = true; if ($('live-bar')) return;
+  const b = document.createElement('button'); b.id = 'live-bar'; b.className = 'live-bar'; b.type = 'button';
+  b.innerHTML = '🔄 Hay cambios nuevos · <b>Actualizar</b>'; b.onclick = () => liveRefresh(true);
+  document.body.appendChild(b);
+}
+function hideLiveBar() { livePending = false; $('live-bar')?.remove(); }
+// Al volver a la app (desbloquear el celu, cambiar de pestaña): datos al día.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if ($('pane')) liveRefresh();
+  else if ($('pub') && st.pub && $('modal').classList.contains('hidden')) refreshPublic();
+});
+async function refreshPublic() {
+  try {
+    const from = startOfDay(new Date());
+    st.pub = await api.publicSlots(from, addDays(from, CONFIG.DAYS_AHEAD));
+    if ($('pub') && $('modal').classList.contains('hidden')) { const y = window.scrollY; drawPublic(); window.scrollTo(0, y); }
+  } catch {}
+}
+async function logout() { stopLive(); await api.signOut(); st.me = null; st.student = null; st.tab = null; drawNav(); renderStaff(); }
 function paneMore() {
   paneEl().innerHTML = `<div class="menu">
     <button class="btn ghost block" onclick="setTab('abonos')"><span>💳 Abonos</span><span>›</span></button>

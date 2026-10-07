@@ -693,6 +693,21 @@ drop policy if exists "avatars delete" on storage.objects;
 create policy "avatars delete" on storage.objects for delete to authenticated
   using (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
 
+-- Tiempo real: la app de profes se actualiza sola cuando otro carga, cobra o borra algo.
+-- Cada uno recibe solo los cambios que sus permisos (RLS) ya le dejan ver.
+do $fn$
+declare t text;
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+  foreach t in array array['slots', 'bookings', 'passes', 'students', 'profiles'] loop
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $fn$;
+
 -- ───────────────────────────── 6) Datos iniciales ─────────────────────────────
 -- Arrancamos solo con clases de iniciación. Precio, cupo y duración se editan desde
 -- el panel admin → Clases; ahí también se pueden sumar otros tipos más adelante

@@ -54,6 +54,10 @@ Configuración (una vez):
 ## Comprobante para el alumno
 Al reservar, el alumno pasa a **"Tu reserva"** (`/#r-CÓDIGO`): la reserva actualizada (pagada, suspendida…), botón para **guardar el comprobante como imagen** en el celu, agregarla al calendario, cómo llegar, compartir el link y escribir por WhatsApp. Ese celular además recuerda sus reservas y las muestra arriba en "Tus próximas clases". La función `booking_by_code` solo devuelve datos de la clase y el primer nombre.
 
+## Tiempo real
+
+La agenda, el resumen, Equipo y Abonos se actualizan solos cuando otro profe carga, cobra o borra algo (Supabase Realtime; lo activa `setup.sql`). Si estás con un formulario o una ventana abierta no se pisa: aparece **"Hay cambios nuevos · Actualizar"** y se aplica al cerrar. Al volver a la app (desbloquear el celu) también se recargan los datos. En la demo se prueba con dos pestañas abiertas.
+
 ## Pago online con Mercado Pago (opcional)
 El alumno reserva y en la misma pantalla puede tocar **Pagar ahora con Mercado Pago**. También puede pagar después desde **Pagar mi reserva**, con su código.
 Cuando Mercado Pago aprueba el pago, avisa al servidor (`api/mp-webhook`) y la reserva queda marcada como **pagó · mercadopago** sin que nadie toque nada.
