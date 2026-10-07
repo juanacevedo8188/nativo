@@ -435,6 +435,14 @@ const validUser = v => v.includes('@') ? /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) : 
 // Lo que se muestra: el usuario si es de la escuela, si no el email.
 const userLabel = e => String(e || '').endsWith('@' + CONFIG.USER_DOMAIN) ? e.split('@')[0] : String(e || '');
 const isUserLogin = e => String(e || '').endsWith('@' + CONFIG.USER_DOMAIN);
+// Si una foto no carga: iniciales en vez del ícono de imagen rota.
+document.addEventListener('error', e => {
+  const i = e.target;
+  if (i.tagName !== 'IMG' || i.dataset.fb || /\/img\//.test(i.getAttribute('src') || '')) return;
+  i.dataset.fb = 1;
+  if (i.classList.contains('avatar')) { const sp = document.createElement('span'); sp.className = i.className; sp.textContent = i.dataset.n || ''; i.replaceWith(sp); }
+  else i.remove();
+}, true);
 const DEMO = !CONFIG.SUPABASE_URL || new URLSearchParams(location.search).has('demo');
 const MP_ON = DEMO || CONFIG.MERCADOPAGO;
 
@@ -455,9 +463,10 @@ const WD = ['dom','lun','mar','mié','jue','vie','sáb'];
 // "Miércoles 7 de octubre" (solo la primera en mayúscula, no "De Octubre").
 const fmtDayLong = d => { const t = new Date(d).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'}).replace(',', ''); return t.charAt(0).toUpperCase() + t.slice(1); };
 const fmtDayShort = d => new Date(d).toLocaleDateString('es-AR', {weekday:'short', day:'numeric', month:'short'});
-// Foto del profe, o sus iniciales si no tiene.
+// Foto del profe, o sus iniciales si no tiene. no-referrer: las fotos de Google a veces
+// devuelven error si les llega de qué página viene el pedido.
 const avatarHtml = (p, cls = '') => p?.avatar_url
-  ? `<img class="avatar ${cls}" src="${esc(p.avatar_url)}" alt="" loading="lazy">`
+  ? `<img class="avatar ${cls}" src="${esc(p.avatar_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-n="${esc(initials(p?.name))}">`
   : `<span class="avatar ${cls}">${esc(initials(p?.name))}</span>`;
 // Achica y recorta la foto (cuadrada, 320px) en el teléfono antes de subirla: pesa ~20 KB.
 async function shrinkPhoto(file, size = 320) {
@@ -580,7 +589,13 @@ function supabaseApi() {
     async student() {
       const { data: { session } } = await c.auth.getSession();
       if (!session) return null;
-      return q(c.from('students').select('*').eq('id', session.user.id).maybeSingle());
+      const me = await q(c.from('students').select('*').eq('id', session.user.id).maybeSingle());
+      // La foto de Google cambia de link cada tanto: si no subió una propia, la renovamos al entrar.
+      const g = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
+      if (me && g && g !== me.avatar_url && (!me.avatar_url || /googleusercontent\.com/.test(me.avatar_url))) {
+        me.avatar_url = g; c.from('students').update({ avatar_url: g }).eq('id', me.id).then(() => {}, () => {});
+      }
+      return me;
     },
     myBookings: () => q(c.rpc('my_bookings')),
     updateStudent: (id, patch) => q(c.from('students').update(patch).eq('id', id)),
@@ -1343,7 +1358,7 @@ async function refreshAccount() {
 function drawNav() {
   const a = $('nav-acct');
   if (st.me?.approved) { a.href = '#staff'; a.textContent = 'Profes'; }
-  else if (st.student) { a.href = '#perfil'; a.innerHTML = `${st.student.avatar_url ? `<img src="${esc(st.student.avatar_url)}" alt="">` : ''}Mi perfil`; }
+  else if (st.student) { a.href = '#perfil'; a.innerHTML = `${st.student.avatar_url ? `<img src="${esc(st.student.avatar_url)}" alt="" referrerpolicy="no-referrer">` : ''}Mi perfil`; }
   else { a.href = '#perfil'; a.textContent = 'Entrar'; }
 }
 // Entrar con Google y volver a donde estaba (su perfil, o la reserva que estaba por hacer).
@@ -1606,7 +1621,7 @@ function bookingRow(s, b) {
   const msg = `Hola ${b.customer_name.split(' ')[0]}! Te escribo de Nativo por tu clase del ${fmtDayShort(s.starts_at)} ${hhmm(s.starts_at)}.`;
   return `<div class="bk ${x ? 'x' : ''}">
     ${contactBtn(b.customer_phone, msg)}
-    <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${b.student?.avatar_url ? `<img class="mini-av" src="${esc(b.student.avatar_url)}" alt="">` : ''}${esc(b.customer_name)}${b.student?.training === 'approved' ? ' 🏅' : ''}${b.people > 1 ? ` ×${b.people}` : ''}</b>
+    <div class="who" onclick="bookingMenu('${b.id}')" style="cursor:pointer"><b>${b.student?.avatar_url ? `<img class="mini-av" src="${esc(b.student.avatar_url)}" alt="" referrerpolicy="no-referrer">` : ''}${esc(b.customer_name)}${b.student?.training === 'approved' ? ' 🏅' : ''}${b.people > 1 ? ` ×${b.people}` : ''}</b>
       <span>${x ? 'Cancelada' : money(b.amount)}${b.source && b.source !== 'web' ? ` · <span class="src src-${esc(b.source)}">${esc(SOURCES[b.source] || b.source)}</span>` : ''}${b.notes ? ` · ${esc(b.notes)}` : ''}</span></div>
     ${x ? (b.paid ? `<div class="acts"><button class="tog yes" onclick="payMenu('${b.id}')">✓ Cobrada · ¿devolver?</button></div>` : '') : `<div class="acts">
       ${isPast(s) ? `<button class="tog ${came ? 'yes' : miss ? 'no' : ''}" onclick="toggleCame('${b.id}')">${came ? '✓ Vino' : miss ? 'Faltó' : 'Vino?'}</button>` : ''}
