@@ -1696,8 +1696,8 @@ async function renderTicket(code) {
       <button class="btn ghost block" onclick="shareTicket()">Compartir / copiar link de la reserva</button>
       ${live && r.profe_whatsapp ? `<a class="btn wa block" href="${profeWa(r.profe_name, r.profe_whatsapp, `por mi clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code})`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Escribirle a ${esc(r.profe_name.split(' ')[0])}</a>` : ''}
       ${live ? (canSelfCancel(r) ? `<button class="btn danger block" onclick="askCancelMine()">No puedo ir · cancelar mi reserva</button>`
-        : `<p class="tiny muted" style="text-align:center;margin:2px 0">${r.paid && r.payment_method !== 'abono' ? 'Ya está paga: para cancelarla escribinos.' : `Faltan menos de ${CONFIG.CANCEL_HOURS} h: para cancelar escribinos.`}</p>`) : ''}
-      ${(c => c?.whatsapp ? `<a class="btn ${live && r.profe_whatsapp ? 'ghost' : 'wa'} block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Cambiar o cancelar (${c.name ? esc(c.name) : 'escuela'})</a>` : '')(sportOwner(r.sport))}
+        : `<p class="tiny muted" style="text-align:center;margin:2px 0">${r.paid && r.payment_method !== 'abono' ? 'Ya está paga' : `Faltan menos de ${CONFIG.CANCEL_HOURS} h`}: para cancelar escribile ${r.profe_whatsapp ? 'a ' + esc(r.profe_name.split(' ')[0]) : 'a la escuela'}.</p>`) : ''}
+      ${live && !r.profe_whatsapp ? (c => c?.whatsapp ? `<a class="btn wa block" href="${waLink(c.whatsapp, `Hola${c.name ? ' ' + c.name : ''}! Tengo la reserva ${r.code}: ${r.title} el ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}.`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Escribinos por tu reserva</a>` : '')(sportOwner(r.sport)) : ''}
       <a class="btn ghost block" href="#">Ver más clases</a>
     </div>`;
   ticketExtras(r);
