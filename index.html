@@ -1688,7 +1688,6 @@ async function renderTicket(code) {
       <p class="tiny muted" style="margin:8px 0 0">Tu lugar ya está reservado. ${esc(r.profe_name.split(' ')[0])} lo marca como pagado cuando le llega.</p></div>` : ''}
     <div class="tk-acts">
       ${live && MP_ON && !r.paid && r.amount > 0 ? `<button class="btn mp block" onclick="payBooking('${r.code}', this)">Pagar ahora con Mercado Pago</button><div id="pay-err"></div>` : ''}
-      <button class="btn coral block" onclick="saveTicketImage(this)">Guardar comprobante en el celu</button>
       <div class="two">
         ${live ? `<a class="btn ghost" href="${calLink(r)}" target="_blank" rel="noopener">Al calendario</a>` : ''}
         ${CONFIG.MAPS ? `<a class="btn ghost" href="${CONFIG.MAPS}" target="_blank" rel="noopener">Cómo llegar</a>` : ''}
@@ -1775,48 +1774,6 @@ async function shareTicket() {
   const text = `Mi clase de SUP en Nativo: ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}. Código ${r.code}`;
   try { if (navigator.share) { await navigator.share({ title: 'Mi reserva · Nativo', text, url }); return; } } catch (e) { if (e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(url); toast('Link copiado ✓'); } catch { toast(url); }
-}
-
-// Comprobante como imagen (1080×1350, formato historia/galería), dibujado en el teléfono.
-async function saveTicketImage(btn) {
-  const r = st.ticket; if (!r) return;
-  btn.disabled = true; const label = btn.textContent; btn.textContent = 'Generando…';
-  try {
-    await document.fonts?.ready;
-    const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
-    const grad = g.createLinearGradient(0, 0, 0, H);
-    [[0, '#ffc928'], [.34, '#b9cc55'], [.66, '#6cc483'], [1, '#1cb9bc']].forEach(([o, col]) => grad.addColorStop(o, col));
-    g.fillStyle = grad; g.fillRect(0, 0, W, H);
-    const logo = new Image(); logo.src = 'img/logo.webp'; await logo.decode().catch(() => {});
-    if (logo.naturalWidth) g.drawImage(logo, 70, 60, 230, 230 * logo.naturalHeight / logo.naturalWidth);
-    const disp = '"Fredoka", "Arial Rounded MT Bold", sans-serif', body = '"Figtree", system-ui, sans-serif';
-    g.fillStyle = '#1f1d1e'; g.font = `700 74px ${disp}`; g.fillText('Tu clase de SUP', 330, 175);
-    g.font = `500 38px ${body}`; g.fillText(`Nativo · Escuela de ${SPORTS[r.sport || 'sup']?.label || 'SUP'}`, 334, 235);
-    const card = (x, y, w, h, rad) => { g.beginPath(); g.roundRect(x, y, w, h, rad); };
-    g.fillStyle = '#1f1d1e'; card(78, 398, W - 140, 860, 44); g.fill();      // sombra tipo sticker
-    g.fillStyle = '#ffffff'; card(64, 384, W - 140, 860, 44); g.fill();
-    g.lineWidth = 6; g.strokeStyle = '#1f1d1e'; g.stroke();
-    g.fillStyle = '#1f1d1e'; g.font = `600 52px ${disp}`; g.fillText(fmtDayLong(r.starts_at), 120, 490);
-    g.font = `700 120px ${disp}`; g.fillText(`${hhmm(r.starts_at)} hs`, 116, 620);
-    const rows = [['Profe', r.profe_name], ['Lugar', r.location || CONFIG.LOCATION], ['Personas', String(r.people)], ['Total', r.payment_method === 'abono' ? `${r.people} ${r.people > 1 ? 'clases' : 'clase'} de tu abono` : money(r.amount) + (r.paid ? ' · pagado' : '')]];
-    rows.forEach(([k, v], i) => {
-      const y = 710 + i * 78; g.strokeStyle = '#bcd8cb'; g.lineWidth = 3; g.setLineDash([12, 10]); g.beginPath(); g.moveTo(120, y - 48); g.lineTo(W - 136, y - 48); g.stroke(); g.setLineDash([]);
-      g.fillStyle = '#4a5a56'; g.font = `500 38px ${body}`; g.fillText(k, 120, y);
-      g.fillStyle = '#1f1d1e'; g.textAlign = 'right';
-      let fs = 38; do g.font = `700 ${fs}px ${body}`; while (g.measureText(v).width > 660 && --fs > 26);   // achica la letra si no entra
-      let t = v; while (g.measureText(t).width > 660 && t.length > 4) t = t.slice(0, -2); if (t !== v) t += '…';
-      g.fillText(t, W - 136, y); g.textAlign = 'left';
-    });
-    g.fillStyle = '#fbef46'; card(120, 1040, W - 256, 150, 30); g.fill(); g.lineWidth = 6; g.strokeStyle = '#1f1d1e'; g.stroke();
-    g.fillStyle = '#1f1d1e'; g.font = `700 96px ${disp}`; g.textAlign = 'center'; g.fillText(r.code.split('').join(' '), W / 2 - 8, 1148);
-    g.font = `500 32px ${body}`; g.fillText(ticketUrl(r.code).replace(/^https?:\/\//, ''), W / 2, 1305); g.textAlign = 'left';
-    const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
-    const file = new File([blob], `nativo-reserva-${r.code}.png`, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: 'Mi reserva · Nativo' }); return; } catch (e) { if (e.name === 'AbortError') return; } }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('Comprobante descargado ✓');
-  } catch (e) { toast('No se pudo generar la imagen. Sacale captura a esta pantalla.'); }
-  finally { btn.disabled = false; btn.textContent = label; }
 }
 
 /* ── Pago online ── */
