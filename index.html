@@ -1692,7 +1692,6 @@ async function renderTicket(code) {
         ${live ? `<a class="btn ghost" href="${calLink(r)}" target="_blank" rel="noopener">Al calendario</a>` : ''}
         ${CONFIG.MAPS ? `<a class="btn ghost" href="${CONFIG.MAPS}" target="_blank" rel="noopener">Cómo llegar</a>` : ''}
       </div>
-      <button class="btn ghost block" onclick="shareTicket()">Compartir / copiar link de la reserva</button>
       ${live && r.profe_whatsapp ? `<a class="btn wa block" href="${profeWa(r.profe_name, r.profe_whatsapp, `por mi clase del ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} (reserva ${r.code})`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Escribirle a ${esc(r.profe_name.split(' ')[0])}</a>` : ''}
       ${live ? (canSelfCancel(r) ? `<button class="btn danger block" onclick="askCancelMine()">No puedo ir · cancelar mi reserva</button>`
         : `<p class="tiny muted" style="text-align:center;margin:2px 0">${r.paid && r.payment_method !== 'abono' ? 'Ya está paga' : `Faltan menos de ${CONFIG.CANCEL_HOURS} h`}: para cancelar escribile ${r.profe_whatsapp ? 'a ' + esc(r.profe_name.split(' ')[0]) : 'a la escuela'}.</p>`) : ''}
@@ -1768,12 +1767,6 @@ async function redeemOnTicket(ev, code) {
 async function copyAlias(btn, alias) {
   try { await navigator.clipboard.writeText(alias); btn.textContent = 'Copiado ✓'; toast('Alias copiado: pegalo en tu app del banco'); setTimeout(() => { btn.textContent = 'Copiar alias'; }, 2500); }
   catch { toast(alias); }
-}
-async function shareTicket() {
-  const r = st.ticket, url = ticketUrl(r.code);
-  const text = `Mi clase de SUP en Nativo: ${fmtDayShort(r.starts_at)} ${hhmm(r.starts_at)} con ${r.profe_name}. Código ${r.code}`;
-  try { if (navigator.share) { await navigator.share({ title: 'Mi reserva · Nativo', text, url }); return; } } catch (e) { if (e.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(url); toast('Link copiado ✓'); } catch { toast(url); }
 }
 
 /* ── Pago online ── */
