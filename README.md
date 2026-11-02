@@ -87,6 +87,9 @@ La agenda, el resumen, Equipo y Abonos se actualizan solos cuando otro profe car
 - **Baja de un horario fijo**: en el perfil, cada horario con 2+ reservas tiene "Darme de baja" (cancela todas las que se puedan: más de 12 h antes y sin pagar).
 - **📊 Más números** (Resumen, admin): nuevos vs. los que vuelven, horarios más pedidos, repetición por profe y alumnos que no vienen hace más de 30 días.
 
+## Landing (borrador)
+`landing.html` → **nativoescuela.com.ar/landing**. Presentación de Nativo (disciplinas, primera clase, profes, reseñas, abonos, preguntas, dónde estamos) que lleva a la página de reservas. Toma precios, profes, reseñas y abonos de la base. Textos y fotos al principio del archivo (`T` y `PHOTOS`). Tiene `noindex` hasta que la publiquemos como página principal.
+
 ## Pago online con Mercado Pago (opcional)
 El alumno reserva y en la misma pantalla puede tocar **Pagar ahora con Mercado Pago**. También puede pagar después desde **Pagar mi reserva**, con su código.
 Cuando Mercado Pago aprueba el pago, avisa al servidor (`api/mp-webhook`) y la reserva queda marcada como **pagó · mercadopago** sin que nadie toque nada.

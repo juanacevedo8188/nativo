@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/landing",
+      "destination": "/landing.html"
+    },
+    {
       "source": "/kayak",
       "destination": "/api/page?sport=kayak"
     },

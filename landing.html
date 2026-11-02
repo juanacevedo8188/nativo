@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- BORRADOR: todavía no es la página principal. No la indexa Google hasta que la publiquemos. -->
+<meta name="robots" content="noindex, nofollow">
+<title>Nativo · Escuela de SUP y Kayak en Rosario</title>
+<meta name="description" content="Clases de stand up paddle y kayak en el Paraná, en Rosario. Para todos los niveles, con todo el equipo incluido. Reservá online.">
+<meta name="theme-color" content="#1f1d1e">
+<link rel="icon" href="img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Yellowtail&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3faf6; --card:#ffffff; --ink:#1f1d1e; --ink2:#4a5a56; --ink3:#8a9a95;
+  --line:#d9ebe2; --line2:#bcd8cb;
+  --sea:#0e8488; --sea2:#18b3b6; --sea-soft:#dcf4f1;
+  --sun:#fbef46; --sun2:#ffc928; --lime:#8cc36b; --violet:#8b5cf6;
+  --grad:linear-gradient(180deg,#ffc928 0%,#b9cc55 34%,#6cc483 66%,#1cb9bc 100%);
+  --f-display:"Fredoka",ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif;
+  --f-script:"Yellowtail","Brush Script MT",cursive;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --r:20px; --shadow:0 1px 2px rgba(31,29,30,.05),0 10px 30px rgba(14,132,136,.10);
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font-family:var(--f-body);background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;overflow-x:hidden;overflow-x:clip}
+img{max-width:100%;display:block}
+a{color:inherit}
+.wrap{max-width:1100px;margin:0 auto;padding:0 18px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;line-height:1.08;letter-spacing:-.01em}
+h2{font-size:clamp(28px,6vw,42px);margin-bottom:10px}
+.kicker{font-family:var(--f-script);font-size:26px;color:var(--sea);display:block;margin-bottom:2px}
+.lead{color:var(--ink2);font-size:17px;max-width:620px}
+section{padding:64px 0}
+.center{text-align:center}.center .lead{margin:0 auto}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:999px;padding:14px 24px;min-height:50px;font-weight:700;font-size:16px;text-decoration:none;cursor:pointer;transition:transform .12s,box-shadow .12s}
+.btn:active{transform:translate(2px,2px)}
+.btn.sun{background:var(--sun);color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink),4px 4px 0 var(--ink)}
+.btn.sun:active{box-shadow:inset 0 0 0 2px var(--ink),1px 1px 0 var(--ink)}
+.btn.ink{background:var(--ink);color:var(--sun)}
+.btn.ghost{background:rgba(255,255,255,.85);color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink)}
+.btn.wa{background:#1fa855;color:#fff}
+.btn.sm{min-height:40px;padding:9px 16px;font-size:14.5px}
+
+/* Encabezado */
+.top{position:sticky;top:0;z-index:30;background:var(--ink);color:#fff}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;height:62px}
+.logo{display:flex;align-items:center;gap:9px;text-decoration:none}
+.logo img{width:38px;height:38px;border-radius:50%}
+.logo b{font-family:var(--f-display);font-size:23px;color:var(--sun)}
+.top nav{display:flex;align-items:center;gap:4px}
+.top nav a.l{color:#fff;text-decoration:none;font-weight:600;font-size:14.5px;padding:8px 11px;border-radius:999px}
+.top nav a.l:hover{background:rgba(255,255,255,.1)}
+@media(max-width:820px){.top nav a.l{display:none}}
+
+/* Portada */
+.hero{position:relative;background:var(--grad);overflow:hidden;padding:44px 0 90px}
+.hero.photo{background:#1f1d1e center/cover no-repeat}
+.hero.photo::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(31,29,30,.15),rgba(31,29,30,.55))}
+.hero .wrap{position:relative;display:grid;gap:26px;align-items:center}
+@media(min-width:860px){.hero{padding:70px 0 120px}.hero .wrap{grid-template-columns:1.2fr .8fr}}
+.hero h1{font-size:clamp(40px,9vw,72px);margin:4px 0 14px}
+.hero h1 em{font-style:normal;background:var(--sun);padding:0 .15em;border-radius:.2em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.hero p{font-size:18px;max-width:540px;font-weight:500}
+.hero .kicker{color:var(--ink)}
+.hero.photo,.hero.photo .kicker,.hero.photo p{color:#fff}
+.hero.photo h1 em{color:var(--ink)}
+.hero .ctas{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0 18px}
+.trust{display:flex;flex-wrap:wrap;gap:8px}
+.trust span{background:rgba(255,255,255,.75);border-radius:999px;padding:6px 12px;font-weight:600;font-size:14px}
+.badge{width:min(320px,70vw);justify-self:center;filter:drop-shadow(0 18px 30px rgba(14,132,136,.35));animation:float 6s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-10px) rotate(-2deg)}}
+@media(prefers-reduced-motion:reduce){.badge{animation:none}html{scroll-behavior:auto}}
+.waves{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:46px;fill:var(--bg)}
+
+/* Disciplinas */
+.grid3{display:grid;gap:18px;margin-top:30px}
+@media(min-width:760px){.grid3{grid-template-columns:repeat(3,1fr)}}
+.disc{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;border:1.5px solid var(--line)}
+.disc .ph{aspect-ratio:4/3;position:relative;display:grid;place-items:center;font-size:72px;background:center/cover no-repeat}
+.disc .ph .tag{position:absolute;top:12px;left:12px;background:var(--ink);color:var(--sun);font-weight:700;font-size:13px;border-radius:999px;padding:5px 11px}
+.disc .bd{padding:18px 18px 20px;display:flex;flex-direction:column;gap:10px;flex:1}
+.disc h3{font-size:25px}
+.disc p{color:var(--ink2)}
+.facts{display:flex;flex-wrap:wrap;gap:6px}
+.facts span{background:var(--sea-soft);color:var(--sea);font-weight:700;font-size:13.5px;border-radius:999px;padding:5px 11px}
+.disc .btn{margin-top:auto;align-self:flex-start}
+.disc.train{border-color:var(--violet)}
+.disc.train .facts span{background:#efe8ff;color:#5b3fa0}
+.ph-sup{background-image:linear-gradient(160deg,#ffe066,#6cc483 60%,#1cb9bc)}
+.ph-kayak{background-image:linear-gradient(160deg,#c6f1ec,#1cb9bc 55%,#0e8488)}
+.ph-train{background-image:linear-gradient(160deg,#e9ddff,#8b5cf6 70%,#5b3fa0)}
+
+/* Primera clase */
+.steps{display:grid;gap:14px;margin-top:28px;counter-reset:s}
+@media(min-width:760px){.steps{grid-template-columns:repeat(4,1fr)}}
+.step{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);position:relative}
+.step::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--sun);box-shadow:inset 0 0 0 2px var(--ink);font:700 19px var(--f-display);margin-bottom:12px}
+.step b{display:block;font-family:var(--f-display);font-size:19px;margin-bottom:4px}
+.step p{color:var(--ink2);font-size:15px}
+.bring{margin-top:18px;background:var(--ink);color:#fff;border-radius:var(--r);padding:18px 20px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+.bring b{color:var(--sun);font-family:var(--f-display);font-size:18px}
+.bring span{font-weight:500}
+
+/* Profes */
+.band{background:var(--card)}
+.profes{display:grid;gap:14px;margin-top:28px}
+@media(min-width:640px){.profes{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}}
+.profe{display:flex;gap:14px;align-items:center;background:var(--bg);border-radius:var(--r);padding:14px}
+.av{width:62px;height:62px;border-radius:50%;flex:none;background:var(--sun) center/cover;display:grid;place-items:center;font:700 22px var(--f-display);box-shadow:inset 0 0 0 2px var(--ink)}
+.profe b{font-family:var(--f-display);font-size:19px}
+.profe small{display:block;color:var(--ink2);font-size:14px}
+
+/* Reseñas */
+.reviews{display:grid;gap:14px;margin-top:28px}
+@media(min-width:760px){.reviews{grid-template-columns:repeat(3,1fr)}}
+.rv{background:var(--card);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
+.rv .st{color:#f0b400;letter-spacing:2px;font-size:18px}
+.rv p{margin:8px 0;font-size:15.5px}
+.rv small{color:var(--ink2)}
+
+/* Más formas */
+.more{display:grid;gap:14px;margin-top:28px}
+@media(min-width:760px){.more{grid-template-columns:repeat(3,1fr)}}
+.mcard{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;text-decoration:none;border:1.5px solid var(--line);transition:transform .15s var(--ease)}
+.mcard:hover{transform:translateY(-3px)}
+.mcard i{font-style:normal;font-size:34px}
+.mcard b{font-family:var(--f-display);font-size:21px}
+.mcard span{color:var(--ink2);font-size:15px}
+.mcard em{font-style:normal;color:var(--sea);font-weight:700;margin-top:auto}
+
+/* Preguntas */
+.faq{max-width:760px;margin:26px auto 0;display:grid;gap:10px}
+.faq details{background:var(--card);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow)}
+.faq summary{font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:10px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"＋";color:var(--sea);font-size:18px}
+.faq details[open] summary::after{content:"－"}
+.faq p{color:var(--ink2);margin-top:8px}
+
+/* Dónde */
+.where{display:grid;gap:20px;align-items:center;margin-top:24px}
+@media(min-width:760px){.where{grid-template-columns:1fr 1.2fr}}
+.map{border:0;width:100%;aspect-ratio:4/3;border-radius:var(--r);box-shadow:var(--shadow);background:var(--sea-soft)}
+
+/* Cierre y pie */
+.cta-band{background:var(--grad);text-align:center;padding:70px 0}
+.cta-band h2{font-size:clamp(32px,7vw,52px)}
+.foot{background:var(--ink);color:#d9e6e1;padding:40px 0 calc(90px + env(safe-area-inset-bottom,0px));font-size:15px}
+.foot .cols{display:grid;gap:22px}
+@media(min-width:760px){.foot .cols{grid-template-columns:1.2fr 1fr 1fr}}
+.foot b{color:var(--sun);font-family:var(--f-display);font-size:18px;display:block;margin-bottom:6px}
+.foot a{color:#fff}
+.foot .links{display:grid;gap:6px}
+
+/* Botón fijo abajo en el celu */
+.sticky-cta{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:40;display:flex;gap:8px;transform:translateY(140%);transition:transform .3s var(--ease)}
+.sticky-cta.on{transform:none}
+.sticky-cta .btn{flex:1}
+@media(min-width:860px){.sticky-cta{display:none}}
+
+.rise{opacity:0;transform:translateY(18px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.rise.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){.rise{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <a class="logo" href="#"><img src="img/icon-sm.webp" alt="" width="38" height="38"><b>Nativo</b></a>
+  <nav><a class="l" href="#disciplinas">Disciplinas</a><a class="l" href="#primera">Tu primera clase</a><a class="l" href="#profes">Profes</a><a class="l" href="#donde">Dónde</a>
+    <a class="btn sun sm" href="/" style="margin-left:6px">Reservar</a></nav>
+</div></header>
+
+<main id="landing"></main>
+
+<div class="sticky-cta" id="sticky"><a class="btn sun" href="/">Reservar clase</a></div>
+
+<script>
+/* ═══════════ TEXTOS Y FOTOS: editar acá ═══════════
+   Fotos: poné la ruta (ej. 'img/hero.jpg') y reemplaza el dibujo de colores. Vacío = colores de la marca. */
+const PHOTOS = { hero: '', sup: '', kayak: '', train: '' };
+const T = {
+  instagram: '',                       // ej. 'nativo.sup' (sin @). Vacío = no se muestra
+  hero: { kicker: 'Escuela de SUP & Kayak', title: 'Remá el <em>Paraná</em> en Rosario', text: 'Clases de stand up paddle y kayak para todos los niveles, desde la Guardería Barlovento. Te damos todo el equipo: vos traé ganas.' },
+  about: 'Somos un grupo de profes que vive el río. Damos clases chicas, con tiempo para que cada uno aprenda a su ritmo y disfrute del Paraná de forma segura.',
+  sup: 'Parate arriba de la tabla desde la primera clase. Aprendés equilibrio, remada y a leer el río, en grupos chicos y con un profe al lado.',
+  kayak: 'Iniciación para arrancar de cero y travesías guiadas por el río y las islas. Kayak, pala y chaleco incluidos.',
+  train: 'Para los que ya reman y quieren más: técnica, resistencia y remada larga, con un grupo que entrena junto toda la temporada.',
+  bring: ['Ropa que se pueda mojar', 'Protector solar', 'Agua', 'Toalla y ropa seca', 'Gorra'],
+  faq: [
+    ['¿Necesito experiencia?', 'No. Las clases de iniciación son justamente para arrancar de cero: te explicamos todo en tierra antes de entrar al agua.'],
+    ['¿Tengo que saber nadar?', 'Siempre remás con chaleco salvavidas. Igual, contanos en la ficha de salud si no sabés nadar para que el profe lo tenga en cuenta.'],   // ← confirmar
+    ['¿Desde qué edad?', 'Desde los 10 años. Los menores de 16, acompañados por un adulto.'],   // ← confirmar
+    ['¿Qué pasa si hay viento o lluvia?', 'Miramos el pronóstico de cada clase. Si no se puede salir, te avisamos por WhatsApp y la reprogramamos sin costo.'],
+    ['¿Cómo pago?', 'Por transferencia al alias del profe o en efectivo el día de la clase. Si venís seguido, el abono te sale más barato.'],
+    ['¿Puedo cancelar?', 'Sí: desde tu comprobante, hasta 12 horas antes de la clase. Después, escribile al profe.'],
+  ],
+};
+const SB = { url: 'https://teoqnlebaglaewbbuyai.supabase.co', key: 'sb_publishable_BvtrAZgX3iBzmlldYITJLQ_Q3PqTKXz' };
+const CONTACT = { sup: { name: 'Torita', whatsapp: '5493364386564' } };   // kayak: el WhatsApp de Mati sale de su perfil
+const PLACE = { name: 'Guardería Barlovento', city: 'Rosario', q: 'Guardería Barlovento Rosario' };
+
+/* ═══════════ Código ═══════════ */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const money = n => '$ ' + Math.round(+n || 0).toLocaleString('es-AR');
+const wa = (n, t) => `https://wa.me/${n}?text=${encodeURIComponent(t)}`;
+const initials = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+const get = (path, body) => fetch(`${SB.url}/rest/v1/${path}`, body ? { method: 'POST', headers: { apikey: SB.key, 'Content-Type': 'application/json' }, body: '{}' } : { headers: { apikey: SB.key } })
+  .then(r => r.ok ? r.json() : []).catch(() => []);
+
+function draw({ types = [], profes = [], reviews = [], plans = [] } = {}) {
+  const pub = types.filter(t => t.active && !t.members_only);
+  const from = (sport, kind) => { const ts = pub.filter(t => (t.sport || 'sup') === sport && (!kind || (t.kind || 'iniciacion') === kind)); return ts.length ? ts.reduce((a, t) => +t.price < +a.price ? t : a) : null; };
+  const supT = from('sup'), kayT = from('kayak', 'iniciacion'), travT = from('kayak', 'travesia'), trainT = types.find(t => t.active && t.members_only);
+  const mati = profes.find(p => (p.sports || []).includes('kayak') && !(p.sports || []).includes('sup') && p.whatsapp);
+  const rv = reviews.slice(0, 6), avg = reviews.length ? reviews.reduce((a, r) => a + r.stars, 0) / reviews.length : 0;
+  const plan = plans.find(p => p.active && (p.sport || 'sup') === 'sup');
+  const fact = t => t ? `<span>${t.duration_min >= 120 ? Math.round(t.duration_min / 6) / 10 + ' h' : t.duration_min + ' min'}</span><span>desde ${money(t.price)}</span>` : '';
+  const phBox = (key, cls, emoji, tag) => PHOTOS[key] ? `<div class="ph" style="background-image:url('${esc(PHOTOS[key])}')">${tag ? `<span class="tag">${tag}</span>` : ''}</div>`
+    : `<div class="ph ${cls}" aria-hidden="true">${emoji}${tag ? `<span class="tag">${tag}</span>` : ''}</div>`;
+
+  $('landing').innerHTML = `
+  <section class="hero ${PHOTOS.hero ? 'photo' : ''}" ${PHOTOS.hero ? `style="background-image:url('${esc(PHOTOS.hero)}')"` : ''} id="inicio">
+    <div class="wrap">
+      <div><span class="kicker">${T.hero.kicker}</span><h1>${T.hero.title}</h1><p>${T.hero.text}</p>
+        <div class="ctas"><a class="btn sun" href="/">Reservar clase</a><a class="btn ghost" href="#disciplinas">Ver disciplinas</a></div>
+        <div class="trust">${reviews.length ? `<span>⭐ ${avg.toFixed(1).replace('.', ',')} · ${reviews.length} ${reviews.length === 1 ? 'reseña' : 'reseñas'}</span>` : ''}<span>🦺 Equipo incluido</span><span>👥 Grupos chicos</span><span>🌊 Todos los niveles</span></div></div>
+      ${PHOTOS.hero ? '' : '<img class="badge" src="img/logo.webp" alt="Nativo · Sup, Windsurf & Kayak" width="320" height="388">'}
+    </div>
+    <svg class="waves" viewBox="0 0 2400 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 24C150 6 300 6 450 22S750 44 900 24 1050 6 1200 24 1500 44 1650 24 1950 6 2100 22 2250 40 2400 24V46H0Z"/></svg>
+  </section>
+
+  <section id="disciplinas"><div class="wrap">
+    <div class="center rise"><span class="kicker">Elegí tu manera de remar</span><h2>Disciplinas</h2><p class="lead">${T.about}</p></div>
+    <div class="grid3">
+      <article class="disc rise">${phBox('sup', 'ph-sup', '🏄', 'Más elegida')}
+        <div class="bd"><h3>Stand up paddle</h3><p>${T.sup}</p><div class="facts">${fact(supT)}<span>Tabla, remo y chaleco</span></div>
+          <a class="btn sun sm" href="/#sup">Reservar SUP</a></div></article>
+      <article class="disc rise">${phBox('kayak', 'ph-kayak', '🛶', travT ? '🧭 Travesías' : '')}
+        <div class="bd"><h3>Kayak</h3><p>${T.kayak}</p><div class="facts">${fact(kayT)}${travT ? `<span>Travesía ${money(travT.price)}</span>` : ''}</div>
+          <a class="btn sun sm" href="/#kayak">Reservar kayak</a></div></article>
+      <article class="disc train rise">${phBox('train', 'ph-train', '🏅', 'Team Nativo')}
+        <div class="bd"><h3>Grupo de entrenamiento</h3><p>${T.train}</p><div class="facts">${trainT?.description ? `<span>${esc(trainT.description.split('.')[0])}</span>` : '<span>Para los que ya reman</span>'}</div>
+          <a class="btn wa sm" href="${wa(CONTACT.sup.whatsapp, `Hola ${CONTACT.sup.name}! Quiero info para sumarme al grupo de entrenamiento de Nativo 🏅`)}" target="_blank" rel="noopener">Consultarle a ${CONTACT.sup.name}</a></div></article>
+    </div>
+  </div></section>
+
+  <section id="primera" class="band"><div class="wrap">
+    <div class="center rise"><span class="kicker">Sin experiencia, sin problema</span><h2>Tu primera clase</h2><p class="lead">Así de simple es arrancar.</p></div>
+    <div class="steps">
+      <div class="step rise"><b>Reservás</b><p>Elegís día, horario y profe desde la web. Te llega el comprobante al toque.</p></div>
+      <div class="step rise"><b>Llegás</b><p>Venís a la ${PLACE.name} unos 15 minutos antes. Completás tu ficha de salud (1 minuto).</p></div>
+      <div class="step rise"><b>Te equipamos</b><p>Te damos ${supT ? 'tabla, remo y chaleco' : 'todo el equipo'} y te explicamos lo básico en tierra.</p></div>
+      <div class="step rise"><b>¡Al agua!</b><p>${supT ? supT.duration_min + ' minutos' : 'Una hora'} remando en el Paraná, con el profe al lado todo el tiempo.</p></div>
+    </div>
+    <div class="bring rise"><b>Qué traer</b>${T.bring.map(x => `<span>✓ ${esc(x)}</span>`).join('')}</div>
+  </div></section>
+
+  ${profes.length ? `<section id="profes"><div class="wrap">
+    <div class="center rise"><span class="kicker">Con quién vas a remar</span><h2>Los profes</h2></div>
+    <div class="profes">${profes.map(p => `<div class="profe rise"><span class="av" ${p.avatar_url ? `style="background-image:url('${esc(p.avatar_url)}')"` : ''}>${p.avatar_url ? '' : esc(initials(p.name))}</span>
+      <span><b>${esc(p.name)}</b><small>${(p.sports || ['sup']).map(k => k === 'kayak' ? '🛶 Kayak' : '🏄 SUP').join(' · ')}</small>${p.bio ? `<small>${esc(p.bio)}</small>` : ''}</span></div>`).join('')}</div>
+  </div></section>` : ''}
+
+  ${rv.length ? `<section class="band"><div class="wrap">
+    <div class="center rise"><span class="kicker">Lo que dicen</span><h2>Alumnos felices</h2></div>
+    <div class="reviews">${rv.map(r => `<div class="rv rise"><div class="st">${'★'.repeat(r.stars)}</div><p>“${esc(r.comment)}”</p><small>${esc(r.first_name || '')}${r.profe_name ? ` · clase con ${esc(r.profe_name.split(' ')[0])}` : ''}</small></div>`).join('')}</div>
+  </div></section>` : ''}
+
+  <section><div class="wrap">
+    <div class="center rise"><span class="kicker">Para todos los planes</span><h2>Más formas de venir</h2></div>
+    <div class="more">
+      <a class="mcard rise" href="/"><i>💳</i><b>Abonos</b><span>${plan ? `${esc(plan.name)}: ${plan.classes} clases por ${money(plan.price)} (${money(plan.price / plan.classes)} cada una).` : 'Si venís seguido, te sale más barato cada clase.'}</span><em>Ver abonos →</em></a>
+      <a class="mcard rise" href="/"><i>🎁</i><b>Gift cards</b><span>Regalá una clase o un abono. Te mandamos la tarjeta con el código para que la pases.</span><em>Regalar →</em></a>
+      <a class="mcard rise" href="/"><i>👥</i><b>Privadas y grupales</b><span>Cumpleaños, empresas, grupos de amigos o una clase solo para vos.</span><em>Pedir info →</em></a>
+    </div>
+  </div></section>
+
+  <section class="band"><div class="wrap">
+    <div class="center rise"><span class="kicker">Antes de venir</span><h2>Preguntas frecuentes</h2></div>
+    <div class="faq">${T.faq.map(([q, a]) => `<details class="rise"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
+  </div></section>
+
+  <section id="donde"><div class="wrap">
+    <div class="where">
+      <div class="rise"><span class="kicker">Te esperamos</span><h2>Dónde estamos</h2><p class="lead">${PLACE.name}, ${PLACE.city}. Salimos al Paraná desde la guardería: llegá unos minutos antes para cambiarte y equiparte.</p>
+        <a class="btn ink" style="margin-top:16px" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(PLACE.q)}" target="_blank" rel="noopener">📍 Cómo llegar</a></div>
+      <iframe class="map rise" title="Mapa: ${PLACE.name}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(PLACE.q)}&output=embed"></iframe>
+    </div>
+  </div></section>
+
+  <section class="cta-band"><div class="wrap rise"><span class="kicker" style="color:var(--ink)">¿Arrancamos?</span><h2>Tu primera remada te espera</h2>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px"><a class="btn sun" href="/">Reservar clase</a></div></div></section>
+
+  <footer class="foot"><div class="wrap cols">
+    <div><b>Nativo</b>Escuela de SUP & Kayak en Rosario.<br>${PLACE.name}.</div>
+    <div class="links"><b>Escribinos</b>
+      <a href="${wa(CONTACT.sup.whatsapp, 'Hola Nativo! Tengo una consulta por las clases de SUP')}" target="_blank" rel="noopener">🏄 SUP · ${CONTACT.sup.name}</a>
+      ${mati ? `<a href="${wa(mati.whatsapp, `Hola ${mati.name.split(' ')[0]}! Tengo una consulta por las clases de kayak`)}" target="_blank" rel="noopener">🛶 Kayak · ${esc(mati.name)}</a>` : ''}
+      ${T.instagram ? `<a href="https://instagram.com/${encodeURIComponent(T.instagram)}" target="_blank" rel="noopener">📸 @${esc(T.instagram)}</a>` : ''}</div>
+    <div class="links"><b>Web</b><a href="/">Reservar clase</a><a href="/#perfil">Mi cuenta</a><a href="/#staff">Acceso profes</a></div>
+  </div></footer>`;
+
+  // Animación suave al aparecer cada bloque
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
+  document.querySelectorAll('.rise').forEach(el => io ? io.observe(el) : el.classList.add('in'));
+}
+
+// Botón "Reservar" fijo abajo (celu) cuando ya pasaste la portada
+addEventListener('scroll', () => { const h = document.querySelector('.hero'); $('sticky').classList.toggle('on', !!h && h.getBoundingClientRect().bottom < 0); }, { passive: true });
+
+draw();   // primero sin datos (no queda en blanco), después con precios, profes y reseñas reales
+Promise.all([get('class_types?select=*&order=sort'), get('rpc/public_profes', true), get('rpc/public_reviews', true), get('plans?select=*&active=eq.true&order=sort')])
+  .then(([types, profes, reviews, plans]) => draw({ types, profes, reviews, plans }));
+</script>
+</body>
+</html>

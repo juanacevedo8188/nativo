@@ -16,7 +16,7 @@ self.addEventListener('fetch', e => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== 'GET' || u.pathname.startsWith('/api/') || u.hostname.endsWith('supabase.co')) return;
   if (r.mode === 'navigate') {
-    e.respondWith(fetch(r).then(res => { if (res.ok && u.origin === location.origin && !u.search) caches.open(V).then(c => c.put('/', res.clone())); return res; })
+    e.respondWith(fetch(r).then(res => { if (res.ok && u.origin === location.origin && u.pathname === '/' && !u.search) caches.open(V).then(c => c.put('/', res.clone())); return res; })
       .catch(() => caches.match('/').then(c => c || Response.error())));
     return;
   }
