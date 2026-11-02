@@ -422,6 +422,9 @@ addEventListener('scroll', () => {
   const h = document.querySelector('.hero'); $('sticky').classList.toggle('on', !!h && h.getBoundingClientRect().bottom < 60);
 }, { passive: true });
 
+// Link de invitado (?ref=ABC123): se guarda para que el descuento se aplique al reservar en la web.
+{ const q = new URLSearchParams(location.search), r = (q.get('ref') || '').trim().toUpperCase();
+  if (/^[0-9A-F]{6}$/.test(r)) { try { localStorage.setItem('nativo_ref', JSON.stringify({ code: r, at: Date.now() })); } catch {} history.replaceState(null, '', location.pathname + location.hash); } }
 draw();   // primero sin datos (nunca queda en blanco); después con precios, profes y reseñas reales
 Promise.all([get('class_types?select=*&order=sort'), get('rpc/public_profes', true), get('rpc/public_reviews', true), get('plans?select=*&active=eq.true&order=sort')])
   .then(([types, profes, reviews, plans]) => draw({ types, profes, reviews, plans }));

@@ -356,6 +356,7 @@ textarea.input{min-height:80px;resize:vertical}
 .shead h1{font:700 22px/1.15 var(--f-display);margin:2px 0 0;letter-spacing:-.2px}
 .shead .back{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--line2);font-size:26px;line-height:1;color:var(--ink);cursor:pointer;padding-bottom:3px}
 .mgroup{margin-bottom:14px}
+.ref-banner{background:var(--sea-soft);color:var(--sea);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14.5px}
 .eqsum{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
 .eqk{display:flex;flex-direction:column;align-items:center;gap:1px;padding:10px 6px;border-radius:16px;border:1.5px solid var(--line);background:var(--card);font:inherit;color:var(--ink);cursor:pointer}
 .eqk i{font-style:normal;font-size:24px}.eqk b{font-size:20px;line-height:1.1}.eqk span{font-size:12px;color:var(--ink2);text-align:center}
@@ -886,6 +887,14 @@ function supabaseApi() {
     photosByCode: code => q(c.rpc('slot_photos_by_code', { p_code: code })),
     myPhotos: () => q(c.rpc('my_photos')),
     calToken: reset => q(c.rpc('my_cal_token', { p_reset: !!reset })),
+    // Traé a un amigo / Te extrañamos
+    settings: async () => Object.fromEntries((await q(c.from('app_settings').select('key,value'))).map(r => [r.key, r.value])),
+    saveSetting: (key, value) => q(c.from('app_settings').upsert({ key, value, updated_at: new Date().toISOString() })),
+    async refInfo(code) { return (await q(c.rpc('referrer_info', { p_code: code })))[0] || null; },
+    applyReferral: (booking, ref) => q(c.rpc('apply_referral', { p_booking: booking, p_ref: ref })),
+    myRefCode: () => q(c.rpc('my_ref_code')),
+    myReferrals: () => q(c.from('referrals').select('friend_name,status,reward_coupon,reward_pct,created_at').order('created_at', { ascending: false })),
+    allReferrals: () => q(c.from('referrals').select('status')),
     // Inventario (admin): equipos y su historial de comentarios
     equipment: () => q(c.from('equipment').select('*, notes:equipment_notes(id,body,status,author_name,created_at)').order('name')),
     addEquipment: rows => q(c.from('equipment').insert(rows)),
@@ -1211,6 +1220,22 @@ function demoApi() {
         .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
     mailBooking: () => wait(null), mailSuspended: () => wait(null), mailStats: () => fail('demo'),
+    settings: () => wait(db.settings || {}),
+    saveSetting(key, value) { (db.settings ||= {})[key] = value; save(); return wait(null); },
+    refInfo(code) { const r = db.students.find(x => x.ref_code === String(code).toUpperCase()), cfg = db.settings?.referral;
+      return wait(r && cfg?.on ? { first_name: r.name.split(' ')[0], friend_pct: +cfg.friend_pct || 10 } : null); },
+    applyReferral(code, ref) {
+      const cfg = db.settings?.referral, r = db.students.find(x => x.ref_code === String(ref).toUpperCase()), b = db.bookings.find(x => x.code === String(code).toUpperCase());
+      if (!cfg?.on || !r) return fail('Ese link de invitado no es válido'); if (!b || b.paid || b.coupon_code) return fail('Esa reserva ya tiene descuento o está paga');
+      if (b.student_id === r.id || (r.phone && phoneKey(r.phone) === phoneKey(b.customer_phone))) return fail('No te podés invitar a vos mismo');
+      if (db.bookings.some(x => x !== b && x.status !== 'cancelled' && phoneKey(x.customer_phone) === phoneKey(b.customer_phone) && Date.now() - new Date(x.created_at) > 15 * 60e3)) return fail('El descuento de invitado es solo para la primera clase');
+      const pct = +cfg.friend_pct || 10; b.amount = Math.round(b.amount * (100 - pct) / 100); b.coupon_code = 'AMIGO';
+      (db.referrals ||= []).push({ id: uid(), referrer_id: r.id, booking_id: b.id, friend_name: b.customer_name.split(' ')[0], friend_pct: pct, status: 'pending', created_at: new Date().toISOString() }); save(); return wait(b.amount);
+    },
+    myRefCode() { const me = db.students.find(x => x.id === store.get(SKEY, null)); if (!me) return fail('Entrá con tu cuenta');
+      me.ref_code ||= Math.random().toString(16).slice(2, 8).toUpperCase(); save(); return wait(me.ref_code); },
+    myReferrals() { const sid = store.get(SKEY, null); return wait((db.referrals || []).filter(r => r.referrer_id === sid).reverse()); },
+    allReferrals: () => wait(db.referrals || []),
     equipment: () => wait((db.equipment || []).map(e => ({ ...e, notes: (db.equipment_notes || []).filter(n => n.equipment_id === e.id) }))),
     addEquipment(rows) { db.equipment ||= []; rows.forEach(r => db.equipment.push({ id: uid(), status: 'ok', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...r })); save(); return wait(null); },
     updateEquipment(id, patch) { Object.assign(db.equipment.find(e => e.id === id), patch, { updated_at: new Date().toISOString() }); save(); return wait(null); },
@@ -1752,6 +1777,16 @@ function openBooking(id) {
       </div>
     </form>`);
   if (me) loadSeries(s);
+  loadReferral();
+}
+// Si llegó con link de invitado: muestra quién lo invitó y descuenta la primera clase (si no usa cupón ni abono).
+async function loadReferral() {
+  const code = refCode(); if (!code || !$('bk-form')) return;
+  if (st.student && st.myRef === code) return;                 // su propio link
+  const info = await api.refInfo(code).catch(() => null); if (!info || !$('bk-form') || !st.bk) return;
+  st.bk.ref = { code, pct: info.friend_pct, name: info.first_name };
+  $('bk-cp').insertAdjacentHTML('beforebegin', `<div class="ref-banner" id="bk-ref">🤝 Venís invitado por <b>${esc(info.first_name)}</b>: <b>${info.friend_pct}% off</b> en tu primera clase</div>`);
+  stepPeople(0);
 }
 // Reserva fija: las próximas semanas del mismo horario (mismo profe, tipo, día y hora) que todavía tienen lugar.
 async function loadSeries(s) {
@@ -1780,9 +1815,10 @@ function stepPeople(d) {
   f.people.value = n; $('bk-people').textContent = n;
   const plan = bookPlan(f), k = plan.length, withPass = plan.filter(x => x.use).length, firstPay = plan.find(x => !x.use);
   // el cupón se aplica en 1 reserva (la primera que se paga): mismo redondeo que la base
-  const disc = b.coupon && firstPay ? firstPay.s.price * n - Math.round(firstPay.s.price * n * (100 - b.coupon.pct) / 100) : 0;
+  const dc = b.coupon || b.ref;                                // el cupón tiene prioridad sobre el descuento de invitado
+  const disc = dc && firstPay ? firstPay.s.price * n - Math.round(firstPay.s.price * n * (100 - dc.pct) / 100) : 0;
   const pay = plan.filter(x => !x.use).reduce((a, x) => a + x.s.price * n, 0) - disc;
-  $('bk-total-l').textContent = (k > 1 ? `${k} clases${withPass ? ` · ${withPass} con abono` : ''}` : usePass ? `Con tu abono (${n} ${n === 1 ? 'clase' : 'clases'})` : 'Total') + (disc ? ` · -${b.coupon.pct}%` : '');
+  $('bk-total-l').textContent = (k > 1 ? `${k} clases${withPass ? ` · ${withPass} con abono` : ''}` : usePass ? `Con tu abono (${n} ${n === 1 ? 'clase' : 'clases'})` : 'Total') + (disc ? ` · -${dc.pct}%` : '');
   $('bk-cp')?.classList.toggle('hidden', !firstPay);
   $('bk-total').textContent = money(pay);
   $('bk-pay')?.classList.toggle('hidden', pay === 0);        // con abono no se paga nada
@@ -1798,8 +1834,11 @@ async function tryCoupon() {
 }
 // Aplica el cupón validado a una reserva ya hecha. Si falla, la reserva queda igual (sin descuento).
 async function useCoupon(code) {
-  if (!st.bk?.coupon) return;
-  try { await api.applyCoupon(code, st.bk.coupon.coupon); } catch (e) { toast(`La reserva quedó, pero sin el cupón: ${errMsg(e)}`); }
+  if (st.bk?.coupon) { try { await api.applyCoupon(code, st.bk.coupon.coupon); } catch (e) { toast(`La reserva quedó, pero sin el cupón: ${errMsg(e)}`); } return; }
+  if (st.bk?.ref) {
+    try { await api.applyReferral(code, st.bk.ref.code); store.del('nativo_ref'); toast(`🤝 Descuento de invitado aplicado: -${st.bk.ref.pct}%`); }
+    catch (e) { if (/primera clase|vos mismo|no es válido|no está activa|no esta activa/i.test(errMsg(e))) store.del('nativo_ref'); }
+  }
 }
 async function bookSeries(f, plan) {
   const btn = $('bk-btn'), n = +f.people.value, res = [];
@@ -2494,7 +2533,10 @@ async function renderStudent() {
   if (!st.types?.length) st.types = await api.classTypes().catch(() => []);       // ¿hay kayak? → sus logros
   try { [list, st.myPasses, st.plans, st.teamPosts, prof, st.myWaiver] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
     me.training === 'approved' ? api.teamPosts().catch(() => []) : [], api.studentProfile(me.id).catch(() => null), api.myWaiver().catch(() => null)]); } catch (e) { toast(errMsg(e)); }
-  const [myLv, myNotes, myPics] = await Promise.all([api.studentLevels(me.id).catch(() => ({})), api.studentNotes(me.id).catch(() => []), api.myPhotos().catch(() => [])]);
+  const [myLv, myNotes, myPics, myRef, myRefs] = await Promise.all([api.studentLevels(me.id).catch(() => ({})), api.studentNotes(me.id).catch(() => []), api.myPhotos().catch(() => []),
+    api.myRefCode().catch(() => null), api.myReferrals().catch(() => [])]);
+  st.myRef = myRef;
+  const refOn = myRef ? await api.refInfo(myRef).catch(() => null) : null;
   if (!$('sp')) return;
   st.myDays = prof?.train_days || st.myDays || [];
   const now = new Date(), ok = b => b.status !== 'cancelled' && b.slot_status !== 'cancelled';
@@ -2526,6 +2568,7 @@ async function renderStudent() {
     ${sec('prog', '📈 Mi progreso', progressHtml(myLv, myNotes, (k => k.length ? k : ['sup'])(Object.keys(SPORTS).filter(k => myLv[k] || myNotes.some(n => n.sport === k) || list.some(b => (b.sport || 'sup') === k)))), !!(Object.keys(myLv).length || myNotes.length))}
     ${myPics.length ? sec('fotos', `📸 Fotos de mis clases <span class="pill">${myPics.length}</span>`, [...new Set(myPics.map(p => p.slot_id))].map(sid => { const g = myPics.filter(p => p.slot_id === sid);
       return `<div style="margin-bottom:12px"><div class="small" style="margin-bottom:6px"><b>${esc(fmtDayShort(g[0].starts_at))}</b> · ${esc(g[0].title)} con ${esc(g[0].profe_name || '')}</div>${photoGrid(g)}</div>`; }).join(''), true) : ''}
+    ${refOn ? sec('amigos', `🤝 Traé a un amigo${myRefs.some(r => r.status === 'rewarded') ? ` <span class="pill ok">${myRefs.filter(r => r.status === 'rewarded').length} 🎁</span>` : ''}`, referralHtml(myRef, refOn, myRefs), !myRefs.length) : ''}
     ${sec('logros', '🏆 Logros', P.logros, true)}
     ${sec('ficha', wv ? '📝 Ficha de salud <span class="pill ok">✓ completa</span>' : '📝 Ficha de salud <span class="pill warn">pendiente</span>', wv
       ? `<div class="card"><div class="small">Sabe nadar: <b>${{ si: 'Sí', poco: 'Un poco', no: 'No' }[wv.swims] || '-'}</b>${wv.health ? `<br>Salud: ${esc(wv.health)}` : ''}<br>Emergencias: <b>${esc(wv.emergency_name)}</b> · ${esc(wv.emergency_phone)}
@@ -2595,6 +2638,18 @@ async function cancelSeries(i) {
     <div class="card" style="padding:4px 14px">${bad.map(x => `<div style="padding:8px 0;border-top:1px solid var(--line)"><b class="small">${esc(fmtDayShort(x.b.starts_at))} ${hhmm(x.b.starts_at)}</b><div class="tiny muted">${esc(x.err)}</div></div>`).join('')}</div>
     <p class="small" style="margin-top:10px">Para esas, escribile a ${esc(g[0].profe_name.split(' ')[0])}.</p><div class="sheet-foot"><button class="btn block" onclick="closeModal()">Entendido</button></div>`);
   else toast(`Listo: te diste de baja de ${ok} ${ok === 1 ? 'clase' : 'clases'}`);
+}
+// "Traé a un amigo" en el perfil: su link, compartir por WhatsApp y sus premios.
+function referralHtml(code, info, refs) {
+  const link = `${location.protocol === 'https:' ? location.origin : 'https://www.nativoescuela.com.ar'}/?ref=${code}`;
+  const msg = `¡Vení a remar conmigo a Nativo! 🏄 Con mi link tenés ${info.friend_pct}% off en tu primera clase de SUP o kayak: ${link}`;
+  return `<div class="card"><p class="small" style="margin-bottom:10px">Pasale tu link a un amigo: tiene <b>${info.friend_pct}% off en su primera clase</b>, y cuando vaya a remar te llega un <b>código de descuento para vos</b>.</p>
+    <div class="row" style="gap:8px"><input class="input" readonly value="${esc(link)}" style="flex:1;font-size:14px" onclick="this.select()" aria-label="Tu link de invitado">
+      <button class="btn ghost sm" onclick="navigator.clipboard.writeText('${esc(link)}').then(() => toast('Link copiado ✓'), () => {})">Copiar</button></div>
+    <a class="btn wa block" style="margin-top:10px" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} Mandarlo por WhatsApp</a>
+    ${refs.length ? `<div class="label" style="margin-top:14px">Tus invitados (${refs.length})</div>${refs.map(r => `<div class="note"><div class="row between" style="gap:8px"><span class="small"><b>${esc(r.friend_name || 'Amigo')}</b> · ${esc(fmtDayShort(r.created_at))}</span>
+      <span class="small">${r.status === 'rewarded' ? `🎁 <b style="letter-spacing:1px">${esc(r.reward_coupon)}</b> (-${r.reward_pct}%)` : r.status === 'void' ? '<span class="muted">no fue</span>' : '<span class="muted">esperando su clase</span>'}</span></div></div>`).join('')}
+      <p class="tiny muted" style="margin-top:6px">Usá tu código al reservar, en "¿Tenés un cupón de descuento?". Es de un solo uso.</p>` : ''}</div>`;
 }
 function psecToggle(key, open) { const m = store.get('nativo_psec', {}); m[key] = open; store.set('nativo_psec', m); }
 function editStudent() {
@@ -3029,7 +3084,22 @@ async function paneCoupons() {
   const by = {}; uses.filter(b => b.status !== 'cancelled').forEach(b => { const x = (by[b.coupon_code] ||= { n: 0, total: 0 }); x.n++; x.total += +b.amount; });
   const today = dayKey(new Date());
   const state = c => !c.active ? ['gray', 'pausado'] : c.valid_until && c.valid_until < today ? ['gray', 'vencido'] : c.max_uses && (by[c.code]?.n || 0) >= c.max_uses ? ['gray', 'agotado'] : ['ok', 'activo'];
-  paneEl().innerHTML = `<div class="card" style="max-width:560px"><h2>🏷️ Nuevo cupón</h2>
+  const cfg = admin ? await api.settings().catch(() => null) : null, refs = cfg ? await api.allReferrals().catch(() => []) : [];
+  const R = cfg?.referral || { on: false, friend_pct: 10, reward_pct: 15 }, W = cfg?.winback || { on: false, days: 30, coupon: '' };
+  const activeCps = list.filter(c => state(c)[1] === 'activo' && !/^AMIGO/.test(c.code));
+  paneEl().innerHTML = `${cfg ? `<div class="card" style="max-width:560px"><h2>🤝 Traé a un amigo</h2>
+      <p class="small muted" style="margin-bottom:10px">Cada alumno tiene su link en el perfil. El amigo tiene descuento en su primera clase y, cuando va, quien lo invitó recibe un código personal de 1 uso.</p>
+      <form onsubmit="saveReferralCfg(event)"><label class="check" style="margin-bottom:10px"><input type="checkbox" name="on" ${R.on ? 'checked' : ''}> Activado</label>
+        <div class="grid2"><div class="field"><label for="rf-f">% para el amigo (1ª clase)</label><input class="input" id="rf-f" name="friend" type="number" min="1" max="100" value="${+R.friend_pct || 10}"></div>
+          <div class="field"><label for="rf-r">% de premio para quien invita</label><input class="input" id="rf-r" name="reward" type="number" min="1" max="100" value="${+R.reward_pct || 15}"></div></div>
+        <div class="row between wrapf" style="gap:8px"><span class="small muted">${refs.length} ${refs.length === 1 ? 'invitado' : 'invitados'} · ${refs.filter(r => r.status === 'rewarded').length} premios dados</span><button class="btn coral sm">Guardar</button></div></form></div>
+    <div class="card" style="max-width:560px"><h2>💌 Te extrañamos</h2>
+      <p class="small muted" style="margin-bottom:10px">Mail automático (8:00) a quien no viene hace un tiempo y no tiene nada reservado, con un cupón para volver. Una sola vez por persona, máx. 15 por día.</p>
+      <form onsubmit="saveWinbackCfg(event)"><label class="check" style="margin-bottom:10px"><input type="checkbox" name="on" ${W.on ? 'checked' : ''}> Activado</label>
+        <div class="grid2"><div class="field"><label for="wb-d">Días sin venir</label><input class="input" id="wb-d" name="days" type="number" min="14" max="120" value="${+W.days || 30}"></div>
+          <div class="field"><label for="wb-c">Cupón que se manda</label><select class="input" id="wb-c" name="coupon"><option value="">Sin cupón</option>${activeCps.map(c => `<option value="${esc(c.code)}" ${W.coupon === c.code ? 'selected' : ''}>${esc(c.code)} (-${c.percent}%)</option>`).join('')}</select></div></div>
+        <div class="row between wrapf" style="gap:8px"><span class="tiny muted">Tip: creá abajo un cupón tipo VOLVE10 con vencimiento.</span><button class="btn coral sm">Guardar</button></div></form></div>` : ''}
+    <div class="card" style="max-width:560px"><h2>🏷️ Nuevo cupón</h2>
       <p class="small muted" style="margin-bottom:10px">El alumno lo pone al reservar. Sirve 1 vez por WhatsApp. Ideal para campañas de Instagram.</p>
       <form onsubmit="saveCouponForm(event)">
         <div class="grid2"><div class="field"><label for="cp-code">Código</label><input class="input" id="cp-code" name="code" required maxlength="20" pattern="[A-Za-z0-9]{3,20}" placeholder="VERANO10" style="text-transform:uppercase" autocapitalize="characters"></div>
@@ -3046,6 +3116,14 @@ async function paneCoupons() {
           <button class="btn ghost sm" style="flex:none" onclick="toggleCoupon('${esc(c.code)}', ${!c.active})">${c.active ? 'Pausar' : 'Activar'}</button></div>`; }).join('')
         : '<p class="small muted">Todavía no hay cupones.</p>'}</div>`;
   st.couponList = list;
+}
+async function saveReferralCfg(ev) {
+  ev.preventDefault(); const f = ev.target;
+  try { await api.saveSetting('referral', { on: f.on.checked, friend_pct: Math.min(100, Math.max(1, +f.friend.value || 10)), reward_pct: Math.min(100, Math.max(1, +f.reward.value || 15)) }); toast('Guardado ✓'); paneCoupons(); } catch (e) { toast(errMsg(e)); }
+}
+async function saveWinbackCfg(ev) {
+  ev.preventDefault(); const f = ev.target;
+  try { await api.saveSetting('winback', { on: f.on.checked, days: Math.min(120, Math.max(14, +f.days.value || 30)), coupon: f.coupon.value || '' }); toast('Guardado ✓'); paneCoupons(); } catch (e) { toast(errMsg(e)); }
 }
 async function saveCouponForm(ev) {
   ev.preventDefault(); const f = ev.target, code = f.code.value.trim().toUpperCase();
@@ -4326,6 +4404,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 // Service worker (abre rápido y aguanta mala señal). Solo en el sitio real, no en la demo.
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !DEMO) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 const QS = new URLSearchParams(location.search);
+// Link de "Traé a un amigo": nativoescuela.com.ar/?ref=ABC123 → se recuerda 60 días para su primera reserva.
+if (QS.has('ref')) { const r = QS.get('ref').trim().toUpperCase(); if (/^[0-9A-F]{6}$/.test(r)) store.set('nativo_ref', { code: r, at: Date.now() });
+  QS.delete('ref'); history.replaceState(null, '', location.pathname + (QS.toString() ? '?' + QS : '') + location.hash); }
+const refCode = () => { const r = store.get('nativo_ref', null); return r && Date.now() - r.at < 60 * 864e5 ? r.code : null; };
 if (QS.has('code') || QS.has('error_description')) {
   // Vuelta desde Google: supabase-js canjea el ?code= por la sesión; después seguimos donde estaba.
   const err = QS.get('error_description');

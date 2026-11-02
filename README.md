@@ -100,6 +100,12 @@ Se apagan solos si falta `RESEND_API_KEY`. Variables en Vercel: `RESEND_API_KEY`
 ## Inventario (admin)
 *Más → Configuración → 🛟 Inventario* (solo admins): tablas, remos, chalecos, kayaks, palas y otros, con estado (OK, revisar, en reparación, de baja) y un historial de comentarios ("se golpeó la punta", "volvió de reparar"). Se cargan varios de una vez y quedan numerados. SQL: `update-2026-11-inventario.sql`.
 
+## Traé a un amigo y Te extrañamos
+Se configuran en *Más → Cupones* (admin).
+- **Traé a un amigo**: cada alumno con cuenta tiene su link (`/?ref=CODIGO`) en el perfil. El amigo ve "Venís invitado por…" y tiene X% en su **primera** clase (no se puede invitar a sí mismo ni usarlo dos veces). Cuando el amigo ya fue, el envío de las 8:00 crea un cupón personal de 1 uso (`AMIGO…`) para quien invitó y se lo manda por mail; también lo ve en el perfil.
+- **Te extrañamos**: mail a quien no viene hace N días y no tiene nada reservado, con el cupón elegido. Una vez por persona (por su última clase), máx. 15 por día, con link de baja (`/api/unsub`).
+- SQL: `update-2026-11-amigos-parte1.sql` y `parte2`.
+
 ## Landing (borrador)
 `landing.html` → **nativoescuela.com.ar/landing**. Presentación de Nativo (disciplinas, primera clase, profes, reseñas, abonos, preguntas, dónde estamos) que lleva a la página de reservas. Toma precios, profes, reseñas y abonos de la base. Textos y fotos al principio del archivo (`T` y `PHOTOS`). Tiene `noindex` hasta que la publiquemos como página principal.
 
