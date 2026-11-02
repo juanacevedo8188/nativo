@@ -356,9 +356,17 @@ textarea.input{min-height:80px;resize:vertical}
 .shead h1{font:700 22px/1.15 var(--f-display);margin:2px 0 0;letter-spacing:-.2px}
 .shead .back{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--line2);font-size:26px;line-height:1;color:var(--ink);cursor:pointer;padding-bottom:3px}
 .mgroup{margin-bottom:14px}
-.daybar{position:sticky;top:var(--top-h);z-index:6;background:var(--bg);margin:10px -16px 0;padding:8px 16px;box-shadow:0 6px 8px -8px rgba(0,0,0,.18)}
-.daybar .chip small{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--line);color:var(--ink2);font-size:11.5px;font-weight:700;margin-left:5px}
-.daybar .chip.on small{background:rgba(255,255,255,.2);color:inherit}
+.weekbar{position:sticky;top:var(--top-h);z-index:6;background:var(--bg);margin:10px -16px 0;padding:8px 16px 10px;box-shadow:0 6px 8px -8px rgba(0,0,0,.18)}
+.weekbar .icon-btn:disabled{opacity:.3}
+.wdays{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:8px}
+.wdays button{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 0 4px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font:inherit;color:var(--ink);cursor:pointer;min-width:0}
+.wdays button small{font-size:11px;color:var(--ink2);text-transform:uppercase;font-weight:600}
+.wdays button b{font-size:17px;line-height:1.1}
+.wdays button i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--sea);min-height:13px}
+.wdays button.off{opacity:.35;cursor:default}
+.wdays button.today{border-color:var(--sea2);border-width:2px}
+.wdays button.on{background:var(--ink);border-color:var(--ink);color:var(--sun)}
+.wdays button.on small,.wdays button.on i{color:#d9e6e1}
 .ecard{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow);cursor:pointer;color:var(--ink);font:inherit}
 .ecard:active{transform:scale(.99)}
 .ecard.off{opacity:.6}
@@ -2828,6 +2836,12 @@ function drawAgenda(isAdmin) {
   list.forEach(s => (groups[dayKey(s.starts_at)] ||= []).push(s));
   const todayK = dayKey(now), tomorrowK = dayKey(addDays(now, 1));
   const dayName = k => k === todayK ? 'Hoy' : k === tomorrowK ? 'Mañana' : fmtDayLong(k + 'T12:00');
+  // Próximas: de a una semana (‹ ›), con los 7 días en una fila para saltar a cada uno.
+  const weeks = st.agendaPast ? [] : [...new Set(Object.keys(groups).sort().map(k => dayKey(weekStart(k + 'T12:00'))))];
+  if (weeks.length && !weeks.includes(st.agendaWeek)) st.agendaWeek = weeks[0];
+  st.agendaWeeks = weeks;
+  const wk = weeks.length ? st.agendaWeek : null, wi = weeks.indexOf(wk);
+  const shown = wk ? Object.entries(groups).filter(([k]) => dayKey(weekStart(k + 'T12:00')) === wk) : Object.entries(groups);
   paneEl().innerHTML = `
     <div class="seg-tabs"><button class="${!st.agendaPast ? 'on' : ''}" onclick="st.agendaPast=false;paneAgenda()">Próximas</button>
       <button class="${st.agendaPast ? 'on' : ''}" onclick="st.agendaPast=true;paneAgenda()">Pasadas</button></div>
@@ -2837,17 +2851,24 @@ function drawAgenda(isAdmin) {
     ${susp.length ? `<div class="row wrapf" style="margin-top:12px">
       <button class="btn ghost sm" onclick="st.showSusp=!st.showSusp;paneAgenda()">${st.showSusp ? 'Ocultar' : 'Ver'} ${susp.length} ${susp.length === 1 ? 'suspendida' : 'suspendidas'}</button>
       ${st.showSusp ? `<button class="btn danger sm" onclick="deleteAllSuspended()">Borrar todas las suspendidas</button>` : ''}</div>` : ''}
-    ${Object.keys(groups).length > 2 ? `<div class="chips daybar" aria-label="Ir a un día">${Object.entries(groups).map(([k, ss]) => { const d = new Date(k + 'T12:00');
-        return `<button class="chip plain" onclick="jumpDay('${k}')">${k === todayK ? 'Hoy' : k === tomorrowK ? 'Mañana' : `${WD[d.getDay()]} ${d.getDate()}`} <small>${ss.length}</small></button>`; }).join('')}</div>` : ''}
-    ${Object.keys(groups).length ? Object.entries(groups).map(([k, ss]) => `<div class="dayhead" id="dh-${k}">${esc(dayName(k))}</div>${ss.map(slotCard).join('')}`).join('')
+    ${wk ? `<div class="weekbar"><div class="row between"><button class="icon-btn" onclick="shiftAgendaWeek(-1)" ${wi > 0 ? '' : 'disabled'} aria-label="Semana anterior">‹</button>
+        <b class="small">${esc(weekLabel(new Date(wk + 'T00:00')))}</b><button class="icon-btn" onclick="shiftAgendaWeek(1)" ${wi < weeks.length - 1 ? '' : 'disabled'} aria-label="Semana siguiente">›</button></div>
+      <div class="wdays">${Array.from({ length: 7 }, (_, i) => { const d = addDays(new Date(wk + 'T12:00'), i), k = dayKey(d), n = (groups[k] || []).length;
+        return `<button class="${n ? '' : 'off'} ${k === todayK ? 'today' : ''}" data-k="${k}" ${n ? `onclick="jumpDay('${k}')"` : 'disabled'} aria-label="${esc(fmtDayLong(d))}"><small>${WD[d.getDay()]}</small><b>${d.getDate()}</b><i>${n ? n : ''}</i></button>`; }).join('')}</div></div>` : ''}
+    ${shown.length ? shown.map(([k, ss]) => `<div class="dayhead" id="dh-${k}">${esc(dayName(k))}</div>${ss.map(slotCard).join('')}`).join('')
       : `<div class="card empty" style="margin-top:14px">${st.agendaPast ? 'No hubo clases en los últimos 30 días.' : `No tenés clases creadas todavía.<div style="margin-top:14px"><button class="btn coral" onclick="setTab('cargar')">+ Crear mi primera clase</button></div>`}</div>`}`;
 }
 
+function shiftAgendaWeek(n) {
+  const w = st.agendaWeeks || [], i = w.indexOf(st.agendaWeek) + n; if (i < 0 || i >= w.length) return;
+  st.agendaWeek = w[i]; drawAgenda(st.me.role === 'admin');
+  const wb = document.querySelector('.weekbar'); if (wb && wb.getBoundingClientRect().top < 0 || window.scrollY > (paneEl()?.offsetTop || 0)) window.scrollTo({ top: paneEl().offsetTop - 70 });
+}
 // Agenda: salta al día elegido (deja lugar para la barra de arriba y la tira de días)
 function jumpDay(k) {
   const el = $('dh-' + k); if (!el) return;
-  document.querySelectorAll('.daybar .chip').forEach(c => { const on = c.getAttribute('onclick').includes(k); c.classList.toggle('on', on); if (on) c.scrollIntoView({ inline: 'center', block: 'nearest' }); });
-  const off = (document.querySelector('.top')?.offsetHeight || 0) + (document.querySelector('.daybar')?.offsetHeight || 0) + 8;
+  document.querySelectorAll('.wdays button').forEach(c => c.classList.toggle('on', c.dataset.k === k));
+  const off = (document.querySelector('.top')?.offsetHeight || 0) + (document.querySelector('.weekbar')?.offsetHeight || 0) + 8;
   window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - off, behavior: 'smooth' });
 }
 function slotCard(s) {
