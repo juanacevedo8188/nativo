@@ -7,195 +7,238 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Nativo · Escuela de SUP y Kayak en Rosario</title>
 <meta name="description" content="Clases de stand up paddle y kayak en el Paraná, en Rosario. Para todos los niveles, con todo el equipo incluido. Reservá online.">
-<meta name="theme-color" content="#1f1d1e">
+<meta name="theme-color" content="#0b3335">
 <link rel="icon" href="img/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Yellowtail&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Yellowtail&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#f3faf6; --card:#ffffff; --ink:#1f1d1e; --ink2:#4a5a56; --ink3:#8a9a95;
-  --line:#d9ebe2; --line2:#bcd8cb;
-  --sea:#0e8488; --sea2:#18b3b6; --sea-soft:#dcf4f1;
-  --sun:#fbef46; --sun2:#ffc928; --lime:#8cc36b; --violet:#8b5cf6;
-  --grad:linear-gradient(180deg,#ffc928 0%,#b9cc55 34%,#6cc483 66%,#1cb9bc 100%);
+  --ink:#1f1d1e; --river:#0b3335; --river2:#0f4a4c; --sea:#0e8488; --sea2:#18b3b6; --sea-soft:#dcf4f1;
+  --sun:#fbef46; --sun2:#ffc928; --orange:#ff9f43; --lime:#8cc36b; --violet:#8b5cf6; --violet-soft:#efe8ff;
+  --sand:#fff6dc; --bg:#f6fbf8; --card:#fff; --ink2:#4a5a56; --line:#d9ebe2;
   --f-display:"Fredoka",ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif;
   --f-script:"Yellowtail","Brush Script MT",cursive;
   --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-  --r:20px; --shadow:0 1px 2px rgba(31,29,30,.05),0 10px 30px rgba(14,132,136,.10);
   --ease:cubic-bezier(.2,.8,.2,1);
 }
-*{box-sizing:border-box;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{font-family:var(--f-body);background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;overflow-x:hidden;overflow-x:clip}
-img{max-width:100%;display:block}
+body{font-family:var(--f-body);background:var(--bg);color:var(--ink);font-size:17px;line-height:1.55;overflow-x:hidden;overflow-x:clip}
+img,svg{display:block;max-width:100%}
 a{color:inherit}
-.wrap{max-width:1100px;margin:0 auto;padding:0 18px}
-h1,h2,h3{font-family:var(--f-display);font-weight:700;line-height:1.08;letter-spacing:-.01em}
-h2{font-size:clamp(28px,6vw,42px);margin-bottom:10px}
-.kicker{font-family:var(--f-script);font-size:26px;color:var(--sea);display:block;margin-bottom:2px}
-.lead{color:var(--ink2);font-size:17px;max-width:620px}
-section{padding:64px 0}
-.center{text-align:center}.center .lead{margin:0 auto}
+.wrap{max-width:1140px;margin:0 auto;padding:0 20px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;line-height:1.02;letter-spacing:-.015em}
+.script{font-family:var(--f-script);font-weight:400;letter-spacing:0}
+.eyebrow{font-family:var(--f-script);font-size:clamp(24px,4vw,30px);color:var(--sea);line-height:1}
+h2{font-size:clamp(36px,7vw,60px);margin:6px 0 14px}
+.lead{font-size:clamp(17px,2.2vw,19px);color:var(--ink2);max-width:600px}
+section{position:relative}
+.pad{padding:clamp(64px,10vw,110px) 0}
 
 /* Botones */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:999px;padding:14px 24px;min-height:50px;font-weight:700;font-size:16px;text-decoration:none;cursor:pointer;transition:transform .12s,box-shadow .12s}
-.btn:active{transform:translate(2px,2px)}
-.btn.sun{background:var(--sun);color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink),4px 4px 0 var(--ink)}
-.btn.sun:active{box-shadow:inset 0 0 0 2px var(--ink),1px 1px 0 var(--ink)}
-.btn.ink{background:var(--ink);color:var(--sun)}
-.btn.ghost{background:rgba(255,255,255,.85);color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:999px;padding:15px 26px;min-height:54px;font-weight:800;font-size:16.5px;text-decoration:none;cursor:pointer;transition:transform .15s var(--ease),box-shadow .15s var(--ease),background .2s}
+.btn svg{width:20px;height:20px}
+.btn.sun{background:var(--sun);color:var(--ink);box-shadow:0 0 0 2px var(--ink),5px 5px 0 var(--ink)}
+.btn.sun:hover{transform:translate(-2px,-2px);box-shadow:0 0 0 2px var(--ink),7px 7px 0 var(--ink)}
+.btn.sun:active{transform:translate(3px,3px);box-shadow:0 0 0 2px var(--ink),1px 1px 0 var(--ink)}
+.btn.line{color:#fff;box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}
+.btn.line:hover{background:rgba(255,255,255,.1)}
+.btn.dark{background:var(--ink);color:var(--sun)}
 .btn.wa{background:#1fa855;color:#fff}
-.btn.sm{min-height:40px;padding:9px 16px;font-size:14.5px}
+.btn.sm{min-height:44px;padding:10px 18px;font-size:15px}
 
 /* Encabezado */
-.top{position:sticky;top:0;z-index:30;background:var(--ink);color:#fff}
-.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;height:62px}
-.logo{display:flex;align-items:center;gap:9px;text-decoration:none}
-.logo img{width:38px;height:38px;border-radius:50%}
-.logo b{font-family:var(--f-display);font-size:23px;color:var(--sun)}
-.top nav{display:flex;align-items:center;gap:4px}
-.top nav a.l{color:#fff;text-decoration:none;font-weight:600;font-size:14.5px;padding:8px 11px;border-radius:999px}
-.top nav a.l:hover{background:rgba(255,255,255,.1)}
-@media(max-width:820px){.top nav a.l{display:none}}
+.top{position:fixed;inset:0 0 auto;z-index:50;transition:background .3s,box-shadow .3s}
+.top.solid{background:rgba(11,51,53,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;height:68px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff}
+.logo img{width:42px;height:42px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.logo b{font-family:var(--f-display);font-size:25px;color:var(--sun)}
+.top nav{display:flex;align-items:center;gap:2px}
+.top nav a.l{color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:9px 13px;border-radius:999px;opacity:.9}
+.top nav a.l:hover{background:rgba(255,255,255,.12);opacity:1}
+@media(max-width:880px){.top nav a.l{display:none}}
 
 /* Portada */
-.hero{position:relative;background:var(--grad);overflow:hidden;padding:44px 0 90px}
-.hero.photo{background:#1f1d1e center/cover no-repeat}
-.hero.photo::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(31,29,30,.15),rgba(31,29,30,.55))}
-.hero .wrap{position:relative;display:grid;gap:26px;align-items:center}
-@media(min-width:860px){.hero{padding:70px 0 120px}.hero .wrap{grid-template-columns:1.2fr .8fr}}
-.hero h1{font-size:clamp(40px,9vw,72px);margin:4px 0 14px}
-.hero h1 em{font-style:normal;background:var(--sun);padding:0 .15em;border-radius:.2em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
-.hero p{font-size:18px;max-width:540px;font-weight:500}
-.hero .kicker{color:var(--ink)}
-.hero.photo,.hero.photo .kicker,.hero.photo p{color:#fff}
-.hero.photo h1 em{color:var(--ink)}
-.hero .ctas{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0 18px}
-.trust{display:flex;flex-wrap:wrap;gap:8px}
-.trust span{background:rgba(255,255,255,.75);border-radius:999px;padding:6px 12px;font-weight:600;font-size:14px}
-.badge{width:min(320px,70vw);justify-self:center;filter:drop-shadow(0 18px 30px rgba(14,132,136,.35));animation:float 6s ease-in-out infinite}
-@keyframes float{50%{transform:translateY(-10px) rotate(-2deg)}}
-@media(prefers-reduced-motion:reduce){.badge{animation:none}html{scroll-behavior:auto}}
-.waves{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:46px;fill:var(--bg)}
+.hero{background:radial-gradient(120% 90% at 85% 10%,#16696b 0%,var(--river) 55%,#082628 100%);color:#fff;padding:120px 0 150px;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,transparent 0 22px,rgba(255,255,255,.025) 22px 24px);pointer-events:none}
+.hero .wrap{display:grid;gap:40px;align-items:center;position:relative;z-index:1}
+@media(min-width:900px){.hero{padding:150px 0 180px}.hero .wrap{grid-template-columns:1.1fr .9fr}}
+.hero .eyebrow{color:var(--sun)}
+.hero h1{font-size:clamp(50px,10vw,96px);margin:10px 0 22px}
+.hero h1 .hl{color:var(--ink);background:var(--sun);border-radius:.18em;padding:0 .14em;display:inline-block;transform:rotate(-2deg);box-shadow:5px 5px 0 var(--sun2)}
+.hero p{font-size:clamp(18px,2.4vw,21px);color:#d6ecea;max-width:540px}
+.hero .ctas{display:flex;flex-wrap:wrap;gap:14px;margin:30px 0 26px}
+.chips{display:flex;flex-wrap:wrap;gap:8px 18px;color:#bfe3e0;font-weight:700;font-size:15px}
+.chips span{display:inline-flex;align-items:center;gap:7px}
+.chips svg{width:18px;height:18px;color:var(--sun)}
+.art{position:relative;justify-self:center;width:min(500px,100%)}
+@media(max-width:899px){.hero{padding-top:96px}.art{order:-1;width:min(280px,72%)}.art .badge{width:36%}}
+.art .window{border-radius:50%;overflow:hidden;aspect-ratio:1;box-shadow:0 0 0 10px rgba(251,239,70,.12),0 0 0 22px rgba(251,239,70,.06),0 40px 80px rgba(0,0,0,.35)}
+.art .window svg{width:100%;height:100%}
+.art .badge{position:absolute;height:auto;width:38%;right:-4%;bottom:-6%;filter:drop-shadow(0 14px 22px rgba(0,0,0,.35));animation:bob 6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-10px) rotate(-3deg)}}
+.divider{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:clamp(40px,7vw,90px)}
+
+/* Franja animada */
+.tickwrap{overflow:hidden;margin-top:-40px;padding:14px 0;position:relative;z-index:3}
+.ticker{background:var(--sun);border-block:3px solid var(--ink);overflow:hidden;transform:rotate(-1.6deg);margin:0 -20px}
+.ticker .run{display:flex;width:max-content;animation:run 28s linear infinite}
+.ticker span{font:700 clamp(20px,3vw,28px) var(--f-display);padding:12px 0;white-space:nowrap;display:flex;align-items:center}
+.ticker span i{font-style:normal;display:inline-block;margin:0 22px;color:var(--sea)}
+@keyframes run{to{transform:translateX(-50%)}}
+
+/* Números */
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:clamp(50px,8vw,80px)}
+@media(min-width:800px){.stats{grid-template-columns:repeat(4,1fr)}}
+.stat{border-left:4px solid var(--sun2);padding:4px 0 4px 16px}
+.stat b{display:block;font:700 clamp(32px,5vw,46px)/1 var(--f-display);color:var(--river)}
+.stat span{color:var(--ink2);font-weight:600;font-size:15px}
 
 /* Disciplinas */
-.grid3{display:grid;gap:18px;margin-top:30px}
-@media(min-width:760px){.grid3{grid-template-columns:repeat(3,1fr)}}
-.disc{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;border:1.5px solid var(--line)}
-.disc .ph{aspect-ratio:4/3;position:relative;display:grid;place-items:center;font-size:72px;background:center/cover no-repeat}
-.disc .ph .tag{position:absolute;top:12px;left:12px;background:var(--ink);color:var(--sun);font-weight:700;font-size:13px;border-radius:999px;padding:5px 11px}
-.disc .bd{padding:18px 18px 20px;display:flex;flex-direction:column;gap:10px;flex:1}
-.disc h3{font-size:25px}
-.disc p{color:var(--ink2)}
-.facts{display:flex;flex-wrap:wrap;gap:6px}
-.facts span{background:var(--sea-soft);color:var(--sea);font-weight:700;font-size:13.5px;border-radius:999px;padding:5px 11px}
-.disc .btn{margin-top:auto;align-self:flex-start}
-.disc.train{border-color:var(--violet)}
-.disc.train .facts span{background:#efe8ff;color:#5b3fa0}
-.ph-sup{background-image:linear-gradient(160deg,#ffe066,#6cc483 60%,#1cb9bc)}
-.ph-kayak{background-image:linear-gradient(160deg,#c6f1ec,#1cb9bc 55%,#0e8488)}
-.ph-train{background-image:linear-gradient(160deg,#e9ddff,#8b5cf6 70%,#5b3fa0)}
+.disc{display:grid;gap:26px;align-items:center;margin-top:60px}
+@media(min-width:880px){.disc{grid-template-columns:1fr 1fr;gap:64px}.disc.flip .scene{order:2}}
+.scene{border-radius:34px;overflow:hidden;position:relative;aspect-ratio:5/4;box-shadow:0 30px 60px -20px rgba(11,51,53,.45);background:center/cover no-repeat}
+.scene svg{width:100%;height:100%}
+.scene .tag{position:absolute;top:18px;left:18px;background:var(--ink);color:var(--sun);font-weight:800;font-size:14px;border-radius:999px;padding:7px 14px}
+.disc .num{font:700 clamp(54px,8vw,80px)/1 var(--f-display);color:transparent;-webkit-text-stroke:2px var(--sea2);letter-spacing:-.02em}
+.disc h3{font-size:clamp(34px,5vw,50px);margin:4px 0 12px}
+.disc p{color:var(--ink2);font-size:18px;max-width:500px}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 24px}
+.facts span{background:var(--sea-soft);color:var(--sea);font-weight:800;font-size:14.5px;border-radius:999px;padding:7px 14px}
+.disc.train .num{-webkit-text-stroke-color:var(--violet)}
+.disc.train .facts span{background:var(--violet-soft);color:#5b3fa0}
 
 /* Primera clase */
-.steps{display:grid;gap:14px;margin-top:28px;counter-reset:s}
-@media(min-width:760px){.steps{grid-template-columns:repeat(4,1fr)}}
-.step{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);position:relative}
-.step::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--sun);box-shadow:inset 0 0 0 2px var(--ink);font:700 19px var(--f-display);margin-bottom:12px}
-.step b{display:block;font-family:var(--f-display);font-size:19px;margin-bottom:4px}
-.step p{color:var(--ink2);font-size:15px}
-.bring{margin-top:18px;background:var(--ink);color:#fff;border-radius:var(--r);padding:18px 20px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
-.bring b{color:var(--sun);font-family:var(--f-display);font-size:18px}
-.bring span{font-weight:500}
+.first{background:var(--sand)}
+.steps{display:grid;gap:18px;margin-top:44px;position:relative}
+@media(min-width:880px){.steps{grid-template-columns:repeat(4,1fr);gap:22px}
+  .steps::before{content:"";position:absolute;left:6%;right:6%;top:32px;height:14px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 14'%3E%3Cpath d='M0 7q10-9 20 0t20 0' fill='none' stroke='%2318b3b6' stroke-width='3' stroke-linecap='round' stroke-dasharray='1 7'/%3E%3C/svg%3E") repeat-x center/40px 14px}}
+.step{position:relative;text-align:left}
+.step .n{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:var(--sun);box-shadow:0 0 0 3px var(--ink),5px 5px 0 var(--ink);font:700 28px var(--f-display);margin-bottom:18px;position:relative;z-index:1}
+.step b{display:block;font:700 24px var(--f-display);margin-bottom:6px}
+.step p{color:var(--ink2);font-size:16px}
+.bring{margin-top:44px;background:var(--river);color:#fff;border-radius:28px;padding:26px 28px;display:grid;gap:14px}
+@media(min-width:880px){.bring{grid-template-columns:auto 1fr;align-items:center;gap:30px}}
+.bring h3{font-size:28px;color:var(--sun)}
+.bring ul{list-style:none;display:flex;flex-wrap:wrap;gap:10px}
+.bring li{background:rgba(255,255,255,.1);border-radius:999px;padding:8px 15px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:7px}
+.bring li svg{width:16px;height:16px;color:var(--sun)}
 
 /* Profes */
-.band{background:var(--card)}
-.profes{display:grid;gap:14px;margin-top:28px}
-@media(min-width:640px){.profes{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}}
-.profe{display:flex;gap:14px;align-items:center;background:var(--bg);border-radius:var(--r);padding:14px}
-.av{width:62px;height:62px;border-radius:50%;flex:none;background:var(--sun) center/cover;display:grid;place-items:center;font:700 22px var(--f-display);box-shadow:inset 0 0 0 2px var(--ink)}
-.profe b{font-family:var(--f-display);font-size:19px}
-.profe small{display:block;color:var(--ink2);font-size:14px}
+.profes{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 20px 18px;margin:40px -20px 0;scrollbar-width:none}
+.profes::-webkit-scrollbar{display:none}
+@media(min-width:880px){.profes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));overflow:visible;margin:40px 0 0;padding:6px 0}}
+.profe{flex:0 0 200px;scroll-snap-align:start;background:var(--card);border-radius:28px;padding:22px 18px;text-align:center;box-shadow:0 14px 34px -14px rgba(11,51,53,.25);border:2px solid var(--line)}
+.av{width:104px;height:104px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;font:700 40px var(--f-display);background:center/cover;box-shadow:0 0 0 4px #fff,0 0 0 7px var(--c,var(--sun))}
+.profe b{display:block;font:700 22px var(--f-display)}
+.profe .sp{display:inline-block;margin-top:6px;font-weight:800;font-size:13px;border-radius:999px;padding:4px 11px;background:var(--sea-soft);color:var(--sea)}
+.profe .sp.k{background:#e0f2fe;color:#0369a1}
+.profe p{color:var(--ink2);font-size:14.5px;margin-top:8px}
 
 /* Reseñas */
-.reviews{display:grid;gap:14px;margin-top:28px}
-@media(min-width:760px){.reviews{grid-template-columns:repeat(3,1fr)}}
-.rv{background:var(--card);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
-.rv .st{color:#f0b400;letter-spacing:2px;font-size:18px}
-.rv p{margin:8px 0;font-size:15.5px}
-.rv small{color:var(--ink2)}
+.reviews{display:grid;gap:18px;margin-top:40px}
+@media(min-width:880px){.reviews{grid-template-columns:1.3fr 1fr 1fr}}
+.rv{background:var(--card);border-radius:28px;padding:26px;border:2px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.rv .st{color:var(--sun2);font-size:20px;letter-spacing:3px}
+.rv p{font-size:17px}
+.rv small{color:var(--ink2);font-weight:700;margin-top:auto}
+.rv.big{background:var(--river);color:#fff;border-color:var(--river)}
+.rv.big p{font:600 clamp(22px,3vw,28px)/1.25 var(--f-display)}
+.rv.big small{color:#bfe3e0}
+.rv .q{font:700 70px/0.6 var(--f-display);color:var(--sun);height:30px}
 
 /* Más formas */
-.more{display:grid;gap:14px;margin-top:28px}
-@media(min-width:760px){.more{grid-template-columns:repeat(3,1fr)}}
-.mcard{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;text-decoration:none;border:1.5px solid var(--line);transition:transform .15s var(--ease)}
-.mcard:hover{transform:translateY(-3px)}
-.mcard i{font-style:normal;font-size:34px}
-.mcard b{font-family:var(--f-display);font-size:21px}
-.mcard span{color:var(--ink2);font-size:15px}
-.mcard em{font-style:normal;color:var(--sea);font-weight:700;margin-top:auto}
+.more{display:grid;gap:18px;margin-top:40px}
+@media(min-width:880px){.more{grid-template-columns:repeat(3,1fr)}}
+.tile{border-radius:28px;padding:28px;text-decoration:none;display:flex;flex-direction:column;gap:10px;min-height:250px;transition:transform .2s var(--ease)}
+.tile:hover{transform:translateY(-5px) rotate(-.5deg)}
+.tile .ic{width:58px;height:58px;border-radius:18px;background:var(--ink);color:var(--sun);display:grid;place-items:center;margin-bottom:6px}
+.tile .ic svg{width:30px;height:30px}
+.tile b{font:700 28px var(--f-display)}
+.tile span{font-size:16px;opacity:.85}
+.tile em{font-style:normal;font-weight:800;margin-top:auto;display:flex;align-items:center;gap:6px}
+.tile em svg{width:20px;height:20px}
+.t1{background:var(--sun)}.t2{background:#bfeee9}.t3{background:var(--violet-soft)}
 
 /* Preguntas */
-.faq{max-width:760px;margin:26px auto 0;display:grid;gap:10px}
-.faq details{background:var(--card);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow)}
-.faq summary{font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:10px}
+.faq{max-width:820px;margin:40px auto 0;display:grid;gap:12px}
+.faq details{background:var(--card);border-radius:22px;padding:20px 24px;border:2px solid var(--line);transition:border-color .2s}
+.faq details[open]{border-color:var(--sea2)}
+.faq summary{font:600 20px var(--f-display);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:14px}
 .faq summary::-webkit-details-marker{display:none}
-.faq summary::after{content:"＋";color:var(--sea);font-size:18px}
-.faq details[open] summary::after{content:"－"}
-.faq p{color:var(--ink2);margin-top:8px}
+.faq summary::after{content:"+";flex:none;width:34px;height:34px;border-radius:50%;background:var(--sea-soft);color:var(--sea);display:grid;place-items:center;font-size:24px;transition:transform .25s var(--ease)}
+.faq details[open] summary::after{transform:rotate(45deg);background:var(--sun);color:var(--ink)}
+.faq p{color:var(--ink2);margin-top:10px}
 
 /* Dónde */
-.where{display:grid;gap:20px;align-items:center;margin-top:24px}
-@media(min-width:760px){.where{grid-template-columns:1fr 1.2fr}}
-.map{border:0;width:100%;aspect-ratio:4/3;border-radius:var(--r);box-shadow:var(--shadow);background:var(--sea-soft)}
+.where{display:grid;gap:30px;align-items:center}
+@media(min-width:880px){.where{grid-template-columns:.9fr 1.1fr;gap:56px}}
+.mapbox{position:relative;border-radius:34px;overflow:hidden;box-shadow:0 30px 60px -20px rgba(11,51,53,.4);aspect-ratio:4/3;background:var(--sea-soft)}
+.mapbox iframe{border:0;width:100%;height:100%}
+.pin{position:absolute;left:18px;bottom:18px;background:var(--card);border-radius:18px;padding:12px 16px;box-shadow:0 10px 24px rgba(0,0,0,.2);font-weight:800;display:flex;gap:10px;align-items:center}
+.pin svg{width:26px;height:26px;color:var(--sea)}
 
-/* Cierre y pie */
-.cta-band{background:var(--grad);text-align:center;padding:70px 0}
-.cta-band h2{font-size:clamp(32px,7vw,52px)}
-.foot{background:var(--ink);color:#d9e6e1;padding:40px 0 calc(90px + env(safe-area-inset-bottom,0px));font-size:15px}
-.foot .cols{display:grid;gap:22px}
-@media(min-width:760px){.foot .cols{grid-template-columns:1.2fr 1fr 1fr}}
-.foot b{color:var(--sun);font-family:var(--f-display);font-size:18px;display:block;margin-bottom:6px}
-.foot a{color:#fff}
-.foot .links{display:grid;gap:6px}
+/* Cierre */
+.final{background:linear-gradient(180deg,#ffc928 0%,#ff9f43 45%,#e8566a 100%);text-align:center;overflow:hidden;color:var(--ink)}
+.final h2{font-size:clamp(44px,9vw,92px);max-width:900px;margin:8px auto 28px}
+.final .eyebrow{color:var(--ink)}
+.final .sunball{position:absolute;width:420px;height:420px;border-radius:50%;background:var(--sun);opacity:.45;left:50%;bottom:-260px;transform:translateX(-50%)}
+.final .wrap{position:relative}
 
-/* Botón fijo abajo en el celu */
-.sticky-cta{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:40;display:flex;gap:8px;transform:translateY(140%);transition:transform .3s var(--ease)}
-.sticky-cta.on{transform:none}
-.sticky-cta .btn{flex:1}
-@media(min-width:860px){.sticky-cta{display:none}}
+/* Pie */
+.foot{background:#082628;color:#bfe3e0;padding:56px 0 calc(100px + env(safe-area-inset-bottom,0px));font-size:15.5px}
+.foot .cols{display:grid;gap:30px}
+@media(min-width:880px){.foot .cols{grid-template-columns:1.3fr 1fr 1fr}}
+.foot h4{color:var(--sun);font:700 19px var(--f-display);margin-bottom:10px}
+.foot a{color:#fff;text-decoration:none}
+.foot a:hover{text-decoration:underline}
+.foot .links{display:grid;gap:8px}
+.foot .brand{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.foot .brand img{width:54px}
+.foot .brand b{font:700 28px var(--f-display);color:var(--sun)}
 
-.rise{opacity:0;transform:translateY(18px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
-.rise.in{opacity:1;transform:none}
-@media(prefers-reduced-motion:reduce){.rise{opacity:1;transform:none}}
+/* Botón fijo abajo (celu) */
+.sticky{position:fixed;left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:45;transform:translateY(160%);transition:transform .35s var(--ease)}
+.sticky.on{transform:none}
+.sticky .btn{width:100%}
+@media(min-width:880px){.sticky{display:none}}
+
+/* Aparecer al bajar */
+.pre{opacity:0;transform:translateY(26px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.pre.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){.pre{opacity:1;transform:none}.ticker .run,.art .badge{animation:none}html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
 
-<header class="top"><div class="wrap">
-  <a class="logo" href="#"><img src="img/icon-sm.webp" alt="" width="38" height="38"><b>Nativo</b></a>
-  <nav><a class="l" href="#disciplinas">Disciplinas</a><a class="l" href="#primera">Tu primera clase</a><a class="l" href="#profes">Profes</a><a class="l" href="#donde">Dónde</a>
-    <a class="btn sun sm" href="/" style="margin-left:6px">Reservar</a></nav>
+<header class="top" id="top"><div class="wrap">
+  <a class="logo" href="#"><img src="img/icon-sm.webp" alt="" width="42" height="42"><b>Nativo</b></a>
+  <nav><a class="l" href="#disciplinas">Disciplinas</a><a class="l" href="#primera">Primera clase</a><a class="l" href="#profes">Profes</a><a class="l" href="#donde">Dónde</a>
+    <a class="btn sun sm" href="/" style="margin-left:10px">Reservar</a></nav>
 </div></header>
 
 <main id="landing"></main>
-
-<div class="sticky-cta" id="sticky"><a class="btn sun" href="/">Reservar clase</a></div>
+<div class="sticky" id="sticky"><a class="btn sun" href="/">Reservar mi clase</a></div>
 
 <script>
 /* ═══════════ TEXTOS Y FOTOS: editar acá ═══════════
-   Fotos: poné la ruta (ej. 'img/hero.jpg') y reemplaza el dibujo de colores. Vacío = colores de la marca. */
+   Fotos: poné la ruta (ej. 'img/sup.jpg') y reemplaza la ilustración. Vacío = ilustración. */
 const PHOTOS = { hero: '', sup: '', kayak: '', train: '' };
 const T = {
-  instagram: '',                       // ej. 'nativo.sup' (sin @). Vacío = no se muestra
-  hero: { kicker: 'Escuela de SUP & Kayak', title: 'Remá el <em>Paraná</em> en Rosario', text: 'Clases de stand up paddle y kayak para todos los niveles, desde la Guardería Barlovento. Te damos todo el equipo: vos traé ganas.' },
-  about: 'Somos un grupo de profes que vive el río. Damos clases chicas, con tiempo para que cada uno aprenda a su ritmo y disfrute del Paraná de forma segura.',
-  sup: 'Parate arriba de la tabla desde la primera clase. Aprendés equilibrio, remada y a leer el río, en grupos chicos y con un profe al lado.',
+  instagram: '',                        // ej. 'nativo.sup' (sin @). Vacío = no se muestra
+  heroKicker: 'Escuela de SUP & Kayak',
+  heroTitle: 'Remá el <span class="hl">Paraná</span>',
+  heroText: 'Clases de stand up paddle y kayak en Rosario, para todos los niveles. Te damos todo el equipo: vos traé ganas.',
+  ticker: ['Stand up paddle', 'Kayak', 'Travesías', 'Atardeceres', 'Grupos chicos', 'Team Nativo'],
+  about: 'Somos un grupo de profes que vive el río. Clases chicas, con tiempo para que aprendas a tu ritmo y disfrutes el Paraná de forma segura.',
+  sup: 'Parate arriba de la tabla desde la primera clase. Aprendés equilibrio, remada y a leer el río, con un profe al lado todo el tiempo.',
   kayak: 'Iniciación para arrancar de cero y travesías guiadas por el río y las islas. Kayak, pala y chaleco incluidos.',
   train: 'Para los que ya reman y quieren más: técnica, resistencia y remada larga, con un grupo que entrena junto toda la temporada.',
   bring: ['Ropa que se pueda mojar', 'Protector solar', 'Agua', 'Toalla y ropa seca', 'Gorra'],
   faq: [
-    ['¿Necesito experiencia?', 'No. Las clases de iniciación son justamente para arrancar de cero: te explicamos todo en tierra antes de entrar al agua.'],
+    ['¿Necesito experiencia?', 'No. Las clases de iniciación son para arrancar de cero: te explicamos todo en tierra antes de entrar al agua.'],
     ['¿Tengo que saber nadar?', 'Siempre remás con chaleco salvavidas. Igual, contanos en la ficha de salud si no sabés nadar para que el profe lo tenga en cuenta.'],   // ← confirmar
     ['¿Desde qué edad?', 'Desde los 10 años. Los menores de 16, acompañados por un adulto.'],   // ← confirmar
     ['¿Qué pasa si hay viento o lluvia?', 'Miramos el pronóstico de cada clase. Si no se puede salir, te avisamos por WhatsApp y la reprogramamos sin costo.'],
@@ -207,117 +250,178 @@ const SB = { url: 'https://teoqnlebaglaewbbuyai.supabase.co', key: 'sb_publishab
 const CONTACT = { sup: { name: 'Torita', whatsapp: '5493364386564' } };   // kayak: el WhatsApp de Mati sale de su perfil
 const PLACE = { name: 'Guardería Barlovento', city: 'Rosario', q: 'Guardería Barlovento Rosario' };
 
-/* ═══════════ Código ═══════════ */
+/* ═══════════ Íconos e ilustraciones ═══════════ */
+const ICO = {
+  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  vest: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 5 6v14h5v-6h4v6h5V6l-3-3-2 4h-4z"/></svg>',
+  group: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 20c.6-3.5 3-5.5 6-5.5s5.4 2 6 5.5M15 15c2.8-.4 5 1.2 6 4"/></svg>',
+  wave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 9c2.5-2 5-2 7.5 0s5 2 7.5 0 3.5-1.5 5-1M2 15c2.5-2 5-2 7.5 0s5 2 7.5 0 3.5-1.5 5-1"/></svg>',
+  star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4L2.8 9.5l6.4-.8z"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
+  card: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></svg>',
+  gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="5" rx="1.5"/><path d="M5 13v7h14v-7M12 8v12M12 8S10.5 3.5 8 4.2 7.6 8 12 8zM12 8s1.5-4.5 4-3.8.4 3.8-4 3.8z"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.6"/></svg>',
+  wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 .9c.3.1.5.2.5.3.1.2.1.6-.1 1.1z"/></svg>',
+};
+// Escena del río: cielo, sol, islas, agua y una figura (sup, kayak o grupo). Paletas por disciplina.
+function scene(fig, pal, id) {
+  const P = { day: ['#ffe58a', '#ffb347', '#fbef46', '#2a7f62', '#1cb9bc', '#0e8488'], teal: ['#c9f3ee', '#7fd8d2', '#fff4a3', '#1f6b5a', '#18b3b6', '#0b5f63'],
+    dusk: ['#ffd1a1', '#e8566a', '#ffe066', '#3b2a5a', '#7c5cc4', '#3b2a7a'], night: ['#16696b', '#0b3335', '#fbef46', '#062224', '#0f4a4c', '#082628'] }[pal];
+  const [s1, s2, sun, isl, w1, w2] = P, sil = pal === 'night' ? '#031b1c' : '#1f1d1e';
+  const sup = (x, y, k = 1) => `<g transform="translate(${x} ${y}) scale(${k})" fill="${sil}" stroke="${sil}" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-62 0q62 9 124 0q-62-7-124 0z" stroke="none"/><circle cx="-4" cy="-74" r="8.5" stroke="none"/>
+      <path d="M-11-63h14l3 30h-20z" stroke="none"/><path d="M-9-34-14-2M1-34l6 32" stroke-width="7" fill="none"/>
+      <path d="M-6-58 18-46" stroke-width="5.5" fill="none"/><path d="M20-82 31 6" stroke-width="3.5" fill="none"/><ellipse cx="31" cy="4" rx="4" ry="10" stroke="none"/></g>`;
+  const kay = (x, y, k = 1) => `<g transform="translate(${x} ${y}) scale(${k})" fill="${sil}" stroke="${sil}" stroke-linecap="round">
+      <path d="M-80 0q80 16 160 0q-80-11-160 0z" stroke="none"/><circle cx="0" cy="-38" r="8.5" stroke="none"/><path d="M-8-29h16l2 24h-20z" stroke="none"/>
+      <path d="M-52-36 52 4" stroke-width="3.5" fill="none"/><ellipse cx="-54" cy="-37" rx="4" ry="10" transform="rotate(-70 -54 -37)" stroke="none"/><ellipse cx="54" cy="5" rx="4" ry="10" transform="rotate(-70 54 5)" stroke="none"/></g>`;
+  const figs = { sup: sup(170, 222), kayak: kay(180, 224), group: sup(105, 222, .62) + sup(200, 232, .74) + sup(295, 220, .58), none: '' };
+  return `<svg viewBox="0 0 400 320" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Ilustración: el río al atardecer">
+    <defs><linearGradient id="s${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s1}"/><stop offset="1" stop-color="${s2}"/></linearGradient>
+      <linearGradient id="w${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${w1}"/><stop offset="1" stop-color="${w2}"/></linearGradient>
+      <radialGradient id="g${id}"><stop offset="0" stop-color="${sun}" stop-opacity=".9"/><stop offset="1" stop-color="${sun}" stop-opacity="0"/></radialGradient></defs>
+    <rect width="400" height="320" fill="url(#s${id})"/>
+    <circle cx="285" cy="132" r="95" fill="url(#g${id})"/><circle cx="285" cy="132" r="48" fill="${sun}"/>
+    <path d="M0 168q40-16 90-6t80 2 70-12 80 6 80-4v30H0z" fill="${isl}" opacity=".55"/>
+    <path d="M0 178q60-10 120-2t110-4 90 2 80-6v40H0z" fill="${isl}"/>
+    <rect y="186" width="400" height="134" fill="url(#w${id})"/>
+    <g fill="${sun}" opacity=".75"><rect x="245" y="196" width="80" height="4" rx="2"/><rect x="258" y="206" width="54" height="3.5" rx="2"/><rect x="268" y="215" width="34" height="3" rx="1.5"/></g>
+    <g fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2.4" stroke-linecap="round"><path d="M30 262q15-6 30 0t30 0"/><path d="M300 280q15-6 30 0t30 0"/><path d="M120 296q15-6 30 0t30 0"/></g>
+    ${figs[fig]}
+  </svg>`;
+}
+
+/* ═══════════ Página ═══════════ */
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const money = n => '$ ' + Math.round(+n || 0).toLocaleString('es-AR');
 const wa = (n, t) => `https://wa.me/${n}?text=${encodeURIComponent(t)}`;
-const initials = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-const get = (path, body) => fetch(`${SB.url}/rest/v1/${path}`, body ? { method: 'POST', headers: { apikey: SB.key, 'Content-Type': 'application/json' }, body: '{}' } : { headers: { apikey: SB.key } })
+const initials = n => (n || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+const get = (path, rpc) => fetch(`${SB.url}/rest/v1/${path}`, rpc ? { method: 'POST', headers: { apikey: SB.key, 'Content-Type': 'application/json' }, body: '{}' } : { headers: { apikey: SB.key } })
   .then(r => r.ok ? r.json() : []).catch(() => []);
+const visual = (key, fig, pal, tag) => `<div class="scene" ${PHOTOS[key] ? `style="background-image:url('${esc(PHOTOS[key])}')"` : ''}>${PHOTOS[key] ? '' : scene(fig, pal, key)}${tag ? `<span class="tag">${tag}</span>` : ''}</div>`;
+const dur = t => t.duration_min >= 120 ? String(Math.round(t.duration_min / 6) / 10).replace('.', ',') + ' h' : t.duration_min + ' min';
 
 function draw({ types = [], profes = [], reviews = [], plans = [] } = {}) {
   const pub = types.filter(t => t.active && !t.members_only);
-  const from = (sport, kind) => { const ts = pub.filter(t => (t.sport || 'sup') === sport && (!kind || (t.kind || 'iniciacion') === kind)); return ts.length ? ts.reduce((a, t) => +t.price < +a.price ? t : a) : null; };
+  const from = (sport, kind) => pub.filter(t => (t.sport || 'sup') === sport && (!kind || (t.kind || 'iniciacion') === kind)).sort((a, b) => a.price - b.price)[0];
   const supT = from('sup'), kayT = from('kayak', 'iniciacion'), travT = from('kayak', 'travesia'), trainT = types.find(t => t.active && t.members_only);
   const mati = profes.find(p => (p.sports || []).includes('kayak') && !(p.sports || []).includes('sup') && p.whatsapp);
-  const rv = reviews.slice(0, 6), avg = reviews.length ? reviews.reduce((a, r) => a + r.stars, 0) / reviews.length : 0;
+  const avg = reviews.length ? reviews.reduce((a, r) => a + r.stars, 0) / reviews.length : 0;
   const plan = plans.find(p => p.active && (p.sport || 'sup') === 'sup');
-  const fact = t => t ? `<span>${t.duration_min >= 120 ? Math.round(t.duration_min / 6) / 10 + ' h' : t.duration_min + ' min'}</span><span>desde ${money(t.price)}</span>` : '';
-  const phBox = (key, cls, emoji, tag) => PHOTOS[key] ? `<div class="ph" style="background-image:url('${esc(PHOTOS[key])}')">${tag ? `<span class="tag">${tag}</span>` : ''}</div>`
-    : `<div class="ph ${cls}" aria-hidden="true">${emoji}${tag ? `<span class="tag">${tag}</span>` : ''}</div>`;
+  const minPrice = pub.length ? Math.min(...pub.map(t => +t.price).filter(Boolean)) : 0;
+  const colors = ['var(--sun)', 'var(--sea2)', 'var(--lime)', 'var(--violet)', 'var(--orange)'];
+  const tick = T.ticker.map(w => `${esc(w)}<i>✦</i>`).join('');
 
   $('landing').innerHTML = `
-  <section class="hero ${PHOTOS.hero ? 'photo' : ''}" ${PHOTOS.hero ? `style="background-image:url('${esc(PHOTOS.hero)}')"` : ''} id="inicio">
+  <section class="hero" id="inicio" ${PHOTOS.hero ? `style="background:linear-gradient(180deg,rgba(11,51,53,.55),rgba(8,38,40,.85)),url('${esc(PHOTOS.hero)}') center/cover"` : ''}>
     <div class="wrap">
-      <div><span class="kicker">${T.hero.kicker}</span><h1>${T.hero.title}</h1><p>${T.hero.text}</p>
-        <div class="ctas"><a class="btn sun" href="/">Reservar clase</a><a class="btn ghost" href="#disciplinas">Ver disciplinas</a></div>
-        <div class="trust">${reviews.length ? `<span>⭐ ${avg.toFixed(1).replace('.', ',')} · ${reviews.length} ${reviews.length === 1 ? 'reseña' : 'reseñas'}</span>` : ''}<span>🦺 Equipo incluido</span><span>👥 Grupos chicos</span><span>🌊 Todos los niveles</span></div></div>
-      ${PHOTOS.hero ? '' : '<img class="badge" src="img/logo.webp" alt="Nativo · Sup, Windsurf & Kayak" width="320" height="388">'}
+      <div>
+        <div class="eyebrow">${T.heroKicker}</div>
+        <h1>${T.heroTitle}<br><span class="script" style="font-size:.62em;color:var(--sun);font-weight:400">en Rosario</span></h1>
+        <p>${T.heroText}</p>
+        <div class="ctas"><a class="btn sun" href="/">Reservar clase ${ICO.arrow}</a><a class="btn line" href="#disciplinas">Ver disciplinas</a></div>
+        <div class="chips">${reviews.length ? `<span>${ICO.star}${avg.toFixed(1).replace('.', ',')} · ${reviews.length} ${reviews.length === 1 ? 'reseña' : 'reseñas'}</span>` : ''}<span>${ICO.vest}Equipo incluido</span><span>${ICO.group}Grupos chicos</span><span>${ICO.wave}Todos los niveles</span></div>
+      </div>
+      ${PHOTOS.hero ? '' : `<div class="art"><div class="window">${scene('sup', 'day', 'hero')}</div><img class="badge" src="img/logo.webp" alt="Nativo · Sup, Windsurf & Kayak" width="190" height="230"></div>`}
     </div>
-    <svg class="waves" viewBox="0 0 2400 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 24C150 6 300 6 450 22S750 44 900 24 1050 6 1200 24 1500 44 1650 24 1950 6 2100 22 2250 40 2400 24V46H0Z"/></svg>
+    <svg class="divider" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true"><path d="M0 50c180-40 360-40 540-8s360 40 540 6 260-30 360-20v62H0z" fill="var(--bg)"/></svg>
   </section>
 
-  <section id="disciplinas"><div class="wrap">
-    <div class="center rise"><span class="kicker">Elegí tu manera de remar</span><h2>Disciplinas</h2><p class="lead">${T.about}</p></div>
-    <div class="grid3">
-      <article class="disc rise">${phBox('sup', 'ph-sup', '🏄', 'Más elegida')}
-        <div class="bd"><h3>Stand up paddle</h3><p>${T.sup}</p><div class="facts">${fact(supT)}<span>Tabla, remo y chaleco</span></div>
-          <a class="btn sun sm" href="/#sup">Reservar SUP</a></div></article>
-      <article class="disc rise">${phBox('kayak', 'ph-kayak', '🛶', travT ? '🧭 Travesías' : '')}
-        <div class="bd"><h3>Kayak</h3><p>${T.kayak}</p><div class="facts">${fact(kayT)}${travT ? `<span>Travesía ${money(travT.price)}</span>` : ''}</div>
-          <a class="btn sun sm" href="/#kayak">Reservar kayak</a></div></article>
-      <article class="disc train rise">${phBox('train', 'ph-train', '🏅', 'Team Nativo')}
-        <div class="bd"><h3>Grupo de entrenamiento</h3><p>${T.train}</p><div class="facts">${trainT?.description ? `<span>${esc(trainT.description.split('.')[0])}</span>` : '<span>Para los que ya reman</span>'}</div>
-          <a class="btn wa sm" href="${wa(CONTACT.sup.whatsapp, `Hola ${CONTACT.sup.name}! Quiero info para sumarme al grupo de entrenamiento de Nativo 🏅`)}" target="_blank" rel="noopener">Consultarle a ${CONTACT.sup.name}</a></div></article>
+  <div class="tickwrap" aria-hidden="true"><div class="ticker"><div class="run"><span>${tick}${tick}</span><span>${tick}${tick}</span></div></div></div>
+
+  <section class="pad" id="disciplinas"><div class="wrap">
+    <div class="pre"><div class="eyebrow">Elegí tu manera de remar</div><h2>Tres formas de vivir el río</h2><p class="lead">${T.about}</p></div>
+    <div class="stats pre">
+      <div class="stat"><b>${supT ? dur(supT) : '60 min'}</b><span>de clase, con el equipo incluido</span></div>
+      <div class="stat"><b>${minPrice ? money(minPrice) : '—'}</b><span>la clase, desde</span></div>
+      <div class="stat"><b>${profes.length || '—'}</b><span>profes que viven el río</span></div>
+      <div class="stat"><b>${reviews.length ? avg.toFixed(1).replace('.', ',') + ' ★' : '0 a 100'}</b><span>${reviews.length ? 'de puntaje de los alumnos' : 'todos los niveles'}</span></div>
     </div>
+
+    <article class="disc pre">${visual('sup', 'sup', 'day', 'La más elegida')}
+      <div><div class="num">01</div><h3>Stand up paddle</h3><p>${T.sup}</p>
+        <div class="facts">${supT ? `<span>${dur(supT)}</span><span>desde ${money(supT.price)}</span>` : ''}<span>Tabla, remo y chaleco</span></div>
+        <a class="btn sun" href="/#sup">Reservar SUP ${ICO.arrow}</a></div></article>
+
+    <article class="disc flip pre">${visual('kayak', 'kayak', 'teal', travT ? 'Con travesías' : '')}
+      <div><div class="num">02</div><h3>Kayak</h3><p>${T.kayak}</p>
+        <div class="facts">${kayT ? `<span>${dur(kayT)}</span><span>desde ${money(kayT.price)}</span>` : ''}${travT ? `<span>Travesía ${dur(travT)} · ${money(travT.price)}</span>` : ''}</div>
+        <a class="btn sun" href="/#kayak">Reservar kayak ${ICO.arrow}</a></div></article>
+
+    <article class="disc train pre">${visual('train', 'group', 'dusk', 'Team Nativo')}
+      <div><div class="num">03</div><h3>Grupo de entrenamiento</h3><p>${T.train}</p>
+        <div class="facts">${trainT?.description ? `<span>${esc(trainT.description.split('.')[0])}</span>` : '<span>Para los que ya reman</span>'}</div>
+        <a class="btn wa" href="${wa(CONTACT.sup.whatsapp, `Hola ${CONTACT.sup.name}! Quiero info para sumarme al grupo de entrenamiento de Nativo 🏅`)}" target="_blank" rel="noopener">${ICO.wa} Consultarle a ${CONTACT.sup.name}</a></div></article>
   </div></section>
 
-  <section id="primera" class="band"><div class="wrap">
-    <div class="center rise"><span class="kicker">Sin experiencia, sin problema</span><h2>Tu primera clase</h2><p class="lead">Así de simple es arrancar.</p></div>
+  <section class="first pad" id="primera"><div class="wrap">
+    <div class="pre"><div class="eyebrow">Sin experiencia, sin problema</div><h2>Tu primera clase</h2><p class="lead">Así de simple es arrancar.</p></div>
     <div class="steps">
-      <div class="step rise"><b>Reservás</b><p>Elegís día, horario y profe desde la web. Te llega el comprobante al toque.</p></div>
-      <div class="step rise"><b>Llegás</b><p>Venís a la ${PLACE.name} unos 15 minutos antes. Completás tu ficha de salud (1 minuto).</p></div>
-      <div class="step rise"><b>Te equipamos</b><p>Te damos ${supT ? 'tabla, remo y chaleco' : 'todo el equipo'} y te explicamos lo básico en tierra.</p></div>
-      <div class="step rise"><b>¡Al agua!</b><p>${supT ? supT.duration_min + ' minutos' : 'Una hora'} remando en el Paraná, con el profe al lado todo el tiempo.</p></div>
+      <div class="step pre"><div class="n">1</div><b>Reservás</b><p>Elegís día, horario y profe desde la web. El comprobante te llega al toque.</p></div>
+      <div class="step pre"><div class="n">2</div><b>Llegás</b><p>Venís a la ${PLACE.name} 15 minutos antes y completás tu ficha de salud (1 minuto).</p></div>
+      <div class="step pre"><div class="n">3</div><b>Te equipamos</b><p>Te damos tabla o kayak, remo y chaleco, y te explicamos lo básico en tierra.</p></div>
+      <div class="step pre"><div class="n">4</div><b>¡Al agua!</b><p>${supT ? dur(supT) : 'Una hora'} remando en el Paraná, con el profe al lado todo el tiempo.</p></div>
     </div>
-    <div class="bring rise"><b>Qué traer</b>${T.bring.map(x => `<span>✓ ${esc(x)}</span>`).join('')}</div>
+    <div class="bring pre"><h3>Qué traer</h3><ul>${T.bring.map(x => `<li>${ICO.check}${esc(x)}</li>`).join('')}</ul></div>
   </div></section>
 
-  ${profes.length ? `<section id="profes"><div class="wrap">
-    <div class="center rise"><span class="kicker">Con quién vas a remar</span><h2>Los profes</h2></div>
-    <div class="profes">${profes.map(p => `<div class="profe rise"><span class="av" ${p.avatar_url ? `style="background-image:url('${esc(p.avatar_url)}')"` : ''}>${p.avatar_url ? '' : esc(initials(p.name))}</span>
-      <span><b>${esc(p.name)}</b><small>${(p.sports || ['sup']).map(k => k === 'kayak' ? '🛶 Kayak' : '🏄 SUP').join(' · ')}</small>${p.bio ? `<small>${esc(p.bio)}</small>` : ''}</span></div>`).join('')}</div>
+  ${profes.length ? `<section class="pad" id="profes"><div class="wrap">
+    <div class="pre"><div class="eyebrow">Con quién vas a remar</div><h2>Los profes</h2></div>
+    <div class="profes">${profes.map((p, i) => `<div class="profe pre"><span class="av" style="--c:${colors[i % colors.length]};${p.avatar_url ? `background-image:url('${esc(p.avatar_url)}')` : `background-color:${colors[i % colors.length]}`}">${p.avatar_url ? '' : esc(initials(p.name))}</span>
+      <b>${esc(p.name)}</b>${(p.sports || ['sup']).map(k => `<span class="sp ${k === 'kayak' ? 'k' : ''}">${k === 'kayak' ? 'Kayak' : 'SUP'}</span>`).join(' ')}${p.bio ? `<p>${esc(p.bio)}</p>` : ''}</div>`).join('')}</div>
   </div></section>` : ''}
 
-  ${rv.length ? `<section class="band"><div class="wrap">
-    <div class="center rise"><span class="kicker">Lo que dicen</span><h2>Alumnos felices</h2></div>
-    <div class="reviews">${rv.map(r => `<div class="rv rise"><div class="st">${'★'.repeat(r.stars)}</div><p>“${esc(r.comment)}”</p><small>${esc(r.first_name || '')}${r.profe_name ? ` · clase con ${esc(r.profe_name.split(' ')[0])}` : ''}</small></div>`).join('')}</div>
+  ${reviews.length ? `<section class="pad" style="padding-top:0"><div class="wrap">
+    <div class="pre"><div class="eyebrow">Lo que dicen</div><h2>Alumnos felices</h2></div>
+    <div class="reviews">${reviews.slice(0, 3).map((r, i) => `<div class="rv pre ${i ? '' : 'big'}">${i ? '' : '<div class="q">“</div>'}<div class="st">${'★'.repeat(r.stars)}</div><p>${i ? '“' : ''}${esc(r.comment)}${i ? '”' : ''}</p><small>${esc(r.first_name || '')}${r.profe_name ? ` · clase con ${esc(r.profe_name.split(' ')[0])}` : ''}</small></div>`).join('')}</div>
   </div></section>` : ''}
 
-  <section><div class="wrap">
-    <div class="center rise"><span class="kicker">Para todos los planes</span><h2>Más formas de venir</h2></div>
+  <section class="pad" style="padding-top:0"><div class="wrap">
+    <div class="pre"><div class="eyebrow">Para todos los planes</div><h2>Más formas de venir</h2></div>
     <div class="more">
-      <a class="mcard rise" href="/"><i>💳</i><b>Abonos</b><span>${plan ? `${esc(plan.name)}: ${plan.classes} clases por ${money(plan.price)} (${money(plan.price / plan.classes)} cada una).` : 'Si venís seguido, te sale más barato cada clase.'}</span><em>Ver abonos →</em></a>
-      <a class="mcard rise" href="/"><i>🎁</i><b>Gift cards</b><span>Regalá una clase o un abono. Te mandamos la tarjeta con el código para que la pases.</span><em>Regalar →</em></a>
-      <a class="mcard rise" href="/"><i>👥</i><b>Privadas y grupales</b><span>Cumpleaños, empresas, grupos de amigos o una clase solo para vos.</span><em>Pedir info →</em></a>
+      <a class="tile t1 pre" href="/"><span class="ic">${ICO.card}</span><b>Abonos</b><span>${plan ? `${esc(plan.name)}: ${plan.classes} clases por ${money(plan.price)}. Cada clase te sale ${money(plan.price / plan.classes)}.` : 'Si venís seguido, cada clase te sale más barata.'}</span><em>Ver abonos ${ICO.arrow}</em></a>
+      <a class="tile t2 pre" href="/"><span class="ic">${ICO.gift}</span><b>Gift cards</b><span>Regalá una clase o un abono. Te mandamos la tarjeta con el código para que la pases.</span><em>Regalar ${ICO.arrow}</em></a>
+      <a class="tile t3 pre" href="/"><span class="ic">${ICO.group}</span><b>Privadas y grupales</b><span>Cumpleaños, empresas, grupos de amigos o una clase solo para vos.</span><em>Pedir info ${ICO.arrow}</em></a>
     </div>
   </div></section>
 
-  <section class="band"><div class="wrap">
-    <div class="center rise"><span class="kicker">Antes de venir</span><h2>Preguntas frecuentes</h2></div>
-    <div class="faq">${T.faq.map(([q, a]) => `<details class="rise"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
+  <section class="pad first"><div class="wrap">
+    <div class="pre" style="text-align:center"><div class="eyebrow">Antes de venir</div><h2>Preguntas frecuentes</h2></div>
+    <div class="faq">${T.faq.map(([q, a]) => `<details class="pre"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
   </div></section>
 
-  <section id="donde"><div class="wrap">
-    <div class="where">
-      <div class="rise"><span class="kicker">Te esperamos</span><h2>Dónde estamos</h2><p class="lead">${PLACE.name}, ${PLACE.city}. Salimos al Paraná desde la guardería: llegá unos minutos antes para cambiarte y equiparte.</p>
-        <a class="btn ink" style="margin-top:16px" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(PLACE.q)}" target="_blank" rel="noopener">📍 Cómo llegar</a></div>
-      <iframe class="map rise" title="Mapa: ${PLACE.name}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(PLACE.q)}&output=embed"></iframe>
-    </div>
+  <section class="pad" id="donde"><div class="wrap where">
+    <div class="pre"><div class="eyebrow">Te esperamos</div><h2>Dónde estamos</h2><p class="lead">Salimos al Paraná desde la ${PLACE.name}, en ${PLACE.city}. Llegá unos minutos antes para cambiarte y equiparte.</p>
+      <a class="btn dark" style="margin-top:24px" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(PLACE.q)}" target="_blank" rel="noopener">${ICO.pin} Cómo llegar</a></div>
+    <div class="mapbox pre"><iframe title="Mapa: ${PLACE.name}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(PLACE.q)}&output=embed"></iframe>
+      <div class="pin">${ICO.pin}${PLACE.name}</div></div>
   </div></section>
 
-  <section class="cta-band"><div class="wrap rise"><span class="kicker" style="color:var(--ink)">¿Arrancamos?</span><h2>Tu primera remada te espera</h2>
-    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px"><a class="btn sun" href="/">Reservar clase</a></div></div></section>
+  <section class="final pad"><div class="sunball"></div><div class="wrap pre">
+    <div class="eyebrow">¿Arrancamos?</div><h2>Tu primera remada te está esperando</h2>
+    <a class="btn sun" href="/" style="box-shadow:0 0 0 2px var(--ink),6px 6px 0 var(--ink)">Reservar clase ${ICO.arrow}</a></div></section>
 
   <footer class="foot"><div class="wrap cols">
-    <div><b>Nativo</b>Escuela de SUP & Kayak en Rosario.<br>${PLACE.name}.</div>
-    <div class="links"><b>Escribinos</b>
-      <a href="${wa(CONTACT.sup.whatsapp, 'Hola Nativo! Tengo una consulta por las clases de SUP')}" target="_blank" rel="noopener">🏄 SUP · ${CONTACT.sup.name}</a>
-      ${mati ? `<a href="${wa(mati.whatsapp, `Hola ${mati.name.split(' ')[0]}! Tengo una consulta por las clases de kayak`)}" target="_blank" rel="noopener">🛶 Kayak · ${esc(mati.name)}</a>` : ''}
-      ${T.instagram ? `<a href="https://instagram.com/${encodeURIComponent(T.instagram)}" target="_blank" rel="noopener">📸 @${esc(T.instagram)}</a>` : ''}</div>
-    <div class="links"><b>Web</b><a href="/">Reservar clase</a><a href="/#perfil">Mi cuenta</a><a href="/#staff">Acceso profes</a></div>
+    <div><div class="brand"><img src="img/logo.webp" alt="" width="54" height="65"><b>Nativo</b></div>Escuela de SUP & Kayak en el Paraná.<br>${PLACE.name}, ${PLACE.city}.</div>
+    <div class="links"><h4>Escribinos</h4>
+      <a href="${wa(CONTACT.sup.whatsapp, 'Hola Nativo! Tengo una consulta por las clases de SUP')}" target="_blank" rel="noopener">SUP · ${CONTACT.sup.name}</a>
+      ${mati ? `<a href="${wa(mati.whatsapp, `Hola ${mati.name.split(' ')[0]}! Tengo una consulta por las clases de kayak`)}" target="_blank" rel="noopener">Kayak · ${esc(mati.name)}</a>` : ''}
+      ${T.instagram ? `<a href="https://instagram.com/${encodeURIComponent(T.instagram)}" target="_blank" rel="noopener">Instagram · @${esc(T.instagram)}</a>` : ''}</div>
+    <div class="links"><h4>Web</h4><a href="/">Reservar clase</a><a href="/#perfil">Mi cuenta</a><a href="/#staff">Acceso profes</a></div>
   </div></footer>`;
 
-  // Animación suave al aparecer cada bloque
-  const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' }) : null;
-  document.querySelectorAll('.rise').forEach(el => io ? io.observe(el) : el.classList.add('in'));
+  // Lo que está más abajo aparece suave al bajar. Lo que ya se ve, se muestra directo.
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -6% 0px' }) : null;
+  document.querySelectorAll('.pre').forEach(el => !io || el.getBoundingClientRect().top < innerHeight ? el.classList.add('in') : io.observe(el));
 }
 
-// Botón "Reservar" fijo abajo (celu) cuando ya pasaste la portada
-addEventListener('scroll', () => { const h = document.querySelector('.hero'); $('sticky').classList.toggle('on', !!h && h.getBoundingClientRect().bottom < 0); }, { passive: true });
+addEventListener('scroll', () => {
+  $('top').classList.toggle('solid', scrollY > 30);
+  const h = document.querySelector('.hero'); $('sticky').classList.toggle('on', !!h && h.getBoundingClientRect().bottom < 60);
+}, { passive: true });
 
-draw();   // primero sin datos (no queda en blanco), después con precios, profes y reseñas reales
+draw();   // primero sin datos (nunca queda en blanco); después con precios, profes y reseñas reales
 Promise.all([get('class_types?select=*&order=sort'), get('rpc/public_profes', true), get('rpc/public_reviews', true), get('plans?select=*&active=eq.true&order=sort')])
   .then(([types, profes, reviews, plans]) => draw({ types, profes, reviews, plans }));
 </script>
