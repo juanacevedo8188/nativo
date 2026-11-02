@@ -356,6 +356,11 @@ textarea.input{min-height:80px;resize:vertical}
 .shead h1{font:700 22px/1.15 var(--f-display);margin:2px 0 0;letter-spacing:-.2px}
 .shead .back{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--line2);font-size:26px;line-height:1;color:var(--ink);cursor:pointer;padding-bottom:3px}
 .mgroup{margin-bottom:14px}
+.eqsum{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.eqk{display:flex;flex-direction:column;align-items:center;gap:1px;padding:10px 6px;border-radius:16px;border:1.5px solid var(--line);background:var(--card);font:inherit;color:var(--ink);cursor:pointer}
+.eqk i{font-style:normal;font-size:24px}.eqk b{font-size:20px;line-height:1.1}.eqk span{font-size:12px;color:var(--ink2);text-align:center}
+.eqk em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--bad)}
+.eqk.on{background:var(--ink);border-color:var(--ink);color:var(--sun)}.eqk.on span{color:#d9e6e1}
 .weekbar{position:sticky;top:var(--top-h);z-index:6;background:var(--bg);margin:10px -16px 0;padding:8px 16px 10px;box-shadow:0 6px 8px -8px rgba(0,0,0,.18)}
 .weekbar .icon-btn:disabled{opacity:.3}
 .wdays{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:8px}
@@ -881,6 +886,12 @@ function supabaseApi() {
     photosByCode: code => q(c.rpc('slot_photos_by_code', { p_code: code })),
     myPhotos: () => q(c.rpc('my_photos')),
     calToken: reset => q(c.rpc('my_cal_token', { p_reset: !!reset })),
+    // Inventario (admin): equipos y su historial de comentarios
+    equipment: () => q(c.from('equipment').select('*, notes:equipment_notes(id,body,status,author_name,created_at)').order('name')),
+    addEquipment: rows => q(c.from('equipment').insert(rows)),
+    updateEquipment: (id, patch) => q(c.from('equipment').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)),
+    deleteEquipment: id => q(c.from('equipment').delete().eq('id', id)),
+    addEquipNote: n => q(c.from('equipment_notes').insert(n)),
     // Mails (Resend, desde el servidor). Si no están configurados, no pasa nada.
     mailBooking: codes => fetch('/api/mail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'booking', codes }) }).catch(() => {}),
     async mailSuspended(slot, codes) {
@@ -1200,6 +1211,11 @@ function demoApi() {
         .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
     mailBooking: () => wait(null), mailSuspended: () => wait(null), mailStats: () => fail('demo'),
+    equipment: () => wait((db.equipment || []).map(e => ({ ...e, notes: (db.equipment_notes || []).filter(n => n.equipment_id === e.id) }))),
+    addEquipment(rows) { db.equipment ||= []; rows.forEach(r => db.equipment.push({ id: uid(), status: 'ok', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...r })); save(); return wait(null); },
+    updateEquipment(id, patch) { Object.assign(db.equipment.find(e => e.id === id), patch, { updated_at: new Date().toISOString() }); save(); return wait(null); },
+    deleteEquipment(id) { db.equipment = db.equipment.filter(e => e.id !== id); db.equipment_notes = (db.equipment_notes || []).filter(n => n.equipment_id !== id); save(); return wait(null); },
+    addEquipNote(n) { (db.equipment_notes ||= []).push({ id: uid(), created_at: new Date().toISOString(), ...n }); save(); return wait(null); },
     calToken(reset) { if (reset || !db.cal_token) { db.cal_token = Array.from({ length: 64 }, () => (Math.random() * 16 | 0).toString(16)).join(''); save(); } return wait(db.cal_token); },
     notices: () => wait(db.site_notices || []),
     saveNotice(n) { if (!meP()) return fail('Solo profes'); db.site_notices = (db.site_notices || []).filter(x => x.sport !== n.sport).concat({ ...n, updated_at: new Date().toISOString() }); save(); return wait(null); },
@@ -2626,13 +2642,13 @@ async function renderStaff() {
    La pestaña va en la dirección (#staff/agenda, #staff/cupones…): el "atrás" del celu vuelve a la anterior. */
 const STAFF_TITLES = { agenda: 'Agenda', cargar: 'Crear clase', resumen: 'Resumen', numeros: 'Mis números', profes: 'Equipo', mas: 'Más',
   abonos: 'Abonos y gift cards', regalos: 'Gift cards', grupos: 'Clases privadas y grupales', cupones: 'Cupones de descuento',
-  aviso: 'Aviso en la página', tablon: 'Tablón del team', clases: 'Tipos de clase', perfil: 'Mi perfil', calendario: 'Mis clases en el calendario' };
+  aviso: 'Aviso en la página', tablon: 'Tablón del team', clases: 'Tipos de clase', perfil: 'Mi perfil', calendario: 'Mis clases en el calendario', inventario: 'Inventario' };
 function staffTabs() {
   const admin = st.me.role === 'admin', mg = !!st.me.manages?.length, sup = admin || (st.me.sports?.length ? st.me.sports : ['sup']).includes('sup');
   const main = admin
     ? [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['resumen', 'Resumen', ICON.chart], ['profes', 'Equipo', ICON.team], ['mas', 'Más', ICON.more]]
     : [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['numeros', 'Mis números', ICON.chart], ['mas', 'Más', ICON.more]];
-  const sub = ['perfil', 'calendario', ...(admin ? ['abonos', 'grupos', 'cupones', 'aviso', 'clases'] : mg ? ['regalos', 'grupos', 'cupones', 'aviso', 'clases'] : []), ...(sup ? ['tablon'] : [])];
+  const sub = ['perfil', 'calendario', ...(admin ? ['abonos', 'grupos', 'cupones', 'aviso', 'clases', 'inventario'] : mg ? ['regalos', 'grupos', 'cupones', 'aviso', 'clases'] : []), ...(sup ? ['tablon'] : [])];
   return { main, sub, admin, mg, sup };
 }
 function drawStaffFrame() {
@@ -2651,7 +2667,7 @@ function drawStaffFrame() {
   startLive();
 }
 const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos(), grupos: () => paneGroups(), regalos: () => paneGifts(), cupones: () => paneCoupons(),
-  aviso: () => { paneEl().innerHTML = '<div id="notice-ed"></div>'; noticeEditor(); }, calendario: () => paneCalendar(), tablon: () => { paneEl().innerHTML = '<div id="board-ed"></div>'; boardEditor(); } };
+  aviso: () => { paneEl().innerHTML = '<div id="notice-ed"></div>'; noticeEditor(); }, calendario: () => paneCalendar(), inventario: () => paneInventory(), tablon: () => { paneEl().innerHTML = '<div id="board-ed"></div>'; boardEditor(); } };
 function setTab(t) {
   st.fromMas = st.tab === 'mas';                                // para que "‹" vuelva atrás de verdad
   if (location.hash !== '#staff/' + t) history.pushState(null, '', '#staff/' + t);
@@ -2661,8 +2677,9 @@ function staffBack() { if (st.fromMas) history.back(); else setTab('mas'); }
 // Pendientes (abonos a confirmar, regalos a cobrar, pedidos nuevos): puntito en "Más" y números en el menú.
 async function refreshPending() {
   const { admin, mg } = staffTabs(); if (!admin && !mg) { st.pend = {}; return; }
-  const [passes, gifts, groups] = await Promise.all([admin ? api.adminPasses().catch(() => []) : [], api.giftCards().catch(() => []), api.groupRequests().catch(() => [])]);
-  st.pend = { passes: passes.filter(x => x.status === 'pending').length, gifts: gifts.filter(mySport).filter(x => x.status === 'pending').length, groups: groups.filter(mySport).filter(x => x.status === 'nuevo').length };
+  const [passes, gifts, groups, equip] = await Promise.all([admin ? api.adminPasses().catch(() => []) : [], api.giftCards().catch(() => []), api.groupRequests().catch(() => []), admin ? api.equipment().catch(() => []) : []]);
+  st.pend = { passes: passes.filter(x => x.status === 'pending').length, gifts: gifts.filter(mySport).filter(x => x.status === 'pending').length, groups: groups.filter(mySport).filter(x => x.status === 'nuevo').length,
+    equip: equip.filter(x => ['revisar', 'reparacion'].includes(x.status)).length };
   pendingDot(); if (st.tab === 'mas' && $('pane')) paneMore();
 }
 function pendingDot() { const P = st.pend || {}; if ($('mas-dot')) $('mas-dot').hidden = !((P.passes || 0) + (P.gifts || 0) + (P.groups || 0)); }
@@ -2724,7 +2741,8 @@ function paneMore() {
     ${group('Pedidos', [(admin || mg) && item('grupos', '👥', 'Clases privadas y grupales', 'Cumples, empresas y grupos', P.groups, P.groups > 1 ? 'nuevos' : 'nuevo')])}
     ${group('Comunicación', [(admin || mg) && item('aviso', '📢', 'Aviso en la página', '"Hoy no hay clases por viento"'),
       sup && item('tablon', '📣', 'Tablón del team', 'Avisos para el grupo de entrenamiento')])}
-    ${group('Configuración', [(admin || mg) && item('clases', '⚙️', 'Tipos de clase', 'Precio, cupo, duración e iniciación o travesía')])}
+    ${group('Configuración', [(admin || mg) && item('clases', '⚙️', 'Tipos de clase', 'Precio, cupo, duración e iniciación o travesía'),
+      admin && item('inventario', '🛟', 'Inventario', 'Tablas, remos, chalecos y kayaks: estado y reparaciones', P.equip, P.equip > 1 ? 'a revisar' : 'a revisar')])}
     ${group('Mi cuenta', [item('calendario', '📅', 'Mis clases en el calendario', 'Tu semana y tus alumnos en Google Calendar o el iPhone'),
       item('perfil', '👤', 'Mi perfil', 'Foto, WhatsApp y alias para transferencias'),
       `<a class="mitem" href="#"><i>🌐</i><span class="mt"><b>Ver la página de reservas</b><small>Como la ven los alumnos</small></span><span class="chev" aria-hidden="true">›</span></a>`,
@@ -3039,6 +3057,83 @@ async function saveCouponForm(ev) {
 async function toggleCoupon(code, active) {
   const c = (st.couponList || []).find(x => x.code === code); if (!c) return;
   try { await api.saveCoupon({ ...c, active }); paneCoupons(); } catch (e) { toast(errMsg(e)); }
+}
+
+/* ── Inventario (admin): tablas, remos, chalecos, kayaks… con su estado y un historial de comentarios ── */
+const EQ_KIND = { tabla: ['🏄', 'Tablas', 'Tabla'], remo: ['🪵', 'Remos', 'Remo'], chaleco: ['🦺', 'Chalecos', 'Chaleco'], kayak: ['🛶', 'Kayaks', 'Kayak'], pala: ['🪶', 'Palas de kayak', 'Pala'], otro: ['📦', 'Otros', 'Equipo'] };
+const EQ_ST = { reparacion: ['🔧', 'En reparación', 'bad'], revisar: ['👀', 'Revisar', 'warn'], ok: ['✅', 'OK', 'ok'], baja: ['⛔', 'De baja', 'gray'] };
+const EQ_ORDER = ['reparacion', 'revisar', 'ok', 'baja'];
+const eqSize = e => e.kind === 'chaleco' ? `talle ${esc(e.size)}` : esc(e.size);
+async function paneInventory() {
+  let list = []; try { list = await api.equipment(); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  st.equip = list;
+  const f = st.eqFilter || '', bad = !!st.eqBad;
+  const kinds = Object.keys(EQ_KIND).filter(k => list.some(e => e.kind === k));
+  const shown = list.filter(e => (!f || e.kind === f) && (!bad || ['revisar', 'reparacion'].includes(e.status)))
+    .sort((a, b) => EQ_ORDER.indexOf(a.status) - EQ_ORDER.indexOf(b.status) || a.name.localeCompare(b.name, 'es', { numeric: true }));
+  const last = e => [...(e.notes || [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const probs = list.filter(e => ['revisar', 'reparacion'].includes(e.status)).length;
+  paneEl().innerHTML = `
+    ${list.length ? `<div class="eqsum">${kinds.map(k => { const xs = list.filter(e => e.kind === k && e.status !== 'baja'), p = xs.filter(e => e.status !== 'ok').length;
+      return `<button class="eqk ${f === k ? 'on' : ''}" onclick="st.eqFilter=st.eqFilter==='${k}'?'':'${k}';paneInventory()"><i>${EQ_KIND[k][0]}</i><b>${xs.length}</b><span>${EQ_KIND[k][1]}</span>${p ? `<em>${p} 🔧</em>` : ''}</button>`; }).join('')}</div>
+      <div class="row between wrapf" style="margin:12px 0 10px;gap:8px"><label class="check small"><input type="checkbox" ${bad ? 'checked' : ''} onchange="st.eqBad=this.checked;paneInventory()"> Solo lo que hay que revisar o reparar ${probs ? `<span class="pill warn" style="margin:0">${probs}</span>` : ''}</label>
+        ${f ? `<button class="btn ghost sm" onclick="st.eqFilter='';paneInventory()">Ver todo</button>` : ''}</div>` : ''}
+    <button class="btn coral block" onclick="newEquipment()" style="margin-bottom:12px">+ Agregar equipo</button>
+    <div style="display:grid;gap:8px">${shown.map(e => { const n = last(e), S = EQ_ST[e.status] || EQ_ST.ok;
+      return `<button class="ecard ${e.status === 'baja' ? 'off' : ''}" onclick="openEquipment('${e.id}')"><span style="font-size:26px;flex:none">${EQ_KIND[e.kind]?.[0] || '📦'}</span>
+        <span class="et"><b>${esc(e.name)}${e.size ? ` <span class="muted small">· ${eqSize(e)}</span>` : ''}</b><span class="tags"><span class="pill ${S[2]}">${S[0]} ${S[1]}</span></span>
+          ${n ? `<span class="tiny muted ell">${esc(fmtDayShort(n.created_at))}: ${esc(n.body)}</span>` : ''}</span><span class="chev" aria-hidden="true">›</span></button>`; }).join('')
+      || `<div class="card empty">${list.length ? 'No hay nada con ese filtro.' : 'Todavía no cargaste equipos. Empezá por las tablas: podés cargar varias de una vez.'}</div>`}</div>`;
+}
+function newEquipment() {
+  openModal(`<h2>Agregar equipo</h2><div id="eq-err"></div><form onsubmit="saveNewEquipment(event)">
+    <div class="field"><span class="flabel">Tipo</span><div class="seg">${Object.entries(EQ_KIND).map(([k, v], i) => `<label><input type="radio" name="kind" value="${k}" ${i ? '' : 'checked'}>${v[0]} ${v[2]}</label>`).join('')}</div></div>
+    <div class="field"><label for="eq-name">Nombre o identificación</label><input class="input" id="eq-name" name="name" required maxlength="60" placeholder="Ej: Tabla azul, Chaleco, Remo de carbono"></div>
+    <div class="grid2"><div class="field"><label for="eq-size">Talle o medida <span class="muted">(opcional)</span></label><input class="input" id="eq-size" name="size" maxlength="20" placeholder="M, 10'6, 3 cuerpos…"></div>
+      <div class="field"><label for="eq-qty">Cantidad</label><input class="input" id="eq-qty" name="qty" type="number" inputmode="numeric" min="1" max="50" value="1"></div></div>
+    <p class="tiny muted" style="margin:-4px 0 12px">Si cargás varios, quedan numerados: "Chaleco 1", "Chaleco 2"…</p>
+    <div class="sheet-foot"><button class="btn coral block" id="eq-btn">Agregar</button></div></form>`);
+}
+async function saveNewEquipment(ev) {
+  ev.preventDefault(); const f = ev.target, qty = Math.min(50, Math.max(1, +f.qty.value || 1)), name = f.name.value.trim(), size = f.size.value.trim() || null;
+  const have = (st.equip || []).filter(e => e.name.startsWith(name + ' ')).map(e => +e.name.slice(name.length + 1)).filter(Boolean), start = have.length ? Math.max(...have) + 1 : 1;
+  const rows = Array.from({ length: qty }, (_, i) => ({ kind: f.kind.value, name: qty > 1 ? `${name} ${start + i}` : name, size }));
+  $('eq-btn').disabled = true;
+  try { await api.addEquipment(rows); closeModal(); toast(qty > 1 ? `${qty} equipos agregados ✓` : 'Equipo agregado ✓'); paneInventory(); }
+  catch (e) { $('eq-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; $('eq-btn').disabled = false; }
+}
+function openEquipment(id) {
+  const e = (st.equip || []).find(x => x.id === id); if (!e) return;
+  const notes = [...(e.notes || [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  openModal(`<h2>${EQ_KIND[e.kind]?.[0] || ''} ${esc(e.name)}</h2>
+    <div class="sum">Estado: <b>${EQ_ST[e.status][0]} ${EQ_ST[e.status][1]}</b>${e.size ? ` · ${eqSize(e)}` : ''}</div>
+    <form onsubmit="saveEquipNote(event,'${e.id}')">
+      <div class="field"><label for="en-body">Comentario</label><textarea class="input" id="en-body" name="body" maxlength="1000" rows="2" placeholder="Ej: se golpeó la punta, tiene una fisura chica. Lo llevé a reparar."></textarea></div>
+      <div class="field"><span class="flabel">Estado</span><div class="seg">${EQ_ORDER.map(k => `<label><input type="radio" name="status" value="${k}" ${e.status === k ? 'checked' : ''}>${EQ_ST[k][0]} ${EQ_ST[k][1]}</label>`).join('')}</div></div>
+      <button class="btn coral block" id="en-btn">Guardar</button></form>
+    ${notes.length ? `<div class="label" style="margin-top:16px">Historial</div>${notes.map(n => `<div class="note"><div class="tiny muted">${esc(fmtDayShort(n.created_at))} · ${esc(n.author_name || 'Admin')}${n.status ? ` · ${EQ_ST[n.status][0]} ${EQ_ST[n.status][1]}` : ''}</div>${n.body ? `<div class="small" style="white-space:pre-line">${esc(n.body)}</div>` : ''}</div>`).join('')}` : ''}
+    <details style="margin-top:16px"><summary class="small" style="cursor:pointer">Editar nombre o talle, o borrar</summary>
+      <form onsubmit="saveEquipInfo(event,'${e.id}')" style="margin-top:10px"><div class="grid2"><div class="field"><label for="ei-name">Nombre</label><input class="input" id="ei-name" name="name" required maxlength="60" value="${esc(e.name)}"></div>
+        <div class="field"><label for="ei-size">Talle o medida</label><input class="input" id="ei-size" name="size" maxlength="20" value="${esc(e.size || '')}"></div></div>
+        <div class="row" style="gap:8px"><button class="btn sm">Guardar</button><button type="button" class="btn danger sm" onclick="dropEquipment('${e.id}')">Borrar equipo</button></div></form></details>`);
+}
+async function saveEquipNote(ev, id) {
+  ev.preventDefault(); const f = ev.target, e = st.equip.find(x => x.id === id), body = f.body.value.trim(), status = f.status.value;
+  if (!body && status === e.status) return toast('Escribí un comentario o cambiá el estado');
+  $('en-btn').disabled = true;
+  try {
+    await api.addEquipNote({ equipment_id: id, author_id: st.me.id, author_name: st.me.name.split(' ')[0], body: body || `Estado: ${EQ_ST[status][1]}`, status: status !== e.status ? status : null });
+    if (status !== e.status) await api.updateEquipment(id, { status });
+    closeModal(); toast('Guardado ✓'); await paneInventory(); refreshPending();
+  } catch (err) { toast(errMsg(err)); $('en-btn').disabled = false; }
+}
+async function saveEquipInfo(ev, id) {
+  ev.preventDefault(); const f = ev.target;
+  try { await api.updateEquipment(id, { name: f.name.value.trim(), size: f.size.value.trim() || null }); closeModal(); toast('Guardado ✓'); paneInventory(); } catch (e) { toast(errMsg(e)); }
+}
+async function dropEquipment(id) {
+  if (!await askConfirm('¿Borrar este equipo y su historial? Si ya no se usa, mejor marcalo "De baja" así queda el registro.', 'Borrar')) return;
+  try { await api.deleteEquipment(id); closeModal(); toast('Equipo borrado'); paneInventory(); refreshPending(); } catch (e) { toast(errMsg(e)); }
 }
 
 /* ── Calendario del profe: sus clases (con cuántos anotados y quiénes) en Google Calendar o el iPhone ──

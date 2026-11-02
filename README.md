@@ -97,6 +97,9 @@ Se apagan solos si falta `RESEND_API_KEY`. Variables en Vercel: `RESEND_API_KEY`
 - **Tope**: 90 por día (los de rutina hasta 70) y 2.500 por mes, debajo del plan gratis (3.000/mes, 100/día). Cada mail se anota en `mail_log` y nunca se repite. En Resumen (admin) se ve cuántos van.
 - SQL: `update-2026-11-mails.sql`.
 
+## Inventario (admin)
+*Más → Configuración → Inventario*: tablas, remos, chalecos, kayaks, palas y otros, con estado (OK, revisar, en reparación, de baja) y un historial de comentarios ("se golpeó la punta", "volvió de reparar"). Se cargan varios de una vez y quedan numerados. SQL: `update-2026-11-inventario.sql`.
+
 ## Landing (borrador)
 `landing.html` → **nativoescuela.com.ar/landing**. Presentación de Nativo (disciplinas, primera clase, profes, reseñas, abonos, preguntas, dónde estamos) que lleva a la página de reservas. Toma precios, profes, reseñas y abonos de la base. Textos y fotos al principio del archivo (`T` y `PHOTOS`). Tiene `noindex` hasta que la publiquemos como página principal.
 
