@@ -2666,7 +2666,24 @@ function editSlot(id) {
         <div class="field"><label for="es-loc">Lugar</label><input class="input" id="es-loc" name="loc" maxlength="80" value="${esc(s.location || '')}"></div></div>
       ${profes.length > 1 ? `<div class="field"><label for="es-profe">Profe</label><select class="input" id="es-profe" name="profe">${profes.map(p => `<option value="${p.id}" ${p.id === s.profe_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : ''}
       ${people ? `<p class="tiny muted" style="margin:-4px 0 12px">Ya hay ${people} ${people === 1 ? 'anotado' : 'anotados'}: si cambiás día u hora, avisales. Las reservas ya hechas mantienen su precio.</p>` : ''}
+      <div id="es-series"></div>
       <div class="sheet-foot"><button class="btn coral block" id="es-btn">Guardar cambios</button></div></form>`);
+  st.editSeries = [];
+  seriesOf(s).then(list => {
+    if (!list.length || !$('es-series')) return;
+    st.editSeries = list;
+    const last = list[list.length - 1];
+    $('es-series').innerHTML = `<label class="check opt" style="margin:0 0 12px"><input type="checkbox" name="all"> <span>Aplicar a todas las semanas de este horario
+      <span class="tiny muted" style="display:block">${list.length + 1} clases: los ${DOW_LONG[d.getDay()]} ${hhmm(d)} hasta el ${esc(fmtDayShort(last.starts_at))}</span></span></label>`;
+  }).catch(() => {});
+}
+const DOW_LONG = ['domingos', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados'];
+const bookedPeople = s => (s.bookings || []).filter(b => b.status !== 'cancelled').reduce((a, b) => a + b.people, 0);
+// Las otras semanas del mismo horario fijo: mismo profe, mismo tipo, mismo día y hora, de esta clase en adelante.
+async function seriesOf(s) {
+  const d = new Date(s.starts_at);
+  return (await api.staffSlots(addMin(d, 1), addDays(d, 400))).filter(x => x.id !== s.id && x.status === 'open' && x.profe_id === s.profe_id
+    && (x.class_type_id || '') === (s.class_type_id || '') && new Date(x.starts_at).getDay() === d.getDay() && hhmm(x.starts_at) === hhmm(d));
 }
 async function saveSlotEdit(ev, id) {
   ev.preventDefault();
@@ -2678,8 +2695,24 @@ async function saveSlotEdit(ev, id) {
   if (moved && people && !await askConfirm(`Cambiaste el día u horario y hay ${people} ${people === 1 ? 'anotado' : 'anotados'}. Acordate de avisarles por WhatsApp. ¿Guardar?`, 'Guardar')) return;
   const patch = { title: f.title.value.trim(), starts_at: start.toISOString(), duration_min: +f.dur.value, capacity: +f.cap.value, price: +f.price.value, location: f.loc.value.trim() || null };
   if (f.profe && f.profe.value !== s.profe_id) { patch.profe_id = f.profe.value; patch.profe_pct = +((st.allProfiles || []).find(p => p.id === f.profe.value)?.commission_pct ?? s.profe_pct); }
+  const series = f.all?.checked ? st.editSeries || [] : [];
+  if (series.length && !await askConfirm(`Se van a cambiar ${series.length + 1} clases: esta y las de las próximas semanas en este horario.${moved ? ' Las que ya tienen anotados no se mueven de día u hora (te las muestro al final).' : ''}`, 'Cambiar todas')) return;
   btn.disabled = true;
-  try { await api.updateSlot(id, patch); closeModal(); toast('Clase actualizada ✓'); const y = window.scrollY; await paneAgenda(); window.scrollTo(0, y); }
+  try {
+    await api.updateSlot(id, patch);
+    const delta = start - new Date(s.starts_at), kept = [];
+    await Promise.all(series.map(x => {
+      const n = bookedPeople(x), px = { ...patch, capacity: Math.max(patch.capacity, n) };
+      if (moved && n) { kept.push(x); delete px.starts_at; } else px.starts_at = new Date(new Date(x.starts_at).getTime() + delta).toISOString();
+      return api.updateSlot(x.id, px);
+    }));
+    const y = window.scrollY; await paneAgenda(); window.scrollTo(0, y);
+    if (kept.length) openModal(`<h2>Listo, ${series.length + 1 - kept.length} clases actualizadas</h2>
+      <p class="small muted">Estas tienen alumnos anotados, así que quedaron en su día y hora de antes (el resto de los cambios sí se aplicó). Avisales y movelas una por una si hace falta:</p>
+      <div class="choice">${kept.map(x => `<div class="prow" style="cursor:default"><span class="who"><b>${esc(fmtDayShort(x.starts_at))} ${hhmm(x.starts_at)}</b><span>${bookedPeople(x)} anotado${bookedPeople(x) > 1 ? 's' : ''}</span></span></div>`).join('')}</div>
+      <div class="sheet-foot"><button class="btn block" onclick="closeModal()">Entendido</button></div>`);
+    else { closeModal(); toast(series.length ? `${series.length + 1} clases actualizadas ✓` : 'Clase actualizada ✓'); }
+  }
   catch (e) { $('es-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
 }
 
