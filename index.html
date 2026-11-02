@@ -283,6 +283,15 @@ img.avatar.xl{border:4px solid var(--ink)}
 .btn.wa{background:#1fa855;color:#fff}
 .btn.sm{padding:7px 12px;min-height:36px;font-size:14px;border-radius:10px}
 .btn.block{width:100%}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.photos .ph{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--line)}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-x{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:13px;cursor:pointer}
+.note{padding:8px 0;border-top:1px solid var(--line)}
+.note:first-child{border-top:0}
+.lvl-seg{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
+.lvl-seg button{border:1.5px solid var(--line2);background:var(--card);border-radius:999px;padding:6px 10px;font-weight:600;font-size:13.5px;cursor:pointer;color:var(--ink)}
+.lvl-seg button.on{background:var(--ink);color:var(--sun);border-color:var(--ink)}
 /* En celus angostos (320px) nada se sale del ancho: los botones anchos bajan de renglón y las grillas se achican */
 .btn.block{white-space:normal;text-align:center}
 .grid2>*,.two>*,.kpis>*,.choice>*,.field{min-width:0}
@@ -806,6 +815,24 @@ function supabaseApi() {
     groupRequests: () => q(c.from('group_requests').select('*').order('created_at', { ascending: false }).limit(200)),
     updateGroup: (id, patch) => q(c.from('group_requests').update(patch).eq('id', id)),
     studentProfile: id => q(c.rpc('student_profile', { p_id: id })),
+    // Nivel y notas que deja el profe
+    studentLevels: async id => (await q(c.from('students').select('levels').eq('id', id).maybeSingle()))?.levels || {},
+    setLevel: (id, sport, level) => q(c.rpc('set_student_level', { p_student: id, p_sport: sport, p_level: level || null })),
+    studentNotes: id => q(c.from('student_notes').select('*').eq('student_id', id).order('created_at', { ascending: false }).limit(50)),
+    addNote: n => q(c.from('student_notes').insert(n)),
+    deleteNote: id => q(c.from('student_notes').delete().eq('id', id)),
+    // Fotos de la clase (bucket público "class-photos", carpeta = id de la clase)
+    slotPhotos: id => q(c.from('slot_photos').select('*').eq('slot_id', id).order('created_at')),
+    async addSlotPhoto(slotId, blob, by) {
+      const path = `${slotId}/${uid()}.jpg`;
+      await q(c.storage.from('class-photos').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' }));
+      const url = c.storage.from('class-photos').getPublicUrl(path).data.publicUrl;
+      try { await q(c.from('slot_photos').insert({ slot_id: slotId, path, url, created_by: by })); }
+      catch (e) { c.storage.from('class-photos').remove([path]).catch(() => {}); throw e; }
+    },
+    async deleteSlotPhoto(ph) { await q(c.from('slot_photos').delete().eq('id', ph.id)); c.storage.from('class-photos').remove([ph.path]).catch(() => {}); },
+    photosByCode: code => q(c.rpc('slot_photos_by_code', { p_code: code })),
+    myPhotos: () => q(c.rpc('my_photos')),
     teamMembers: () => q(c.rpc('team_members')),
     teamPosts: () => q(c.from('team_posts').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(30)),
     addPost: (body, pinned) => q(c.from('team_posts').insert({ body, pinned })),
@@ -1087,6 +1114,25 @@ function demoApi() {
         return { starts_at: s.starts_at, duration_min: s.duration_min, people: b.people, profe_name: db.profiles.find(x => x.id === s.profe_id)?.name, members_only: !!s.members_only, status: b.status, slot_status: s.status,
           sport: db.class_types.find(t => t.id === s.class_type_id)?.sport || 'sup', kind: db.class_types.find(t => t.id === s.class_type_id)?.kind || 'iniciacion' }; });
       return wait({ student: { ...s0, phone: meP() ? s0.phone : null }, bookings: bks, train_days: demoDays(id) });
+    },
+    studentLevels: id => wait(db.students.find(x => x.id === id)?.levels || {}),
+    setLevel(id, sport, level) { if (!meP()) return fail('Solo los profes pueden marcar el nivel'); const x = db.students.find(y => y.id === id);
+      x.levels = { ...(x.levels || {}) }; if (level) x.levels[sport] = level; else delete x.levels[sport]; save(); return wait(null); },
+    studentNotes(id) { const staff = !!meP(); return wait((db.student_notes || []).filter(n => n.student_id === id && (staff || !n.private)).sort((a, b) => b.created_at.localeCompare(a.created_at))); },
+    addNote(n) { if (!meP()) return fail('Solo los profes pueden dejar notas'); (db.student_notes ||= []).push({ id: uid(), created_at: new Date().toISOString(), ...n }); save(); return wait(null); },
+    deleteNote(id) { db.student_notes = (db.student_notes || []).filter(n => n.id !== id); save(); return wait(null); },
+    slotPhotos: id => wait((db.slot_photos || []).filter(p => p.slot_id === id)),
+    async addSlotPhoto(slotId, blob, by) {
+      const url = await new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(blob); });
+      (db.slot_photos ||= []).push({ id: uid(), slot_id: slotId, path: 'demo', url, created_by: by, created_at: new Date().toISOString() }); save();
+    },
+    deleteSlotPhoto(ph) { db.slot_photos = (db.slot_photos || []).filter(p => p.id !== ph.id); save(); return wait(null); },
+    photosByCode(code) { const b = db.bookings.find(x => x.code === String(code).toUpperCase() && x.status !== 'cancelled'); return wait(b ? (db.slot_photos || []).filter(p => p.slot_id === b.slot_id) : []); },
+    myPhotos() {
+      const sid = store.get(SKEY, null), mine = new Set(db.bookings.filter(b => sid && b.student_id === sid && b.status !== 'cancelled').map(b => b.slot_id));
+      return wait((db.slot_photos || []).filter(p => mine.has(p.slot_id)).map(p => { const s = db.slots.find(x => x.id === p.slot_id);
+        return { id: p.id, url: p.url, slot_id: p.slot_id, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(x => x.id === s.profe_id)?.name }; })
+        .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
     teamMembers() { return wait(db.students.filter(x => x.training === 'approved').map(x => ({ id: x.id, name: x.name, avatar_url: x.avatar_url, instagram: x.instagram, level: x.level, train_days: demoDays(x.id) }))); },
     teamPosts() {
@@ -1555,7 +1601,7 @@ function openBooking(id) {
   if (s.members_only && st.student?.training !== 'approved') return trainingInfo(s);
   const left = Math.min(s.capacity - s.booked, 10), me = st.student;
   const pass = me ? activePassFor(s.starts_at, sportOf(s)) : null, passLeft = pass ? pass.classes_total - pass.used : 0;
-  st.bk = { price: s.price, left, pass, passLeft, perClass: pass ? Math.round(pass.price / pass.classes_total) : 0 };
+  st.bk = { price: s.price, left, pass, passLeft, perClass: pass ? Math.round(pass.price / pass.classes_total) : 0, slot: s, series: [] };
   openModal(`
     <h2>Reservar</h2>
     <div class="sum">${(() => { const pr = st.profes.find(x => x.id === s.profe_id), link = profeWa(s.profe_name, pr?.whatsapp, `por la clase del ${fmtDayShort(s.starts_at)} ${hhmm(s.starts_at)}`);
@@ -1578,6 +1624,7 @@ function openBooking(id) {
         <input type="hidden" name="people" value="1"></div>
       ${me ? `<input type="hidden" name="email" value="${esc(me.email || '')}">` : `<details class="field"><summary class="small muted" style="cursor:pointer">Agregar email (opcional)</summary>
         <input class="input" style="margin-top:8px" name="email" type="email" autocomplete="email" maxlength="120" aria-label="Email"></details>`}
+      ${me ? '<div id="bk-rep"></div>' : ''}
       ${(() => { const al = st.profes.find(x => x.id === s.profe_id)?.pay_alias;
         return al ? `<div class="field pay-pick" id="bk-pay"><span class="flabel">¿Cómo vas a pagar?</span><div class="seg">
           <label><input type="radio" name="pay" value="transferencia" checked>💸 Transferencia</label><label><input type="radio" name="pay" value="efectivo">💵 Efectivo en la clase</label></div>
@@ -1588,14 +1635,64 @@ function openBooking(id) {
         <button class="btn coral block" id="bk-btn">Confirmar reserva</button>
       </div>
     </form>`);
+  if (me) loadSeries(s);
+}
+// Reserva fija: las próximas semanas del mismo horario (mismo profe, tipo, día y hora) que todavía tienen lugar.
+async function loadSeries(s) {
+  const d = new Date(s.starts_at);
+  let list = []; try { list = await api.publicSlots(addMin(d, 1), addDays(d, 90)); } catch { return; }
+  list = list.filter(x => x.profe_id === s.profe_id && (x.class_type_id || '') === (s.class_type_id || '') && new Date(x.starts_at).getDay() === d.getDay()
+    && hhmm(x.starts_at) === hhmm(d) && x.capacity - x.booked >= 1);
+  if (!list.length || !$('bk-rep') || st.bk?.slot?.id !== s.id) return;
+  st.bk.series = list;
+  const all = list.length + 1, opts = [2, 4, 8].filter(n => n < all).concat(all), def = Math.min(4, all);
+  $('bk-rep').innerHTML = `<div class="field"><label class="check opt"><input type="checkbox" name="rep" onchange="stepPeople(0)"> <span><b>🔁 Reservar todos los ${DOW_LONG[d.getDay()]} ${hhmm(d)}</b>
+      <span class="tiny muted" style="display:block">Hay lugar ${list.length === 1 ? 'en la semana siguiente' : `en las próximas ${list.length} semanas`} (hasta el ${esc(fmtDayShort(list[list.length - 1].starts_at))})</span></span></label>
+    <div class="row" id="bk-rep-n" style="gap:8px;margin-top:8px" hidden><span class="small">¿Cuántas semanas, contando esta?</span>
+      <select class="input sm" name="weeks" style="width:auto" onchange="stepPeople(0)">${opts.map(n => `<option value="${n}" ${n === def ? 'selected' : ''}>${n === all && n > 8 ? `Todas (${n})` : n}</option>`).join('')}</select></div></div>`;
+}
+// Qué clases se van a reservar y cuáles salen del abono (si alcanza y si la fecha entra en el abono).
+function bookPlan(f) {
+  const b = st.bk, n = +f.people.value, wantPass = !!f.usePass?.checked;
+  const slots = [b.slot, ...(f.rep?.checked ? b.series.slice(0, +f.weeks.value - 1) : [])];
+  let left = b.passLeft;
+  return slots.map(s => { const use = wantPass && !!b.pass && left >= n && dayKey(s.starts_at) <= b.pass.expires_on; if (use) left -= n; return { s, use }; });
 }
 function stepPeople(d) {
   const f = $('bk-form'), b = st.bk, usePass = !!f.usePass?.checked;
   const max = usePass ? Math.min(b.left, b.passLeft) : b.left, n = Math.min(max, Math.max(1, +f.people.value + d));
   f.people.value = n; $('bk-people').textContent = n;
-  $('bk-total-l').textContent = usePass ? `Con tu abono (${n} ${n === 1 ? 'clase' : 'clases'})` : 'Total';
-  $('bk-total').textContent = money(usePass ? 0 : b.price * n);
-  $('bk-pay')?.classList.toggle('hidden', usePass);        // con abono no se paga nada
+  const plan = bookPlan(f), k = plan.length, withPass = plan.filter(x => x.use).length, pay = plan.filter(x => !x.use).reduce((a, x) => a + x.s.price * n, 0);
+  $('bk-total-l').textContent = k > 1 ? `${k} clases${withPass ? ` · ${withPass} con abono` : ''}` : usePass ? `Con tu abono (${n} ${n === 1 ? 'clase' : 'clases'})` : 'Total';
+  $('bk-total').textContent = money(pay);
+  $('bk-pay')?.classList.toggle('hidden', pay === 0);        // con abono no se paga nada
+  if ($('bk-rep-n')) $('bk-rep-n').hidden = !f.rep?.checked;
+  $('bk-btn').textContent = k > 1 ? `Reservar ${k} clases` : 'Confirmar reserva';
+}
+async function bookSeries(f, plan) {
+  const btn = $('bk-btn'), n = +f.people.value, res = [];
+  for (const [i, { s, use }] of plan.entries()) {
+    btn.textContent = `Reservando ${i + 1} de ${plan.length}…`;
+    try {
+      const r = await api.book({ slot_id: s.id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: n, usePass: use, pay: use ? null : f.pay?.value || null });
+      rememberBooking(r.code, r.starts_at); res.push({ s, ok: true, use, code: r.code });
+    } catch (e) { res.push({ s, ok: false, err: errMsg(e) }); }
+  }
+  const ok = res.filter(x => x.ok);
+  if (!ok.length) { $('bk-err').innerHTML = `<div class="err">${esc(res[0].err)}</div>`; btn.disabled = false; stepPeople(0); return; }
+  if (plan.some(x => x.use)) st.myPasses = await api.myPasses().catch(() => st.myPasses);
+  if (st.student && f.phone.value.trim() !== (st.student.phone || '')) {
+    api.updateStudent(st.student.id, { phone: f.phone.value.trim() }).then(() => { st.student.phone = f.phone.value.trim(); }).catch(() => {});
+  }
+  const s0 = plan[0].s, d = new Date(s0.starts_at);
+  $('modal-body').innerHTML = `<button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button><div style="text-align:center"><div class="big-emoji">🔁</div>
+      <h2>¡Reservaste ${ok.length} ${ok.length === 1 ? 'clase' : 'clases'}!</h2>
+      <p class="small muted">Los ${DOW_LONG[d.getDay()]} ${hhmm(d)} con ${esc(s0.profe_name)}. Las tenés en tu perfil, en "Próximas clases".</p></div>
+    <div class="card" style="padding:4px 14px">${res.map(x => `<div class="row between" style="padding:8px 0;border-top:1px solid var(--line);gap:8px"><span class="small"><b>${esc(fmtDayShort(x.s.starts_at))}</b> ${hhmm(x.s.starts_at)}</span>
+      <span class="small" style="text-align:right">${x.ok ? (x.use ? '✓ con abono' : '✓ reservada') : `<span style="color:var(--bad)">✕ ${esc(x.err)}</span>`}</span></div>`).join('')}</div>
+    <div class="choice" style="margin-top:12px"><a class="btn coral block" href="#r-${ok[0].code}" onclick="closeModal()">Ver la primera clase</a>
+      <a class="btn ghost block" href="#perfil" onclick="closeModal()">Ir a mi perfil</a></div>`;
+  if ($('pub')) refreshPublic().catch(() => {});
 }
 
 async function submitBooking(ev, id) {
@@ -1603,6 +1700,8 @@ async function submitBooking(ev, id) {
   const f = ev.target, btn = $('bk-btn');
   btn.disabled = true; btn.textContent = 'Reservando…';
   try {
+    const plan = bookPlan(f);
+    if (plan.length > 1) return await bookSeries(f, plan);
     const usePass = !!f.usePass?.checked;
     const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value, usePass, pay: usePass ? null : f.pay?.value || null });
     if (usePass) st.myPasses = await api.myPasses().catch(() => st.myPasses);
@@ -1623,7 +1722,7 @@ async function submitBooking(ev, id) {
 const MINE = 'nativo_mis_reservas';
 function rememberBooking(code, starts_at) {
   const list = store.get(MINE, []).filter(x => x.code !== code && new Date(x.starts_at) > addDays(new Date(), -1));
-  list.push({ code, starts_at }); store.set(MINE, list.slice(-10));
+  list.push({ code, starts_at }); store.set(MINE, list.slice(-30));
 }
 // Las reservas guardadas en el celu se revisan contra la base: si se borró la clase, se canceló
 // o se suspendió, deja de aparecer en "Tus próximas clases"; si cambió el horario, se actualiza.
@@ -1739,12 +1838,15 @@ function cancelledMine(r) {
 async function ticketExtras(r) {
   const ended = addMin(r.starts_at, r.duration_min || 60) < new Date(), given = ended && !['cancelled', 'no_show'].includes(r.status) && r.slot_status !== 'cancelled';
   const live = r.status === 'confirmed' && r.slot_status === 'open' && !ended;
-  const [hasW, rev] = await Promise.all([live ? api.waiverStatus(r.code).catch(() => true) : true, given ? api.reviewByCode(r.code).catch(() => null) : null]);
+  const [hasW, rev, pics] = await Promise.all([live ? api.waiverStatus(r.code).catch(() => true) : true, given ? api.reviewByCode(r.code).catch(() => null) : null,
+    ended ? api.photosByCode(r.code).catch(() => []) : []]);
   if (!$('tk-extra') || st.ticket?.code !== r.code) return;
   st.tkReview = rev?.stars || 0;
   $('tk-extra').innerHTML = `
     ${!hasW ? `<div class="card waiver-warn rise"><b>📝 Antes de la clase: completá tu ficha de salud y deslinde</b><div class="small">Es una sola vez, 1 minuto.</div>
       <button class="btn coral sm" style="margin-top:8px" onclick="openWaiver(${st.student ? '{ mine: true }' : `{ code: '${r.code}' }`})">Completar ahora</button></div>` : ''}
+    ${pics.length ? `<div class="card rise"><b>📸 Fotos de tu clase</b><div style="margin-top:8px">${photoGrid(pics)}</div>
+      <p class="tiny muted" style="margin-top:6px">Tocá una foto para verla grande y guardarla.</p></div>` : ''}
     ${given ? `<div class="card review rise"><b>${rev ? '¡Gracias por tu reseña!' : `¿Cómo estuvo tu clase con ${esc(r.profe_name.split(' ')[0])}?`}</b>
       <div class="stars" id="tk-stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" onclick="setStars(${n})" aria-label="${n} estrellas" class="${n <= (rev?.stars || 0) ? 'on' : ''}">★</button>`).join('')}</div>
       <textarea class="input" id="tk-comment" maxlength="400" placeholder="Contanos qué te pareció (opcional)">${esc(rev?.comment || '')}</textarea>
@@ -2186,6 +2288,7 @@ async function renderOtherStudent(id) {
   $('app').innerHTML = `<div class="wrap" id="sp"><div class="loading">Cargando perfil…</div></div>`;
   if (st.student === undefined) await refreshAccount();
   if (st.student?.id === id) { location.replace('#perfil'); return; }
+  if (!st.me) st.me = await api.me().catch(() => null);     // profe que entra directo al link del alumno
   let r; try { r = await api.studentProfile(id); } catch (e) { if ($('sp')) $('sp').innerHTML = `<div class="card empty" style="margin-top:16px">${esc(errMsg(e))}<div style="margin-top:12px"><a class="btn coral sm" href="#">Volver</a></div></div>`; return; }
   if (!$('sp')) return;
   const x = r.student, P = profileParts(x, r.bookings || [], r.train_days || []);
@@ -2193,7 +2296,9 @@ async function renderOtherStudent(id) {
     ${P.head}
       ${x.phone && st.me?.approved ? `<div class="row" style="justify-content:center;margin-top:12px"><a class="btn wa sm" href="${waLink(x.phone, `Hola ${x.name.split(' ')[0]}!`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} WhatsApp</a></div>` : ''}
     </div>
+    ${st.me?.approved ? '<div id="lvl-card" class="section"></div>' : ''}
     ${P.stats}${P.team ? teamSection(P.team, false) : ''}${P.logros}<div style="height:30px"></div>`;
+  if (st.me?.approved) drawStaffProgress(id);
 }
 
 // Portal del team: integrantes, su racha y el tablón. Para el grupo y el staff.
@@ -2241,6 +2346,7 @@ async function renderStudent() {
   if (!st.types?.length) st.types = await api.classTypes().catch(() => []);       // ¿hay kayak? → sus logros
   try { [list, st.myPasses, st.plans, st.teamPosts, prof, st.myWaiver] = await Promise.all([api.myBookings(), api.myPasses(), st.plans?.length ? st.plans : api.plans(),
     me.training === 'approved' ? api.teamPosts().catch(() => []) : [], api.studentProfile(me.id).catch(() => null), api.myWaiver().catch(() => null)]); } catch (e) { toast(errMsg(e)); }
+  const [myLv, myNotes, myPics] = await Promise.all([api.studentLevels(me.id).catch(() => ({})), api.studentNotes(me.id).catch(() => []), api.myPhotos().catch(() => [])]);
   if (!$('sp')) return;
   st.myDays = prof?.train_days || st.myDays || [];
   const now = new Date(), ok = b => b.status !== 'cancelled' && b.slot_status !== 'cancelled';
@@ -2266,6 +2372,9 @@ async function renderStudent() {
       : `<div class="card empty" style="padding:18px">No tenés clases reservadas.<div style="margin-top:10px"><a class="btn coral sm" href="#">Reservar una clase</a></div></div>`, true)}
     ${P.team ? sec('team', '🏅 Team Nativo', teamSection(P.team, me.training === 'approved'), true) : ''}
     ${sec('pass', passes.length ? `💳 Mi abono <span class="pill ok">${passes.length === 1 ? 'activo' : passes.length}</span>` : '💳 Abonos', passes.length ? passes.map(p => myPassCard(p)).join('') : (st.plans || []).filter(p => p.active).map(planCard).join('') || '<p class="muted small">No hay abonos disponibles.</p>', passes.length > 0)}
+    ${sec('prog', '📈 Mi progreso', progressHtml(myLv, myNotes, (k => k.length ? k : ['sup'])(Object.keys(SPORTS).filter(k => myLv[k] || myNotes.some(n => n.sport === k) || list.some(b => (b.sport || 'sup') === k)))), !!(Object.keys(myLv).length || myNotes.length))}
+    ${myPics.length ? sec('fotos', `📸 Fotos de mis clases <span class="pill">${myPics.length}</span>`, [...new Set(myPics.map(p => p.slot_id))].map(sid => { const g = myPics.filter(p => p.slot_id === sid);
+      return `<div style="margin-bottom:12px"><div class="small" style="margin-bottom:6px"><b>${esc(fmtDayShort(g[0].starts_at))}</b> · ${esc(g[0].title)} con ${esc(g[0].profe_name || '')}</div>${photoGrid(g)}</div>`; }).join(''), true) : ''}
     ${sec('logros', '🏆 Logros', P.logros, true)}
     ${sec('ficha', wv ? '📝 Ficha de salud <span class="pill ok">✓ completa</span>' : '📝 Ficha de salud <span class="pill warn">pendiente</span>', wv
       ? `<div class="card"><div class="small">Sabe nadar: <b>${{ si: 'Sí', poco: 'Un poco', no: 'No' }[wv.swims] || '-'}</b>${wv.health ? `<br>Salud: ${esc(wv.health)}` : ''}<br>Emergencias: <b>${esc(wv.emergency_name)}</b> · ${esc(wv.emergency_phone)}
@@ -2632,17 +2741,115 @@ function bookingMenu(id) {
       <br>Emergencias: ${esc(w.emergency_name)} · <a href="tel:${esc(w.emergency_phone)}">${esc(w.emergency_phone)}</a></div></div>`
       : st.waiverBy ? '<div class="small" style="color:var(--warn);margin-bottom:10px">📝 Todavía no completó la ficha de salud y deslinde.</div>' : '')(st.waiverBy?.[phoneKey(b.customer_phone)])}
     ${isPast(s) && b.status !== 'cancelled' && b.customer_phone && !b.customer_phone.startsWith('@') ? `<a class="btn ghost block" style="margin-bottom:10px" href="${waLink(b.customer_phone, `Hola ${b.customer_name.split(' ')[0]}! Gracias por venir a Nativo 🏄. ¿Nos dejás tu opinión de la clase? Es un toque: ${location.origin}/#r-${b.code}`)}" target="_blank" rel="noopener">⭐ Pedirle una reseña por WhatsApp</a>` : ''}
-    ${b.student_id ? `<a class="btn ghost block" style="margin-bottom:10px" href="#a-${b.student_id}">${b.student?.training === 'approved' ? '🏅 ' : ''}Ver perfil y logros</a>` : ''}
+    ${b.student_id ? `<div id="bm-lvl"></div><a class="btn ghost block" style="margin-bottom:10px" href="#a-${b.student_id}">${b.student?.training === 'approved' ? '🏅 ' : ''}Ver perfil, nivel y notas</a>` : ''}
     <div class="label">Estado</div>
     <div class="choice">${Object.entries(STATUS).map(([k, l]) => `<button class="btn ${b.status === k ? 'dark' : k === 'cancelled' ? 'danger' : 'ghost'} block" onclick="closeModal();updBooking('${b.id}',{status:'${k}'})">${b.status === k ? '✓ ' : ''}${k === 'cancelled' ? 'Cancelar reserva' : l}</button>`).join('')}</div>`);
+  if (b.student_id) Promise.all([api.studentLevels(b.student_id), api.studentNotes(b.student_id)]).then(([lv, notes]) => {
+    const v = lv[sportOf(s)], last = notes[0];
+    if ((v || last) && $('bm-lvl')) $('bm-lvl').innerHTML = `<div class="card" style="margin:0 0 10px;padding:10px 12px"><div class="small">📈 Nivel: <b>${v ? PLEVELS[v] : 'sin marcar'}</b></div>
+      ${last ? `<div class="small" style="margin-top:4px">📝 “${esc(last.body)}” <span class="tiny muted">· ${esc(last.author_name || 'Profe')}</span></div>` : ''}</div>`;
+  }).catch(() => {});
 }
+/* ── Fotos de la clase: las sube el profe, las ven los alumnos de esa clase ── */
+const PHOTO_MAX = 10;
+async function shrinkWide(file, max = 1600) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(b => r(b), 'image/jpeg', 0.82));
+  } finally { URL.revokeObjectURL(url); }
+}
+const photoGrid = (list, del) => `<div class="photos">${list.map(p => `<div class="ph"><a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="Foto de la clase" loading="lazy"></a>
+  ${del ? `<button type="button" class="ph-x" onclick="${del}('${p.id}')" aria-label="Borrar foto">✕</button>` : ''}</div>`).join('')}</div>`;
+function openSlotPhotos(id) {
+  const s = st.staffSlots.find(x => x.id === id); if (!s) return;
+  st.photoSlot = id;
+  openModal(`<h2>📸 Fotos de la clase</h2><div class="sum">${esc(s.title)} · ${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)}</div><div id="ph-box"><div class="loading">Cargando…</div></div>`);
+  drawSlotPhotos();
+}
+async function drawSlotPhotos() {
+  const id = st.photoSlot; let list = [];
+  try { list = await api.slotPhotos(id); } catch (e) { if ($('ph-box')) $('ph-box').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  st.slotPhotos = list; if (!$('ph-box')) return;
+  $('ph-box').innerHTML = `<p class="small muted" style="margin:0 0 10px">Las ven los alumnos de esta clase en su comprobante y en su perfil. Hasta ${PHOTO_MAX} fotos por clase.</p>
+    ${list.length ? photoGrid(list, 'dropSlotPhoto') : ''}
+    ${list.length < PHOTO_MAX ? `<label class="btn coral block" style="margin-top:12px" id="ph-up">📷 Subir fotos<input type="file" accept="image/*" multiple hidden onchange="uploadSlotPhotos(this)"></label>`
+      : '<p class="tiny muted" style="margin-top:10px">Llegaste al máximo de fotos para esta clase.</p>'}`;
+}
+async function uploadSlotPhotos(input) {
+  const id = st.photoSlot, files = [...input.files].slice(0, PHOTO_MAX - (st.slotPhotos?.length || 0)); if (!files.length) return;
+  const lbl = $('ph-up'); lbl.style.pointerEvents = 'none'; let ok = 0;
+  for (const [i, f] of files.entries()) {
+    lbl.firstChild.textContent = `Subiendo ${i + 1} de ${files.length}…`;
+    try { await api.addSlotPhoto(id, await shrinkWide(f), st.me.id); ok++; } catch (e) { toast(errMsg(e)); break; }
+  }
+  if (ok) toast(`${ok === 1 ? 'Foto subida' : ok + ' fotos subidas'} ✓`);
+  drawSlotPhotos();
+}
+async function dropSlotPhoto(phId) {
+  const ph = (st.slotPhotos || []).find(p => p.id === phId); if (!ph) return;
+  if (!await askConfirm('¿Borrar esta foto? Los alumnos dejan de verla.', 'Borrar')) return;
+  try { await api.deleteSlotPhoto(ph); drawSlotPhotos(); } catch (e) { toast(errMsg(e)); }
+}
+
+/* ── Nivel y notas del alumno: los marca el profe, el alumno ve su progreso ── */
+const PLEVELS = { iniciacion: '🌱 Iniciación', intermedio: '🌊 Intermedio', avanzado: '🔥 Avanzado' };
+const noteHtml = (n, canDel) => `<div class="note"><div class="row between" style="gap:8px"><span class="tiny muted">${esc(n.author_name || 'Profe')} · ${esc(fmtDayShort(n.created_at))}${n.sport && n.sport !== 'sup' ? ` · ${SPORTS[n.sport]?.em || ''}` : ''}${n.private ? ' · 🔒 solo profes' : ''}</span>
+  ${canDel ? `<button type="button" class="btn ghost sm" style="min-height:28px;padding:2px 9px" onclick="dropNote('${n.id}')" aria-label="Borrar nota">✕</button>` : ''}</div><div class="small" style="white-space:pre-line">${esc(n.body)}</div></div>`;
+// Para el alumno: su nivel por deporte y las notas que le dejaron.
+function progressHtml(levels, notes, sports) {
+  return `<div class="card">${sports.map(k => `<div class="row between" style="padding:6px 0"><span>${SPORTS[k].em} ${SPORTS[k].label}</span>
+      ${levels[k] ? `<b>${PLEVELS[levels[k]]}</b>` : '<span class="small muted">Tu profe todavía no lo marcó</span>'}</div>`).join('')}
+    ${notes.length ? `<div class="label" style="margin-top:10px">Notas de tus profes</div>${notes.map(n => noteHtml(n)).join('')}`
+      : '<p class="tiny muted" style="margin-top:8px">Después de tus clases, tus profes te pueden dejar notas para seguir mejorando.</p>'}</div>`;
+}
+// Para el staff, en el perfil del alumno (#a-…): marcar nivel y dejar notas.
+async function drawStaffProgress(id) {
+  if (!$('lvl-card')) return;
+  let lv = {}, notes = [];
+  try { [lv, notes] = await Promise.all([api.studentLevels(id), api.studentNotes(id)]); }
+  catch (e) { $('lvl-card').innerHTML = `<div class="card"><p class="small muted">📈 Nivel y notas: ${esc(errMsg(e))}</p></div>`; return; }
+  if (!$('lvl-card')) return;
+  st.lvlStudent = id;
+  const admin = st.me.role === 'admin', mySp = admin ? Object.keys(SPORTS) : (st.me.sports?.length ? st.me.sports : ['sup']);
+  const sports = Object.keys(SPORTS).filter(k => mySp.includes(k) || lv[k]);
+  $('lvl-card').innerHTML = `<div class="card"><h3 style="margin:0 0 4px">📈 Nivel y notas</h3><p class="tiny muted" style="margin:0 0 8px">El alumno ve su nivel y las notas que no marques como privadas.</p>
+    ${sports.map(k => `<div style="margin-bottom:8px"><span class="small"><b>${SPORTS[k].em} ${SPORTS[k].label}</b></span>
+      <div class="lvl-seg">${Object.entries(PLEVELS).map(([v, l]) => `<button type="button" class="${lv[k] === v ? 'on' : ''}" ${mySp.includes(k) ? `onclick="setLevelFor('${k}','${lv[k] === v ? '' : v}')"` : 'disabled'}>${l}</button>`).join('')}</div></div>`).join('')}
+    <form onsubmit="saveNote(event)" style="margin-top:6px">
+      <textarea class="input" name="body" required maxlength="1000" rows="2" placeholder="Ej: ya se para solo, trabajar el giro y la remada larga"></textarea>
+      <div class="row between wrapf" style="margin-top:8px;gap:8px">
+        ${mySp.length > 1 ? `<select class="input sm" name="sport" style="width:auto">${mySp.map(k => `<option value="${k}">${SPORTS[k].em} ${SPORTS[k].label}</option>`).join('')}</select>` : `<input type="hidden" name="sport" value="${mySp[0]}">`}
+        <label class="check small"><input type="checkbox" name="priv"> 🔒 Solo para profes</label>
+        <button class="btn coral sm">Guardar nota</button></div></form>
+    ${notes.length ? `<div class="label" style="margin-top:12px">Notas (${notes.length})</div>${notes.map(n => noteHtml(n, admin || n.author_id === st.me.id)).join('')}` : ''}</div>`;
+}
+async function setLevelFor(sport, level) {
+  try { await api.setLevel(st.lvlStudent, sport, level || null); toast(level ? `Nivel: ${PLEVELS[level]}` : 'Nivel borrado'); drawStaffProgress(st.lvlStudent); }
+  catch (e) { toast(errMsg(e)); }
+}
+async function saveNote(ev) {
+  ev.preventDefault(); const f = ev.target, btn = f.querySelector('button'); btn.disabled = true;
+  try { await api.addNote({ student_id: st.lvlStudent, author_id: st.me.id, author_name: st.me.name.split(' ')[0], sport: f.sport.value, body: f.body.value.trim(), private: f.priv.checked });
+    toast('Nota guardada ✓'); drawStaffProgress(st.lvlStudent); }
+  catch (e) { toast(errMsg(e)); btn.disabled = false; }
+}
+async function dropNote(id) {
+  if (!await askConfirm('¿Borrar esta nota?', 'Borrar')) return;
+  try { await api.deleteNote(id); drawStaffProgress(st.lvlStudent); } catch (e) { toast(errMsg(e)); }
+}
+
 function slotMenu(id) {
   const s = st.staffSlots.find(x => x.id === id); if (!s) return;
   const n = s.bookings.filter(b => b.status !== 'cancelled').length;
   openModal(`<h2>${hhmm(s.starts_at)} · ${esc(fmtDayShort(s.starts_at))}</h2>
     <div class="choice">
       ${s.status !== 'cancelled' ? `<button class="btn block" onclick="editSlot('${s.id}')">✏️ Editar clase</button>
-      <button class="btn ghost block" onclick="closeModal();shareSlot('${s.id}')">🔗 Compartir link de esta clase</button>` : ''}
+      <button class="btn ghost block" onclick="closeModal();shareSlot('${s.id}')">🔗 Compartir link de esta clase</button>
+      <button class="btn ghost block" onclick="openSlotPhotos('${s.id}')">📸 Fotos de la clase</button>` : ''}
       ${s.bookings.length ? `<button class="btn ghost block" onclick="closeModal();cancelSlot('${s.id}')">Suspender clase${n ? ` (avisar a ${n})` : ''}</button>` : ''}
       <button class="btn danger block" onclick="closeModal();forceDeleteSlot('${s.id}')">Borrar clase${s.bookings.length ? ' y sus reservas' : ''}</button>
       <button class="btn ghost block" onclick="closeModal()">Volver</button></div>

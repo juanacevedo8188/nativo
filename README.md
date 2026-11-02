@@ -79,6 +79,9 @@ La agenda, el resumen, Equipo y Abonos se actualizan solos cuando otro profe car
 - **Reseñas**: cuando termina la clase, el comprobante pide estrellas y comentario. Las de 4–5 con comentario se muestran en la página (el admin puede ocultar). `CONFIG.GOOGLE_REVIEW_URL` agrega el botón para reseñar en Google.
 - **Gift cards**: "🎁 Regalá una clase" en la página → pedido con código → el admin marca *Cobrado* en *Más → Abonos* y le manda el link `…/#g-CÓDIGO`. Una clase se canjea en el comprobante; un abono, en el perfil.
 - **Clases privadas y grupales**: formulario en la página; llegan a *Más → 👥 Clases privadas y grupales*.
+- **🔁 Reserva fija**: al reservar con cuenta, si el horario se repite (mismo profe, tipo, día y hora) aparece "Reservar todos los martes 18:00" y se eligen cuántas semanas. Usa el abono mientras alcance y la fecha entre; lo que no, queda para pagar. Las semanas sin lugar se informan al final.
+- **📈 Nivel y notas**: el profe, en el perfil del alumno (*Ver perfil, nivel y notas*), marca el nivel por deporte (🌱 iniciación, 🌊 intermedio, 🔥 avanzado) y deja notas; las "🔒 solo profes" no las ve el alumno. El alumno ve *Mi progreso* en su perfil. SQL: `update-2026-11-parte1/2`.
+- **📸 Fotos de la clase**: Agenda → "⋯" → *Fotos de la clase* (hasta 10, se achican a 1600 px). Las ven los alumnos de esa clase en el comprobante y en *Fotos de mis clases*. Bucket público `class-photos`. SQL: `update-2026-11-parte1/3`.
 - **📊 Más números** (Resumen, admin): nuevos vs. los que vuelven, horarios más pedidos, repetición por profe y alumnos que no vienen hace más de 30 días.
 
 ## Pago online con Mercado Pago (opcional)
