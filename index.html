@@ -880,6 +880,7 @@ function supabaseApi() {
     async deleteSlotPhoto(ph) { await q(c.from('slot_photos').delete().eq('id', ph.id)); c.storage.from('class-photos').remove([ph.path]).catch(() => {}); },
     photosByCode: code => q(c.rpc('slot_photos_by_code', { p_code: code })),
     myPhotos: () => q(c.rpc('my_photos')),
+    calToken: reset => q(c.rpc('my_cal_token', { p_reset: !!reset })),
     // Aviso general en la página (uno por deporte, o "all" para todos)
     notices: () => q(c.from('site_notices').select('*')),
     saveNotice: n => q(c.from('site_notices').upsert(n)),
@@ -1191,6 +1192,7 @@ function demoApi() {
         return { id: p.id, url: p.url, slot_id: p.slot_id, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(x => x.id === s.profe_id)?.name }; })
         .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
+    calToken(reset) { if (reset || !db.cal_token) { db.cal_token = Array.from({ length: 64 }, () => (Math.random() * 16 | 0).toString(16)).join(''); save(); } return wait(db.cal_token); },
     notices: () => wait(db.site_notices || []),
     saveNotice(n) { if (!meP()) return fail('Solo profes'); db.site_notices = (db.site_notices || []).filter(x => x.sport !== n.sport).concat({ ...n, updated_at: new Date().toISOString() }); save(); return wait(null); },
     deleteNotice(sport) { db.site_notices = (db.site_notices || []).filter(x => x.sport !== sport); save(); return wait(null); },
@@ -2614,13 +2616,13 @@ async function renderStaff() {
    La pestaña va en la dirección (#staff/agenda, #staff/cupones…): el "atrás" del celu vuelve a la anterior. */
 const STAFF_TITLES = { agenda: 'Agenda', cargar: 'Crear clase', resumen: 'Resumen', numeros: 'Mis números', profes: 'Equipo', mas: 'Más',
   abonos: 'Abonos y gift cards', regalos: 'Gift cards', grupos: 'Clases privadas y grupales', cupones: 'Cupones de descuento',
-  aviso: 'Aviso en la página', tablon: 'Tablón del team', clases: 'Tipos de clase', perfil: 'Mi perfil' };
+  aviso: 'Aviso en la página', tablon: 'Tablón del team', clases: 'Tipos de clase', perfil: 'Mi perfil', calendario: 'Mis clases en el calendario' };
 function staffTabs() {
   const admin = st.me.role === 'admin', mg = !!st.me.manages?.length, sup = admin || (st.me.sports?.length ? st.me.sports : ['sup']).includes('sup');
   const main = admin
     ? [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['resumen', 'Resumen', ICON.chart], ['profes', 'Equipo', ICON.team], ['mas', 'Más', ICON.more]]
     : [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['numeros', 'Mis números', ICON.chart], ['mas', 'Más', ICON.more]];
-  const sub = ['perfil', ...(admin ? ['abonos', 'grupos', 'cupones', 'aviso', 'clases'] : mg ? ['regalos', 'grupos', 'cupones', 'aviso', 'clases'] : []), ...(sup ? ['tablon'] : [])];
+  const sub = ['perfil', 'calendario', ...(admin ? ['abonos', 'grupos', 'cupones', 'aviso', 'clases'] : mg ? ['regalos', 'grupos', 'cupones', 'aviso', 'clases'] : []), ...(sup ? ['tablon'] : [])];
   return { main, sub, admin, mg, sup };
 }
 function drawStaffFrame() {
@@ -2639,7 +2641,7 @@ function drawStaffFrame() {
   startLive();
 }
 const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos(), grupos: () => paneGroups(), regalos: () => paneGifts(), cupones: () => paneCoupons(),
-  aviso: () => { paneEl().innerHTML = '<div id="notice-ed"></div>'; noticeEditor(); }, tablon: () => { paneEl().innerHTML = '<div id="board-ed"></div>'; boardEditor(); } };
+  aviso: () => { paneEl().innerHTML = '<div id="notice-ed"></div>'; noticeEditor(); }, calendario: () => paneCalendar(), tablon: () => { paneEl().innerHTML = '<div id="board-ed"></div>'; boardEditor(); } };
 function setTab(t) {
   st.fromMas = st.tab === 'mas';                                // para que "‹" vuelva atrás de verdad
   if (location.hash !== '#staff/' + t) history.pushState(null, '', '#staff/' + t);
@@ -2713,7 +2715,8 @@ function paneMore() {
     ${group('Comunicación', [(admin || mg) && item('aviso', '📢', 'Aviso en la página', '"Hoy no hay clases por viento"'),
       sup && item('tablon', '📣', 'Tablón del team', 'Avisos para el grupo de entrenamiento')])}
     ${group('Configuración', [(admin || mg) && item('clases', '⚙️', 'Tipos de clase', 'Precio, cupo, duración e iniciación o travesía')])}
-    ${group('Mi cuenta', [item('perfil', '👤', 'Mi perfil', 'Foto, WhatsApp y alias para transferencias'),
+    ${group('Mi cuenta', [item('calendario', '📅', 'Mis clases en el calendario', 'Tu semana y tus alumnos en Google Calendar o el iPhone'),
+      item('perfil', '👤', 'Mi perfil', 'Foto, WhatsApp y alias para transferencias'),
       `<a class="mitem" href="#"><i>🌐</i><span class="mt"><b>Ver la página de reservas</b><small>Como la ven los alumnos</small></span><span class="chev" aria-hidden="true">›</span></a>`,
       `<button class="mitem" onclick="logout()"><i>🚪</i><span class="mt"><b style="color:var(--bad)">Salir</b></span></button>`])}`;
 }
@@ -3023,6 +3026,29 @@ async function saveCouponForm(ev) {
 async function toggleCoupon(code, active) {
   const c = (st.couponList || []).find(x => x.code === code); if (!c) return;
   try { await api.saveCoupon({ ...c, active }); paneCoupons(); } catch (e) { toast(errMsg(e)); }
+}
+
+/* ── Calendario del profe: sus clases (con cuántos anotados y quiénes) en Google Calendar o el iPhone ──
+   Es un link personal y secreto (/api/cal?t=…). Si se comparte por error, se genera uno nuevo y el viejo deja de andar. */
+async function paneCalendar(reset) {
+  let t; try { t = await api.calToken(reset); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  const admin = st.me.role === 'admin', all = admin && !!st.calAll;
+  const https = `${location.origin}/api/cal?t=${t}${all ? '&all=1' : ''}`, webcal = https.replace(/^https?:/, 'webcal:');
+  paneEl().innerHTML = `<div class="card" style="max-width:560px">
+      <p style="margin-bottom:12px">Tus clases aparecen solas en el calendario del celu, con <b>cuántos anotados</b> tiene cada una y <b>quiénes son</b>. Te avisa 1 hora antes y se actualiza solo: no hace falta entrar a la web.</p>
+      ${admin ? `<label class="check" style="margin-bottom:12px"><input type="checkbox" ${all ? 'checked' : ''} onchange="st.calAll=this.checked;paneCalendar()"> Incluir las clases de todos los profes</label>` : ''}
+      <div class="choice">
+        <a class="btn coral block" href="https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}" target="_blank" rel="noopener">📅 Agregar a Google Calendar</a>
+        <a class="btn ghost block" href="${esc(webcal)}">🍎 Agregar al calendario del iPhone</a>
+        <button class="btn ghost block" onclick="navigator.clipboard.writeText('${esc(https)}').then(() => toast('Link copiado ✓'), () => toast('${esc(https)}'))">🔗 Copiar el link (para otra app)</button></div>
+      ${api.demo ? '<p class="tiny muted" style="margin-top:10px">En la demo el link no funciona: probalo en la web real.</p>' : ''}</div>
+    <div class="card" style="max-width:560px"><h3 style="margin:0 0 6px">Cómo se agrega</h3>
+      <p class="small"><b>Android / Google Calendar:</b> tocá el botón, se abre Google Calendar en el navegador y tocás <b>Agregar</b>. Si en el celu no te deja, hacelo una vez desde la compu con tu misma cuenta de Google: después aparece solo en el celu.</p>
+      <p class="small" style="margin-top:8px"><b>iPhone:</b> tocá el botón y elegí <b>Suscribirse</b>.</p>
+      <p class="tiny muted" style="margin-top:8px">Google actualiza cada algunas horas; el iPhone, más seguido. Para ver algo que pasó recién, entrá a la Agenda.</p></div>
+    <div class="card" style="max-width:560px"><h3 style="margin:0 0 6px">🔒 Es un link personal</h3>
+      <p class="small muted" style="margin-bottom:10px">Quien lo tenga ve tus clases y los nombres de tus alumnos. Si lo compartiste por error, generá uno nuevo: el anterior deja de funcionar (y lo tenés que volver a agregar).</p>
+      <button class="btn danger sm" onclick="askConfirm('¿Generar un link nuevo? El que tenés agregado deja de actualizarse.', 'Generar').then(ok => ok && paneCalendar(true))">Generar un link nuevo</button></div>`;
 }
 
 /* ── Fotos de la clase: las sube el profe, las ven los alumnos de esa clase ── */

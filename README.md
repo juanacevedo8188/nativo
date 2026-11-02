@@ -87,6 +87,9 @@ La agenda, el resumen, Equipo y Abonos se actualizan solos cuando otro profe car
 - **Baja de un horario fijo**: en el perfil, cada horario con 2+ reservas tiene "Darme de baja" (cancela todas las que se puedan: más de 12 h antes y sin pagar).
 - **📊 Más números** (Resumen, admin): nuevos vs. los que vuelven, horarios más pedidos, repetición por profe y alumnos que no vienen hace más de 30 días.
 
+## Calendario del profe
+*Más → Mis clases en el calendario*: cada profe agrega un link personal (`/api/cal?t=…`) a Google Calendar o al iPhone y ve sus clases con cuántos anotados hay y quiénes, con aviso 1 h antes. Se actualiza solo. El admin puede incluir las clases de todos. El link se puede regenerar. SQL: `update-2026-11-calendario.sql`. Usa `SUPABASE_SERVICE_ROLE_KEY` (Vercel).
+
 ## Landing (borrador)
 `landing.html` → **nativoescuela.com.ar/landing**. Presentación de Nativo (disciplinas, primera clase, profes, reseñas, abonos, preguntas, dónde estamos) que lleva a la página de reservas. Toma precios, profes, reseñas y abonos de la base. Textos y fotos al principio del archivo (`T` y `PHOTOS`). Tiene `noindex` hasta que la publiquemos como página principal.
 
