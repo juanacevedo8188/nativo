@@ -356,6 +356,16 @@ textarea.input{min-height:80px;resize:vertical}
 .shead h1{font:700 22px/1.15 var(--f-display);margin:2px 0 0;letter-spacing:-.2px}
 .shead .back{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--line2);font-size:26px;line-height:1;color:var(--ink);cursor:pointer;padding-bottom:3px}
 .mgroup{margin-bottom:14px}
+.ecard{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow);cursor:pointer;color:var(--ink);font:inherit}
+.ecard:active{transform:scale(.99)}
+.ecard.off{opacity:.6}
+.ecard .et{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ecard .et b{font-size:15.5px}
+.ecard .tags{display:flex;gap:6px;flex-wrap:wrap}
+.ecard .tags .pill{margin:0}
+.ecard .ell{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.ecard{min-width:0;max-width:100%}
+.ecard .chev{flex:none;font-size:16px;opacity:.7}
 .mgroup .label{margin:0 0 6px 4px}
 .mlist{padding:4px 0;overflow:hidden}
 .mitem{display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;background:none;border:0;border-top:1px solid var(--line);text-align:left;color:var(--ink);text-decoration:none;cursor:pointer;font:inherit}
@@ -3905,15 +3915,11 @@ async function paneAbonos() {
   const act = passes.filter(p => p.status === 'active' && p.expires_on >= today && p.used < p.classes_total);
   const done = passes.filter(p => p.status === 'cancelled' || (p.status === 'active' && (p.expires_on < today || p.used >= p.classes_total)));
   const who = p => `${avatarHtml({ name: p.student_name, avatar_url: p.student_avatar })}<span class="who"><b>${esc(p.student_name)}</b>`;
-  const planRow = pl => `<tr data-id="${pl.id || ''}">
-    <td><input class="input sm" style="min-width:120px;width:100%" data-k="name" value="${esc(pl.name || '')}" placeholder="Nombre"></td>
-    <td><input class="input sm" style="width:100px" data-k="price" type="number" min="0" step="1000" value="${+pl.price || 0}"></td>
-    <td><input class="input sm" style="width:60px" data-k="classes" type="number" min="1" value="${pl.classes || 4}"></td>
-    <td><input class="input sm" style="width:60px" data-k="days_valid" type="number" min="1" value="${pl.days_valid || 30}"></td>
-    <td><input class="input sm" style="min-width:120px;width:100%" data-k="description" value="${esc(pl.description || '')}" placeholder="1 clase por semana"></td>
-    <td style="display:none"><input data-k="sport" value="${pl.sport || 'sup'}"></td>
-    <td><input type="checkbox" data-k="active" ${pl.active !== false ? 'checked' : ''}></td>
-    <td><button class="btn sm" onclick="savePlanRow(this)">Guardar</button></td></tr>`;
+  const planCardEd = pl => `<button class="ecard ${pl.active === false ? 'off' : ''}" onclick="editPlan('${pl.id}')">
+      <span class="et"><b>${esc(pl.name)}</b>${pl.active === false ? '<span class="tags"><span class="pill gray">Pausado</span></span>' : ''}
+        <span class="small muted">${money(pl.price)} · ${pl.classes} ${pl.classes === 1 ? 'clase' : 'clases'} · ${pl.days_valid} días · ${money(Math.round(pl.price / pl.classes))} c/u</span>
+        ${pl.description ? `<span class="tiny muted ell">${esc(pl.description)}</span>` : ''}</span>
+      <span class="chev" aria-hidden="true">✏️</span></button>`;
   paneEl().innerHTML = `
     ${pend.length ? `<div class="card unpaid"><h2>Pedidos <span class="pill warn">${pend.length}</span></h2>
       <p class="small muted" style="margin-bottom:4px">Confirmá cuando te paguen: el abono se activa desde hoy.</p>
@@ -3939,8 +3945,7 @@ async function paneAbonos() {
     ${Object.entries(SPORTS).map(([k, x]) => { const ps = plans.filter(pl => (pl.sport || 'sup') === k);
       return `<div class="card"><h2>${x.em} Abonos de ${x.label}</h2>
       <p class="small muted" style="margin-bottom:10px">${k === 'sup' ? `Lo que se ofrece en la pestaña SUP. Cada clase del abono vale precio ÷ clases (ej. ${money(90000)} ÷ 4 = ${money(22500)}), y con eso se calcula la parte del profe. Cambiar un plan no modifica abonos ya vendidos.` : `Solo para clases de ${x.label}: se ofrecen en su pestaña y no sirven para las otras clases (ni los de SUP para estas).`}</p>
-      <div class="tbl-wrap"><table><tr><th>Nombre</th><th>Precio</th><th>Clases</th><th>Días</th><th>Descripción</th><th>Activo</th><th></th></tr>
-      ${ps.map(planRow).join('')}${planRow({ sort: plans.length + 1, sport: k, ...(k === 'sup' ? {} : { name: '', description: '' }) })}</table></div></div>`; }).join('')}`;
+      <div style="display:grid;gap:8px">${ps.map(planCardEd).join('')}<button class="btn ghost block" onclick="editPlan('', '${k}')">+ Agregar abono de ${x.label}</button></div></div>`; }).join('')}`;
 }
 // Gift cards (admin): pedidos a cobrar, activas y usadas.
 function giftsCard(gifts, plans) {
@@ -3999,13 +4004,29 @@ async function paneGroups() {
     ${by('cerrado').length ? `<details><summary class="small" style="cursor:pointer">Cerrados (${by('cerrado').length})</summary>${by('cerrado').map(row).join('')}</details>` : ''}`;
 }
 
-async function savePlanRow(btn) {
-  const tr = btn.closest('tr'), g = k => tr.querySelector(`[data-k=${k}]`);
-  const pl = { name: g('name').value.trim(), price: +g('price').value, classes: +g('classes').value, days_valid: +g('days_valid').value, description: g('description').value.trim() || null, active: g('active').checked, sport: g('sport').value };
-  if (!pl.name) return toast('Poné un nombre');
-  if (!(pl.classes > 0) || !(pl.days_valid > 0)) return toast('Revisá clases y días');
-  if (tr.dataset.id) pl.id = tr.dataset.id; else pl.sort = (st.plans || []).length + 1;
-  try { await api.savePlan(pl); toast('Plan guardado ✓'); paneAbonos(); } catch (e) { toast(errMsg(e)); }
+function editPlan(id, sport) {
+  const pl = (st.plans || []).find(x => x.id === id) || { sport: sport || 'sup', classes: 4, days_valid: 30, price: 0, active: true };
+  openModal(`<h2>${id ? 'Editar abono' : `Nuevo abono de ${SPORTS[pl.sport || 'sup'].label}`}</h2><div id="ep-err"></div>
+    <form onsubmit="savePlanForm(event,'${id || ''}','${pl.sport || 'sup'}')" oninput="planPreview(this)">
+      <div class="field"><label for="ep-name">Nombre</label><input class="input" id="ep-name" name="name" required maxlength="60" value="${esc(pl.name || '')}" placeholder="Abono mensual"></div>
+      <div class="grid2"><div class="field"><label for="ep-price">Precio</label><input class="input" id="ep-price" name="price" type="number" inputmode="numeric" min="0" step="1000" required value="${+pl.price || 0}"></div>
+        <div class="field"><label for="ep-cl">Clases</label><input class="input" id="ep-cl" name="classes" type="number" inputmode="numeric" min="1" required value="${pl.classes || 4}"></div></div>
+      <div class="field"><label for="ep-days">Vence a los (días)</label><input class="input" id="ep-days" name="days" type="number" inputmode="numeric" min="1" required value="${pl.days_valid || 30}"></div>
+      <div class="field"><label for="ep-desc">Descripción <span class="muted">(la ven los alumnos)</span></label><input class="input" id="ep-desc" name="desc" maxlength="120" value="${esc(pl.description || '')}" placeholder="1 clase por semana durante un mes"></div>
+      <label class="check" style="margin-bottom:10px"><input type="checkbox" name="active" ${pl.active !== false ? 'checked' : ''}> Activo <span class="muted small">(si lo pausás, deja de ofrecerse)</span></label>
+      <p class="small" id="ep-prev" style="margin:0 0 12px"></p>
+      <p class="tiny muted" style="margin:0 0 12px">Cada clase del abono vale precio ÷ clases y con eso se calcula la parte del profe. Cambiarlo no modifica abonos ya vendidos.</p>
+      <div class="sheet-foot"><button class="btn coral block" id="ep-btn">Guardar</button></div></form>`);
+  planPreview(document.querySelector('#modal-body form'));
+}
+function planPreview(f) { if ($('ep-prev')) $('ep-prev').innerHTML = +f.classes.value > 0 ? `Cada clase sale <b>${money(Math.round(+f.price.value / +f.classes.value))}</b>` : ''; }
+async function savePlanForm(ev, id, sport) {
+  ev.preventDefault(); const f = ev.target, btn = $('ep-btn');
+  const pl = { name: f.name.value.trim(), price: +f.price.value, classes: +f.classes.value, days_valid: +f.days.value, description: f.desc.value.trim() || null, active: f.active.checked, sport };
+  if (id) pl.id = id; else pl.sort = (st.plans || []).length + 1;
+  btn.disabled = true;
+  try { await api.savePlan(pl); closeModal(); toast('Abono guardado ✓'); paneAbonos(); }
+  catch (e) { $('ep-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
 }
 function confirmPass(id) {
   const p = st.adminPasses.find(x => x.id === id);
@@ -4043,31 +4064,44 @@ async function paneTypes() {
   try { st.types = await api.classTypes(); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const admin = st.me.role === 'admin', can = admin ? Object.keys(SPORTS) : (st.me.manages || []);
   const mine = st.types.filter(t => can.includes(t.sport || 'sup'));
-  const row = t => `<tr data-id="${t.id || ''}">
-    <td><input class="input sm" style="width:100%;min-width:150px" data-k="name" value="${esc(t.name || '')}" placeholder="Nombre"></td>
-    <td><select class="input sm" data-k="sport" ${can.length < 2 ? 'disabled' : ''}>${can.map(k => `<option value="${k}" ${(t.sport || can[0]) === k ? 'selected' : ''}>${SPORTS[k].em} ${SPORTS[k].label}</option>`).join('')}</select></td>
-    <td><select class="input sm" data-k="kind">${Object.entries(KINDS).map(([k, l]) => `<option value="${k}" ${(t.kind || 'iniciacion') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
-    <td><input class="input sm" style="width:100%;min-width:180px" data-k="description" value="${esc(t.description || '')}"></td>
-    <td><input class="input sm" style="width:70px" data-k="duration_min" type="number" min="15" step="15" value="${t.duration_min || 60}"></td>
-    <td><input class="input sm" style="width:60px" data-k="capacity" type="number" min="1" value="${t.capacity || 1}"></td>
-    <td><input class="input sm" style="width:100px" data-k="price" type="number" min="0" step="500" value="${+t.price || 0}"></td>
-    <td><input type="checkbox" data-k="active" ${t.active !== false ? 'checked' : ''}></td>
-    <td>${admin ? `<input type="checkbox" data-k="members_only" ${t.members_only ? 'checked' : ''} aria-label="Solo entrenamiento">` : '–'}</td>
-    <td><button class="btn sm" onclick="saveType(this)">Guardar</button></td></tr>`;
-  paneEl().innerHTML = `<div class="card"><h2>Tipos de clase, precio y cupo</h2>
-    <p class="small muted" style="margin-bottom:12px">Son los valores sugeridos al cargar horarios. Cambiar un precio acá no modifica horarios ya cargados. <b>Solo entren.</b>: en la página se ven en violeta y en vez de reservar llevan al WhatsApp de Torita y en la página aparece una tarjeta para pedir info por WhatsApp a ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')}. Usá la descripción para contar días y horarios.</p>
-    <p class="small muted" style="margin:-4px 0 12px"><b>Travesía</b>: en la página se resalta con otro color y la etiqueta 🧭 Travesía.</p>
-    <div class="tbl-wrap"><table id="tt"><tr><th>Nombre</th><th>Disciplina</th><th>Tipo</th><th>Descripción</th><th>Min</th><th>Cupo</th><th>Precio</th><th>Activa</th><th>Solo entren.</th><th></th></tr>
-    ${mine.map(row).join('')}${row({ sort: st.types.length + 1 })}</table></div></div>`;
+  const card = t => `<button class="ecard ${t.active === false ? 'off' : ''}" onclick="editType('${t.id}')">
+      <span class="et"><b>${SPORTS[t.sport || 'sup']?.em || ''} ${esc(t.name)}</b>
+        <span class="tags">${t.members_only ? '<span class="pill train-p">🏅 Entrenamiento</span>' : ''}${t.kind === 'travesia' ? '<span class="pill trav-p">🧭 Travesía</span>' : ''}${t.active === false ? '<span class="pill gray">Pausada</span>' : ''}</span>
+        <span class="small muted">${money(t.price)} · cupo ${t.capacity} · ${t.duration_min} min</span>
+        ${t.description ? `<span class="tiny muted ell">${esc(t.description)}</span>` : ''}</span>
+      <span class="chev" aria-hidden="true">✏️</span></button>`;
+  paneEl().innerHTML = `<p class="small muted" style="margin:0 0 12px">Son los valores que se sugieren al crear una clase. Cambiarlos no modifica las clases ya cargadas: para esas usá <b>Editar clase → Aplicar a todas las semanas</b>.</p>
+    ${can.map(k => { const ts = mine.filter(t => (t.sport || 'sup') === k); return `<div class="mgroup"><div class="label">${SPORTS[k].em} ${SPORTS[k].label}</div>
+      <div style="display:grid;gap:8px">${ts.map(card).join('') || '<p class="small muted">Todavía no hay tipos de clase.</p>'}
+      <button class="btn ghost block" onclick="editType('', '${k}')">+ Agregar tipo de clase de ${SPORTS[k].label}</button></div></div>`; }).join('')}`;
 }
-async function saveType(btn) {
-  const tr = btn.closest('tr'), g = k => tr.querySelector(`[data-k=${k}]`);
-  const ct = { name: g('name').value.trim(), description: g('description').value.trim() || null, duration_min: +g('duration_min').value,
-    capacity: +g('capacity').value, price: +g('price').value, active: g('active').checked, sport: g('sport').value, kind: g('kind').value };
-  if (g('members_only')) ct.members_only = g('members_only').checked;
-  if (!ct.name) return toast('Poné un nombre');
-  if (tr.dataset.id) ct.id = tr.dataset.id; else ct.sort = st.types.length + 1;
-  try { await api.saveClassType(ct); toast('Guardado ✓'); paneTypes(); } catch (e) { toast(errMsg(e)); }
+function editType(id, sport) {
+  const admin = st.me.role === 'admin', can = admin ? Object.keys(SPORTS) : (st.me.manages || []);
+  const t = st.types.find(x => x.id === id) || { sport: sport || can[0], kind: 'iniciacion', duration_min: 60, capacity: 4, price: 0, active: true };
+  openModal(`<h2>${id ? 'Editar tipo de clase' : 'Nuevo tipo de clase'}</h2><div id="et-err"></div>
+    <form onsubmit="saveTypeForm(event,'${id || ''}')">
+      <div class="field"><label for="et-name">Nombre</label><input class="input" id="et-name" name="name" required maxlength="60" value="${esc(t.name || '')}" placeholder="Clase de iniciación"></div>
+      ${can.length > 1 ? `<div class="field"><span class="flabel">Deporte</span><div class="seg">${can.map(k => `<label><input type="radio" name="sport" value="${k}" ${(t.sport || 'sup') === k ? 'checked' : ''}>${SPORTS[k].em} ${SPORTS[k].label}</label>`).join('')}</div></div>`
+        : `<input type="hidden" name="sport" value="${can[0]}">`}
+      <div class="field"><span class="flabel">Tipo</span><div class="seg">${Object.entries(KINDS).map(([k, l]) => `<label><input type="radio" name="kind" value="${k}" ${(t.kind || 'iniciacion') === k ? 'checked' : ''}>${l}</label>`).join('')}</div>
+        <div class="tiny muted" style="margin-top:4px">Las travesías se resaltan en la página con otro color.</div></div>
+      <div class="grid2"><div class="field"><label for="et-price">Precio por persona</label><input class="input" id="et-price" name="price" type="number" inputmode="numeric" min="0" step="500" required value="${+t.price || 0}"></div>
+        <div class="field"><label for="et-cap">Cupo</label><input class="input" id="et-cap" name="cap" type="number" inputmode="numeric" min="1" required value="${t.capacity || 1}"></div></div>
+      <div class="field"><label for="et-dur">Duración (minutos)</label><input class="input" id="et-dur" name="dur" type="number" inputmode="numeric" min="15" step="15" required value="${t.duration_min || 60}"></div>
+      <div class="field"><label for="et-desc">Descripción <span class="muted">(la ven los alumnos)</span></label><textarea class="input" id="et-desc" name="desc" maxlength="300" rows="2" placeholder="Primera vez arriba de la tabla. Tabla, remo y chaleco incluidos.">${esc(t.description || '')}</textarea></div>
+      <label class="check" style="margin-bottom:8px"><input type="checkbox" name="active" ${t.active !== false ? 'checked' : ''}> Activa <span class="muted small">(si la pausás, no aparece para crear clases)</span></label>
+      ${admin ? `<label class="check" style="margin-bottom:14px"><input type="checkbox" name="members" ${t.members_only ? 'checked' : ''}> 🏅 Es de entrenamiento <span class="muted small">(en la página se ve en violeta y lleva al WhatsApp de ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')})</span></label>` : ''}
+      <div class="sheet-foot"><button class="btn coral block" id="et-btn">Guardar</button></div></form>`);
+}
+async function saveTypeForm(ev, id) {
+  ev.preventDefault(); const f = ev.target, btn = $('et-btn');
+  const ct = { name: f.name.value.trim(), sport: f.sport.value, kind: f.kind.value, price: +f.price.value, capacity: +f.cap.value, duration_min: +f.dur.value,
+    description: f.desc.value.trim() || null, active: f.active.checked };
+  if (f.members) ct.members_only = f.members.checked;
+  if (id) ct.id = id; else ct.sort = st.types.length + 1;
+  btn.disabled = true;
+  try { await api.saveClassType(ct); closeModal(); toast('Guardado ✓'); paneTypes(); }
+  catch (e) { $('et-err').innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; btn.disabled = false; }
 }
 
 /* ── Mi perfil ── */
