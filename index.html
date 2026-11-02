@@ -259,6 +259,11 @@ img.avatar.xl{border:4px solid var(--ink)}
 .sports button.on{background:var(--ink);color:var(--sun)}
 .slot .ttl{font:700 15px var(--f-display);margin-bottom:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .slot.trav{border:2px solid var(--sea2);background:linear-gradient(135deg,#fffbe0 0%,#e3f7f4 100%);box-shadow:0 6px 18px rgba(24,179,182,.18)}
+.slot.train{border:2px solid #8b5cf6;background:linear-gradient(135deg,#f3edff 0%,#ece4ff 100%);box-shadow:0 6px 18px rgba(139,92,246,.18)}
+.slot.train .go{background:#1fa855;color:#fff;box-shadow:inset 0 0 0 2px var(--ink)}
+.slot.train .meta{color:#5b3fa0}
+.pill.train-p{background:#8b5cf6;color:#fff;margin:0}
+.sslot.train{box-shadow:inset 4px 0 0 #8b5cf6,var(--shadow)}
 .slot.trav .go{background:var(--sea2);color:#fff;box-shadow:inset 0 0 0 2px var(--ink)}
 .pill.trav-p{margin:0;background:var(--sea2);color:#fff}
 .slot .who{font-weight:700;font-size:16px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -953,7 +958,7 @@ function demoApi() {
     publicProfes: () => wait(db.profiles.filter(p => p.approved && teaches(p)).map(({ id, name, bio, avatar_url, phone, public_whatsapp, sports, pay_alias, pay_holder }) => ({ id, name, bio, avatar_url, whatsapp: public_whatsapp !== false ? phone || null : null, sports: sports || ['sup'], pay_alias: pay_alias || null, pay_holder: pay_holder || null }))),
     publicSlots(from, to) {
       const lo = Math.max(+from, Date.now());
-      return wait(db.slots.filter(s => s.status === 'open' && !s.members_only && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
+      return wait(db.slots.filter(s => s.status === 'open' && +new Date(s.starts_at) >= lo && +new Date(s.starts_at) < +to)
         .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
         .map(s => ({ ...s, profe_name: db.profiles.find(p => p.id === s.profe_id)?.name, booked: booked(s.id) })));
     },
@@ -1363,10 +1368,11 @@ function filteredPub() {
 }
 
 function drawPublic() {
-  const list = filteredPub().filter(s => !s.members_only);    // entrenamiento: solo en la agenda de los profes
+  const list = filteredPub();    // el entrenamiento también se ve (en violeta): al tocarlo, WhatsApp a Torita para sumarse al grupo
   const avail = list.filter(s => s.capacity - s.booked > 0);
   const daysWith = new Set(avail.map(s => dayKey(s.starts_at)));
-  if (!st.day || !daysWith.has(st.day)) st.day = [...daysWith].sort()[0] || dayKey(new Date());
+  // Arranca en el primer día con clases para reservar (no en uno que solo tiene entrenamiento)
+  if (!st.day || !daysWith.has(st.day)) st.day = [...new Set(avail.filter(s => !s.members_only).map(s => dayKey(s.starts_at)))].sort()[0] || [...daysWith].sort()[0] || dayKey(new Date());
   const today = startOfDay(new Date());
   const days = Array.from({ length: CONFIG.DAYS_AHEAD }, (_, i) => addDays(today, i));
   const daySlots = list.filter(s => dayKey(s.starts_at) === st.day);
@@ -1421,7 +1427,12 @@ function drawPublic() {
     <div class="dayttl">${esc(fmtDayLong(st.day + 'T12:00'))}</div>
     <div class="slots">
       ${daySlots.length ? daySlots.map(s => {
-        const left = s.capacity - s.booked, full = left <= 0, trav = kindOf(s) === 'travesia';
+        const left = s.capacity - s.booked, full = left <= 0 && !s.members_only, trav = kindOf(s) === 'travesia', tr = s.members_only;
+        if (tr) return `<button class="slot rise train" onclick="openTrainingSlot('${s.id}')">
+          <div class="t num">${hhmm(s.starts_at)}<small>${s.duration_min} min</small></div>
+          <div class="mid"><div class="ttl"><span class="pill train-p">🏅 Entrenamiento</span></div><div class="who">${avatarHtml(st.profes.find(p => p.id === s.profe_id) || { name: s.profe_name }, 'xs')}<span>con ${esc(s.profe_name)}</span></div>
+            <div class="meta">Grupo de entrenamiento · consultá</div>${wxHtml(s.starts_at)}</div>
+          <span class="go" aria-hidden="true">${ICON.wa.replace('<svg', '<svg width="22" height="22"')}</span></button>`;
         return `<button class="slot rise ${full ? 'full' : ''} ${trav ? 'trav' : ''}" onclick="${full ? `openWaitlist('${s.id}')` : `openBooking('${s.id}')`}">
           <div class="t num">${hhmm(s.starts_at)}<small>${s.duration_min >= 120 ? `${String(Math.round(s.duration_min / 6) / 10).replace('.', ',')} h` : `${s.duration_min} min`}</small></div>
           <div class="mid">${trav || activeTypes.length > 1 ? `<div class="ttl">${trav ? '<span class="pill trav-p">🧭 Travesía</span>' : ''}${esc(s.title)}</div>` : ''}<div class="who">${avatarHtml(st.profes.find(p => p.id === s.profe_id) || { name: s.profe_name }, 'xs')}<span>con ${esc(s.profe_name)}</span>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅 Entrenamiento</span>' : ''}</div>
@@ -1598,7 +1609,7 @@ async function doWaitlist(ev, id) {
 }
 function openBooking(id) {
   const s = st.pub.find(x => x.id === id); if (!s) return;
-  if (s.members_only && st.student?.training !== 'approved') return trainingInfo(s);
+  if (s.members_only) return openTrainingSlot(s.id);
   const left = Math.min(s.capacity - s.booked, 10), me = st.student;
   const pass = me ? activePassFor(s.starts_at, sportOf(s)) : null, passLeft = pass ? pass.classes_total - pass.used : 0;
   st.bk = { price: s.price, left, pass, passLeft, perClass: pass ? Math.round(pass.price / pass.classes_total) : 0, slot: s, series: [] };
@@ -1641,7 +1652,7 @@ function openBooking(id) {
 async function loadSeries(s) {
   const d = new Date(s.starts_at);
   let list = []; try { list = await api.publicSlots(addMin(d, 1), addDays(d, 90)); } catch { return; }
-  list = list.filter(x => x.profe_id === s.profe_id && (x.class_type_id || '') === (s.class_type_id || '') && new Date(x.starts_at).getDay() === d.getDay()
+  list = list.filter(x => !x.members_only && x.profe_id === s.profe_id && (x.class_type_id || '') === (s.class_type_id || '') && new Date(x.starts_at).getDay() === d.getDay()
     && hhmm(x.starts_at) === hhmm(d) && x.capacity - x.booked >= 1);
   if (!list.length || !$('bk-rep') || st.bk?.slot?.id !== s.id) return;
   st.bk.series = list;
@@ -1994,6 +2005,18 @@ function trainingPromo(t) {
       <div class="small">${esc(t.description || 'Para los que ya reman y quieren mejorar técnica y resistencia.')}</div>
       ${wa ? `<a class="btn wa sm" style="margin-top:10px" href="${wa}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="18" height="18"')} Pedile info a ${esc(c.name)}</a>` : ''}
     </div></div>`;
+}
+// Clase de entrenamiento en la página: no se reserva, se consulta con Torita por WhatsApp para sumarse al grupo.
+function openTrainingSlot(id) {
+  const s = st.pub.find(x => x.id === id); if (!s) return;
+  const c = CONFIG.TRAINING_CONTACT?.whatsapp ? CONFIG.TRAINING_CONTACT : sportOwner('sup'), name = c?.name || s.profe_name.split(' ')[0];
+  const team = st.student?.training === 'approved';
+  openModal(`<div style="text-align:center"><div class="big-emoji">🏅</div><h2>Entrenamiento</h2>
+    <div class="sum" style="text-align:left"><b>${esc(fmtDayLong(s.starts_at))} · ${hhmm(s.starts_at)}</b> con ${esc(s.profe_name)}<br><span class="muted">${s.duration_min} min${s.location ? ' · ' + esc(s.location) : ''}</span></div>
+    <p class="muted">${team ? `Sos del team 🏅: avisale a ${esc(name)} que vas.` : `Es para el grupo de entrenamiento: técnica, resistencia y remada larga. Escribile a ${esc(name)} para sumarte.`}</p></div>
+    <div class="choice" style="margin-top:12px">
+      ${c?.whatsapp ? `<a class="btn wa block" href="${waLink(c.whatsapp, team ? `Hola ${name}! Voy al entrenamiento del ${fmtDayShort(s.starts_at)} a las ${hhmm(s.starts_at)} 🏅` : `Hola ${name}! Quiero sumarme al grupo de entrenamiento. Vi el del ${fmtDayShort(s.starts_at)} a las ${hhmm(s.starts_at)} 🏄`)}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} ${team ? 'Avisarle' : 'Consultarle'} a ${esc(name)}</a>` : ''}
+      <button class="btn ghost block" onclick="closeModal()">Volver</button></div>`);
 }
 function trainingInfo(s) {
   const me = st.student, t = me?.training;
@@ -2683,7 +2706,7 @@ function slotCard(s) {
   const pend = act.filter(b => !b.paid && b.status !== 'no_show').reduce((a, b) => a + +b.amount, 0) * pp;
   const bks = s.bookings.slice().sort((a, b) => (a.status === 'cancelled') - (b.status === 'cancelled'));
   const mine = st.me.role === 'admin' ? 'profe' : 'para vos';
-  return `<div class="card sslot rise ${cancelled ? 'cancelled' : ''}">
+  return `<div class="card sslot rise ${cancelled ? 'cancelled' : ''} ${s.members_only ? 'train' : ''}">
     <div class="hd"><div class="t num">${hhmm(s.starts_at)}</div>
       <div class="info"><b>${(st.types || []).some(t => (t.sport || 'sup') !== 'sup') ? SPORTS[sportOf(s)].em + ' ' : ''}${esc(s.title)}</b>${s.members_only ? ' <span class="pill train" style="margin:0 0 0 4px">🏅</span>' : ''}${kindOf(s) === 'travesia' ? ' <span class="pill trav-p" style="margin:0 0 0 4px">🧭</span>' : ''}<div>${st.me.role === 'admin' ? `con ${esc(s.profe?.name)} · ` : ''}${s.duration_min} min${s.location ? ' · ' + esc(s.location) : ''}</div>${cancelled || isPast(s) ? '' : wxHtml(s.starts_at)}</div>
       ${cancelled ? '<span class="pill bad" style="margin:0">Suspendida</span>' : `<span class="cap num ${people >= s.capacity ? 'full' : ''}">${people}/${s.capacity}</span>`}</div>
