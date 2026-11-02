@@ -3085,12 +3085,18 @@ async function paneStats() {
       <tr><th>Clase</th><th class="r">Dadas</th><th class="r">Alumnos</th><th class="r">Ocup.</th><th class="r">Cobrado</th></tr>
       ${byType.map(p => `<tr><td>${esc(p.label)}</td><td class="r num">${p.clases}</td><td class="r num">${p.alumnos}</td><td class="r num">${pct(p.alumnos / p.cupo)}</td><td class="r num">${money(p.cobrado)}</td></tr>`).join('')}
     </table></div></div>` : ''}
+    ${isAdmin ? `<div class="card"><h3>📥 Registro en Excel</h3>
+      <p class="tiny muted" style="margin:2px 0 10px">SUP y kayak juntos, con hojas de resumen por profe, clases, reservas y abonos.</p>
+      <div class="row between" style="margin-bottom:10px"><button class="icon-btn" onclick="shiftXWeek(-1)" aria-label="Semana anterior">‹</button>
+        <b id="xw-lbl" class="small">${esc(weekLabel(xWeek()))}</b><button class="icon-btn" onclick="shiftXWeek(1)" aria-label="Semana siguiente">›</button></div>
+      <div class="grid2"><button class="btn coral block" onclick="downloadWeek(this)">⬇ Semana</button>
+        <button class="btn ghost block" onclick="downloadMonth(this)">⬇ Todo ${esc(from.toLocaleDateString('es-AR', { month: 'long' }))}</button></div></div>` : ''}
     <details class="card more"><summary>Por dónde reservan</summary><div class="tbl-wrap" style="margin-top:10px"><table>
       <tr><th>Canal</th><th class="r">Reservas</th><th class="r">Alumnos</th><th class="r">% alumnos</th><th class="r">Cobrado</th></tr>
       ${bySrc.map(c => `<tr><td>${esc(c.label)}</td><td class="r num">${c.reservas}</td><td class="r num">${c.alumnos}</td><td class="r num">${pct(c.alumnos / tot.alumnos)}</td><td class="r num">${money(c.cobrado)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sin datos este mes</td></tr>'}
     </table></div></details>
     <details class="card more"><summary>Todas las reservas del mes (${rows.length})</summary>
-      <div style="margin:10px 0"><button class="btn ghost sm" onclick="exportCsv()">Descargar planilla (Excel)</button></div><div class="tbl-wrap"><table>
+      <div style="margin:10px 0"><button class="btn ghost sm" onclick="downloadMonth(this)">Descargar planilla (Excel)</button></div><div class="tbl-wrap"><table>
       <tr><th>Fecha</th><th>Clase</th>${isAdmin ? '<th>Profe</th>' : ''}<th>Alumno</th><th class="r">Pers.</th><th class="r">Monto</th><th>Estado</th><th>Pago</th></tr>
       ${rows.map(({ s, b }) => `<tr><td class="num" style="white-space:nowrap">${esc(fmtDayShort(s.starts_at))} ${hhmm(s.starts_at)}</td><td>${esc(s.title)}</td>${isAdmin ? `<td>${esc(s.profe?.name)}</td>` : ''}
         <td>${esc(b.customer_name)}</td><td class="r num">${b.people}</td><td class="r num">${money(b.amount)}</td>
@@ -3162,16 +3168,105 @@ async function moreNumbers() {
         ${ok ? `<a class="btn wa sm" href="${waLink(b.customer_phone, `Hola ${b.customer_name.split(' ')[0]}! ¿Cómo estás? Te extrañamos en Nativo 🌊 ¿Volvés a remar? Mirá los horarios: ${location.origin}/`)}" target="_blank" rel="noopener">Escribirle</a>` : ''}</div>`; }).join('') || '<p class="small" style="color:var(--ok)">Nadie: ¡todos siguen viniendo! 🙌</p>'}`;
 }
 function shiftMonth(n) { const [y, m] = st.month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); st.month = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; paneStats(); }
-function exportCsv() {
-  const cell = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const num = n => String(+n || 0).replace('.', ',');                      // Excel en español
-  const head = ['Fecha', 'Hora', 'Clase', 'Profe', '% profe', 'Alumno', 'WhatsApp', 'Email', 'Personas', 'Monto', 'Estado', 'Pagado', 'Medio', 'Parte profe', 'Canal', 'Nota', 'Código'];
-  const lines = st.staffSlots.flatMap(s => s.bookings.map(b => [dayKey(s.starts_at), hhmm(s.starts_at), s.title, s.profe?.name, num(s.profe_pct),
-    b.customer_name, b.customer_phone, b.customer_email, b.people, num(b.amount), STATUS[b.status] + (s.status === 'cancelled' ? ' (clase suspendida)' : ''),
-    b.paid ? 'sí' : 'no', b.payment_method, num(b.paid && b.status !== 'cancelled' && s.status !== 'cancelled' ? b.amount * s.profe_pct / 100 : 0), SOURCES[b.source] || b.source || 'Web', b.notes, b.code].map(cell).join(';')));
-  const blob = new Blob(['﻿' + [head.join(';'), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `nativo-reservas-${st.month}.csv`; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+/* ── Registro en Excel: un .xlsx de verdad (varias hojas, montos con formato), armado acá sin librerías ── */
+const weekStart = d => { d = new Date(d); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d; };
+const xWeek = () => st.xWeek || (st.xWeek = weekStart(new Date()));
+const weekLabel = w => { const e = addDays(w, 6); return `Semana del ${w.getDate()}${w.getMonth() !== e.getMonth() ? ' ' + w.toLocaleDateString('es-AR', { month: 'short' }) : ''} al ${e.getDate()} ${e.toLocaleDateString('es-AR', { month: 'short' })} ${e.getFullYear()}`; };
+function shiftXWeek(n) { st.xWeek = addDays(xWeek(), 7 * n); if ($('xw-lbl')) $('xw-lbl').textContent = weekLabel(st.xWeek); }
+function downloadWeek(btn) { const w = xWeek(); return downloadRecord(btn, w, addDays(w, 7), `semana-${dayKey(w)}`, weekLabel(w)); }
+function downloadMonth(btn) { const [y, m] = st.month.split('-').map(Number), f = new Date(y, m - 1, 1);
+  return downloadRecord(btn, f, new Date(y, m, 1), `mes-${st.month}`, cap(f.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }))); }
+
+const XL = (() => {
+  const T = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = u => { let c = ~0; for (let i = 0; i < u.length; i++) c = T[(c ^ u[i]) & 255] ^ (c >>> 8); return ~c >>> 0; };
+  // ZIP sin comprimir: alcanza para Excel y no necesita librerías
+  function zip(files) {
+    const enc = new TextEncoder(), out = [], cd = []; let off = 0;
+    for (const [name, text] of files) {
+      const n = enc.encode(name), d = enc.encode(text), c = crc(d);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x800, true); h.setUint16(12, 0x21, true);
+      h.setUint32(14, c, true); h.setUint32(18, d.length, true); h.setUint32(22, d.length, true); h.setUint16(26, n.length, true);
+      const e = new DataView(new ArrayBuffer(46));
+      e.setUint32(0, 0x02014b50, true); e.setUint16(4, 20, true); e.setUint16(6, 20, true); e.setUint16(8, 0x800, true); e.setUint16(14, 0x21, true);
+      e.setUint32(16, c, true); e.setUint32(20, d.length, true); e.setUint32(24, d.length, true); e.setUint16(28, n.length, true); e.setUint32(42, off, true);
+      out.push(h, n, d); cd.push(e, n); off += 30 + n.length + d.length;
+    }
+    const size = cd.reduce((a, x) => a + x.byteLength, 0), end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, size, true); end.setUint32(16, off, true);
+    return new Blob([...out, ...cd, end], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  const x = v => String(v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const col = i => { let r = ''; for (i++; i; i = Math.floor((i - 1) / 26)) r = String.fromCharCode(65 + (i - 1) % 26) + r; return r; };
+  // Celdas: texto, número, o { v, s } con estilo: 1 encabezado, 2 plata, 3 fecha, 4 %, 5 plata en negrita, 6 negrita
+  const cellXml = (c, ref) => {
+    if (c == null || c === '') return '';
+    const o = typeof c === 'object' && !(c instanceof Date) ? c : { v: c }, st = o.s ? ` s="${o.s}"` : '';
+    let v = o.v; if (v == null || v === '') return o.s ? `<c r="${ref}"${st}/>` : '';
+    if (v instanceof Date) v = (Date.UTC(v.getFullYear(), v.getMonth(), v.getDate()) - Date.UTC(1899, 11, 30)) / 864e5;
+    return typeof v === 'number' && isFinite(v) ? `<c r="${ref}"${st}><v>${v}</v></c>` : `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${x(v)}</t></is></c>`;
+  };
+  const sheet = ({ rows, widths = [], freeze = 1 }) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${freeze ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${freeze}" topLeftCell="A${freeze + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : ''}${widths.length ? `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>` : ''}<sheetData>${rows.map((r, i) => `<row r="${i + 1}">${(r || []).map((c, j) => cellXml(c, col(j) + (i + 1))).join('')}</row>`).join('')}</sheetData></worksheet>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="164" formatCode="&quot;$&quot; #,##0"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/><numFmt numFmtId="166" formatCode="0%"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFAEE3C"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  function book(sheets) {
+    const S = 'http://schemas.openxmlformats.org', n = sheets.length;
+    return zip([
+      ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="${S}/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],
+      ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${S}/package/2006/relationships"><Relationship Id="rId1" Type="${S}/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+      ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${S}/spreadsheetml/2006/main" xmlns:r="${S}/officeDocument/2006/relationships"><sheets>${sheets.map((sh, i) => `<sheet name="${x(sh.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`],
+      ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${S}/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${S}/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${n + 1}" Type="${S}/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+      ['xl/styles.xml', styles],
+      ...sheets.map((sh, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheet(sh)])]);
+  }
+  return { book };
+})();
+
+async function downloadRecord(btn, from, to, file, label) {
+  const old = btn?.textContent; if (btn) { btn.disabled = true; btn.textContent = 'Armando…'; }
+  try {
+    const isAdmin = st.me.role === 'admin';
+    const [slots, passes] = await Promise.all([api.staffSlots(from, to), isAdmin ? api.adminPasses().catch(() => []) : []]);
+    if (!st.types?.length) st.types = await api.classTypes().catch(() => []);
+    const H = a => a.map(v => ({ v, s: 1 })), $$ = v => ({ v: +v || 0, s: 2 }), D = d => ({ v: new Date(d), s: 3 });
+    const dow = d => new Date(d).toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '');
+    const spL = s => SPORTS[sportOf(s)]?.label || 'SUP';
+    const live = slots.filter(s => s.status !== 'cancelled');
+    // Resumen: por deporte y por profe (mismas cuentas que la pantalla de Resumen)
+    const res = [[{ v: `Nativo · Registro ${label}`, s: 6 }], [`Descargado el ${new Date().toLocaleString('es-AR')}`], []];
+    for (const k of Object.keys(SPORTS)) {
+      const sl = slots.filter(s => sportOf(s) === k); if (!sl.length) continue;
+      const { tot, by } = computeStats(sl);
+      res.push([{ v: `${SPORTS[k].label}`, s: 6 }], H(['Profe', 'Clases dadas', 'Alumnos', 'Ocupación', 'Cobrado', 'A pagar profe', 'Escuela', 'Por cobrar']));
+      by.forEach(p => res.push([p.label, p.clases, p.alumnos, { v: p.cupo ? p.alumnos / p.cupo : 0, s: 4 }, $$(p.cobrado), $$(p.profe), $$(p.cobrado - p.profe), $$(p.porCobrar)]));
+      res.push([{ v: 'Total', s: 6 }, tot.clases, tot.alumnos, { v: tot.cupo ? tot.alumnos / tot.cupo : 0, s: 4 }, { v: tot.cobrado, s: 5 }, { v: tot.profe, s: 5 }, { v: tot.cobrado - tot.profe, s: 5 }, { v: tot.porCobrar, s: 5 }], []);
+    }
+    if (res.length === 3) res.push(['Sin clases en este período']);
+    res.push(['Cobrado y A pagar profe cuentan solo lo marcado como pagado. A pagar profe = cobrado × % del profe en cada clase.']);
+    // Clases
+    const cls = [H(['Fecha', 'Día', 'Hora', 'Deporte', 'Clase', 'Profe', 'Estado', 'Cupo', 'Anotados', 'Ocupación', 'Precio', 'Cobrado', 'Por cobrar', '% profe', 'Parte profe'])];
+    slots.forEach(s => { const act = s.bookings.filter(b => b.status !== 'cancelled'), ppl = act.filter(b => b.status !== 'no_show').reduce((a, b) => a + b.people, 0);
+      const cob = act.filter(b => b.paid).reduce((a, b) => a + +b.amount, 0), pc = act.filter(b => !b.paid && b.status !== 'no_show').reduce((a, b) => a + +b.amount, 0), ok = s.status !== 'cancelled';
+      cls.push([D(s.starts_at), dow(s.starts_at), hhmm(s.starts_at), spL(s), s.title, s.profe?.name || '', ok ? 'Abierta' : 'Suspendida', s.capacity, ppl, { v: s.capacity ? ppl / s.capacity : 0, s: 4 }, $$(s.price), $$(ok ? cob : 0), $$(ok ? pc : 0), { v: (+s.profe_pct || 0) / 100, s: 4 }, $$(ok ? cob * (+s.profe_pct || 0) / 100 : 0)]); });
+    // Reservas
+    const rsv = [H(['Fecha', 'Día', 'Hora', 'Deporte', 'Clase', 'Profe', 'Alumno', 'WhatsApp', 'Email', 'Personas', 'Monto', 'Estado', 'Pagado', 'Medio de pago', 'Parte profe', 'Canal', 'Nota', 'Código'])];
+    slots.forEach(s => s.bookings.forEach(b => rsv.push([D(s.starts_at), dow(s.starts_at), hhmm(s.starts_at), spL(s), s.title, s.profe?.name || '', b.customer_name, b.customer_phone || '', b.customer_email || '', b.people, $$(b.amount),
+      STATUS[b.status] + (s.status === 'cancelled' ? ' (clase suspendida)' : ''), b.paid ? 'sí' : 'no', b.payment_method || '', $$(b.paid && b.status !== 'cancelled' && s.status !== 'cancelled' ? b.amount * s.profe_pct / 100 : 0), SOURCES[b.source] || b.source || 'Web', b.notes || '', b.code])));
+    const sheets = [{ name: 'Resumen', rows: res, widths: [26, 13, 10, 11, 14, 14, 14, 14], freeze: 0 },
+      { name: 'Clases', rows: cls, widths: [11, 6, 7, 8, 24, 16, 11, 6, 9, 10, 12, 12, 12, 8, 12] },
+      { name: 'Reservas', rows: rsv, widths: [11, 6, 7, 8, 24, 16, 22, 15, 22, 9, 12, 13, 8, 14, 12, 12, 24, 9] }];
+    if (isAdmin) {
+      const sold = passes.filter(p => p.paid_at && new Date(p.paid_at) >= from && new Date(p.paid_at) < to);
+      sheets.push({ name: 'Abonos', widths: [11, 22, 15, 20, 8, 8, 8, 12, 11], rows: [H(['Cobrado el', 'Alumno', 'WhatsApp', 'Abono', 'Deporte', 'Clases', 'Usadas', 'Precio', 'Estado']),
+        ...sold.map(p => [D(p.paid_at), p.student_name, p.student_phone || '', p.name, SPORTS[p.sport || 'sup']?.label || 'SUP', p.classes_total, p.used, $$(p.price), p.status === 'cancelled' ? 'Anulado' : 'Activo'])] });
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(XL.book(sheets)); a.download = `nativo-${file}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`Excel descargado: ${live.length} clases`);
+  } catch (e) { toast(errMsg(e)); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
 }
 
 /* ── Profes (admin) ── */
