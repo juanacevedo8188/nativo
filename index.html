@@ -356,6 +356,9 @@ textarea.input{min-height:80px;resize:vertical}
 .shead h1{font:700 22px/1.15 var(--f-display);margin:2px 0 0;letter-spacing:-.2px}
 .shead .back{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:var(--card);box-shadow:inset 0 0 0 1.5px var(--line2);font-size:26px;line-height:1;color:var(--ink);cursor:pointer;padding-bottom:3px}
 .mgroup{margin-bottom:14px}
+.daybar{position:sticky;top:var(--top-h);z-index:6;background:var(--bg);margin:10px -16px 0;padding:8px 16px;box-shadow:0 6px 8px -8px rgba(0,0,0,.18)}
+.daybar .chip small{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--line);color:var(--ink2);font-size:11.5px;font-weight:700;margin-left:5px}
+.daybar .chip.on small{background:rgba(255,255,255,.2);color:inherit}
 .ecard{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow);cursor:pointer;color:var(--ink);font:inherit}
 .ecard:active{transform:scale(.99)}
 .ecard.off{opacity:.6}
@@ -2834,10 +2837,19 @@ function drawAgenda(isAdmin) {
     ${susp.length ? `<div class="row wrapf" style="margin-top:12px">
       <button class="btn ghost sm" onclick="st.showSusp=!st.showSusp;paneAgenda()">${st.showSusp ? 'Ocultar' : 'Ver'} ${susp.length} ${susp.length === 1 ? 'suspendida' : 'suspendidas'}</button>
       ${st.showSusp ? `<button class="btn danger sm" onclick="deleteAllSuspended()">Borrar todas las suspendidas</button>` : ''}</div>` : ''}
-    ${Object.keys(groups).length ? Object.entries(groups).map(([k, ss]) => `<div class="dayhead">${esc(dayName(k))}</div>${ss.map(slotCard).join('')}`).join('')
+    ${Object.keys(groups).length > 2 ? `<div class="chips daybar" aria-label="Ir a un día">${Object.entries(groups).map(([k, ss]) => { const d = new Date(k + 'T12:00');
+        return `<button class="chip plain" onclick="jumpDay('${k}')">${k === todayK ? 'Hoy' : k === tomorrowK ? 'Mañana' : `${WD[d.getDay()]} ${d.getDate()}`} <small>${ss.length}</small></button>`; }).join('')}</div>` : ''}
+    ${Object.keys(groups).length ? Object.entries(groups).map(([k, ss]) => `<div class="dayhead" id="dh-${k}">${esc(dayName(k))}</div>${ss.map(slotCard).join('')}`).join('')
       : `<div class="card empty" style="margin-top:14px">${st.agendaPast ? 'No hubo clases en los últimos 30 días.' : `No tenés clases creadas todavía.<div style="margin-top:14px"><button class="btn coral" onclick="setTab('cargar')">+ Crear mi primera clase</button></div>`}</div>`}`;
 }
 
+// Agenda: salta al día elegido (deja lugar para la barra de arriba y la tira de días)
+function jumpDay(k) {
+  const el = $('dh-' + k); if (!el) return;
+  document.querySelectorAll('.daybar .chip').forEach(c => { const on = c.getAttribute('onclick').includes(k); c.classList.toggle('on', on); if (on) c.scrollIntoView({ inline: 'center', block: 'nearest' }); });
+  const off = (document.querySelector('.top')?.offsetHeight || 0) + (document.querySelector('.daybar')?.offsetHeight || 0) + 8;
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - off, behavior: 'smooth' });
+}
 function slotCard(s) {
   const act = s.bookings.filter(b => b.status !== 'cancelled');
   const people = act.reduce((a, b) => a + b.people, 0);
@@ -3714,6 +3726,15 @@ async function paneProfes() {
   try { [st.allProfiles, st.students] = await Promise.all([api.profiles(), api.students ? api.students() : []]); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const pending = st.allProfiles.filter(p => !p.approved && !p.archived), gone = st.allProfiles.filter(p => p.archived);
   paneEl().innerHTML = `
+    ${pending.length ? `<div class="card"><h3>Pidieron acceso <span class="pill warn">${pending.length}</span></h3>
+      ${pending.map(p => `<div class="row between wrapf" style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(p.name)}</b><div class="tiny muted">${esc(userLabel(p.email))}</div></div>
+        <div class="row"><button class="btn sm" onclick="approveProfe('${p.id}')">Aprobar</button></div></div>`).join('')}</div>` : ''}
+    <div class="card"><h2>Profes y admins</h2>
+    <p class="small muted" style="margin-bottom:4px">Tocá a alguien para editar su perfil, foto, rol o %.</p>
+    ${st.allProfiles.filter(p => p.approved).sort((a, b) => a.name.localeCompare(b.name)).map(p => `<button class="prow" onclick="editProfe('${p.id}')">
+      ${avatarHtml(p)}<span class="who"><b>${esc(p.name)}${p.id === st.me.id ? ' (vos)' : ''}</b><span>${ROLES[roleKey(p)]}${teaches(p) ? ` · ${+p.commission_pct}%` : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</span></span>
+      <span class="muted" aria-hidden="true">›</span></button>`).join('')}
+    </div>
     <details class="card more" style="max-width:560px" ${st.allProfiles.length <= 1 ? 'open' : ''}><summary><h2 style="margin:0">Agregar profe</h2></summary><div style="margin-top:10px">
       <p class="small muted" style="margin-bottom:12px">${api.demo ? 'Se le crea la cuenta con una contraseña provisoria para mandarle por WhatsApp. En la demo aparece en la lista de "Entrar".' : 'Se le crea la cuenta con una contraseña provisoria y te damos el mensaje listo para mandarle por WhatsApp. Sin mails.'}</p>
       <div id="ap-err"></div>
@@ -3725,16 +3746,7 @@ async function paneProfes() {
           <div class="field"><label for="ap-pct">Se lleva (% de cada alumno)</label><input class="input" id="ap-pct" name="pct" type="number" min="0" max="100" value="50"></div></div>
         <button class="btn coral" id="ap-btn">Agregar profe</button>
       </form></div></details>
-    ${pending.length ? `<div class="card"><h3>Pidieron acceso <span class="pill warn">${pending.length}</span></h3>
-      ${pending.map(p => `<div class="row between wrapf" style="padding:8px 0;border-top:1px solid var(--line)"><div><b>${esc(p.name)}</b><div class="tiny muted">${esc(userLabel(p.email))}</div></div>
-        <div class="row"><button class="btn sm" onclick="approveProfe('${p.id}')">Aprobar</button></div></div>`).join('')}</div>` : ''}
     ${trainingSection()}
-    <div class="card"><h2>Equipo</h2>
-    <p class="small muted" style="margin-bottom:4px">Tocá a alguien para editar su perfil, foto, rol o %.</p>
-    ${st.allProfiles.filter(p => p.approved).sort((a, b) => a.name.localeCompare(b.name)).map(p => `<button class="prow" onclick="editProfe('${p.id}')">
-      ${avatarHtml(p)}<span class="who"><b>${esc(p.name)}${p.id === st.me.id ? ' (vos)' : ''}</b><span>${ROLES[roleKey(p)]}${teaches(p) ? ` · ${+p.commission_pct}%` : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</span></span>
-      <span class="muted" aria-hidden="true">›</span></button>`).join('')}
-    </div>
     ${gone.length ? `<details class="card more" style="max-width:560px"><summary><h3 style="margin:0">Dados de baja <span class="pill gray">${gone.length}</span></h3></summary>
       <p class="small muted" style="margin:8px 0 4px">No entran ni aparecen en la web. Sus clases y números siguen en el Resumen.</p>
       ${gone.map(p => `<div class="row between" style="padding:8px 0;border-top:1px solid var(--line)"><div style="min-width:0"><b>${esc(p.name)}</b><div class="tiny muted">${esc(userLabel(p.email))}</div></div>
@@ -3782,7 +3794,7 @@ async function newPasswordFor(id) {
 function trainingSection() {
   const all = st.students || [], req = all.filter(x => x.training === 'requested'), ok = all.filter(x => x.training === 'approved'), rest = all.filter(x => x.training === 'none');
   return `<div class="card ${req.length ? 'unpaid' : ''}"><h2>🏅 Entrenamiento ${req.length ? `<span class="pill warn">${req.length} ${req.length === 1 ? 'pedido' : 'pedidos'}</span>` : ''}</h2>
-    <p class="small muted" style="margin-bottom:6px">Los aprobados muestran 🏅 en su perfil. Las clases "Solo entrenamiento" no se publican en la web: se manejan por WhatsApp y los profes anotan a los chicos desde la agenda.</p>
+    <p class="small muted" style="margin-bottom:6px">Los aprobados muestran 🏅 en su perfil. Las clases de entrenamiento se ven en la página en violeta y llevan al WhatsApp de ${esc(CONFIG.TRAINING_CONTACT?.name || 'la escuela')}; los profes anotan a los chicos desde la agenda.</p>
     ${req.map(x => `<div class="prow" style="cursor:default">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.training_note || 'Sin mensaje')}</span></span>
       <span class="row" style="flex:none"><button class="btn sm" onclick="setTraining('${x.id}','approved')">Aprobar</button><button class="btn ghost sm" onclick="setTraining('${x.id}','none')" aria-label="Rechazar">✕</button></span></div>`).join('')}
     ${ok.length ? `<div class="row between" style="margin-top:12px"><div class="label" style="margin:0">Grupo (${ok.length})</div><a class="small" href="#team">Ver portal del team ›</a></div>${ok.map(x => `<div class="prow" style="cursor:default"><a href="#a-${x.id}" style="display:contents;color:inherit;text-decoration:none">${avatarHtml(x)}<span class="who"><b>${esc(x.name)}</b><span>${esc(x.phone || x.email || '')} · ver perfil ›</span></span></a>
