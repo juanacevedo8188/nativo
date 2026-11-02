@@ -3060,7 +3060,9 @@ async function toggleCoupon(code, active) {
 }
 
 /* ── Inventario (admin): tablas, remos, chalecos, kayaks… con su estado y un historial de comentarios ── */
-const EQ_KIND = { tabla: ['🏄', 'Tablas', 'Tabla'], remo: ['🪵', 'Remos', 'Remo'], chaleco: ['🦺', 'Chalecos', 'Chaleco'], kayak: ['🛶', 'Kayaks', 'Kayak'], pala: ['🪶', 'Palas de kayak', 'Pala'], otro: ['📦', 'Otros', 'Equipo'] };
+// Remo: no hay emoji, va dibujado (mango, palo y pala), del mismo tamaño que un emoji.
+const ICON_REMO = '<svg viewBox="2 1 20 22" width="1.1em" height="1.1em" style="vertical-align:-.15em" aria-hidden="true"><g transform="rotate(28 12 12)"><path d="M9 2.2h6" stroke="#5b3a1e" stroke-width="2.6" stroke-linecap="round"/><path d="M12 2.2v12" stroke="#a0692f" stroke-width="2.2" stroke-linecap="round"/><path d="M12 12.6c-2.7 0-3.7 3.1-3.5 5.7.2 2.5 1.7 4 3.5 4s3.3-1.5 3.5-4c.2-2.6-.8-5.7-3.5-5.7z" fill="#18b3b6" stroke="#0e8488" stroke-width="1.2"/></g></svg>';
+const EQ_KIND = { tabla: ['🏄', 'Tablas', 'Tabla'], remo: [ICON_REMO, 'Remos', 'Remo'], chaleco: ['🦺', 'Chalecos', 'Chaleco'], kayak: ['🛶', 'Kayaks', 'Kayak'], otro: ['📦', 'Otros', 'Equipo'] };
 const EQ_ST = { reparacion: ['🔧', 'En reparación', 'bad'], revisar: ['👀', 'Revisar', 'warn'], ok: ['✅', 'OK', 'ok'], baja: ['⛔', 'De baja', 'gray'] };
 const EQ_ORDER = ['reparacion', 'revisar', 'ok', 'baja'];
 const eqSize = e => e.kind === 'chaleco' ? `talle ${esc(e.size)}` : esc(e.size);
