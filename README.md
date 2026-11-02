@@ -90,6 +90,13 @@ La agenda, el resumen, Equipo y Abonos se actualizan solos cuando otro profe car
 ## Calendario del profe
 *Más → Mis clases en el calendario*: cada profe agrega un link personal (`/api/cal?t=…`) a Google Calendar o al iPhone y ve sus clases con cuántos anotados hay y quiénes, con aviso 1 h antes. Se actualiza solo. El admin puede incluir las clases de todos. El link se puede regenerar. SQL: `update-2026-11-calendario.sql`. Usa `SUPABASE_SERVICE_ROLE_KEY` (Vercel).
 
+## Mails (Resend) con tope
+Se apagan solos si falta `RESEND_API_KEY`. Variables en Vercel: `RESEND_API_KEY`, `CRON_SECRET` (cualquier texto largo al azar) y opcional `MAIL_FROM` (por defecto `Nativo <reservas@nativoescuela.com.ar>`; el dominio tiene que estar verificado en Resend).
+- Al momento (`/api/mail`): confirmación de reserva al alumno (un solo mail si reservó varias semanas) y aviso de clase suspendida.
+- Todos los días 8:00 (`/api/cron-mail`, crons en `vercel.json`): a cada profe con *Mail para avisos* sus clases de hoy (los lunes, la semana) y a los alumnos con clase mañana, un recordatorio.
+- **Tope**: 90 por día (los de rutina hasta 70) y 2.500 por mes, debajo del plan gratis (3.000/mes, 100/día). Cada mail se anota en `mail_log` y nunca se repite. En Resumen (admin) se ve cuántos van.
+- SQL: `update-2026-11-mails.sql`.
+
 ## Landing (borrador)
 `landing.html` → **nativoescuela.com.ar/landing**. Presentación de Nativo (disciplinas, primera clase, profes, reseñas, abonos, preguntas, dónde estamos) que lleva a la página de reservas. Toma precios, profes, reseñas y abonos de la base. Textos y fotos al principio del archivo (`T` y `PHOTOS`). Tiene `noindex` hasta que la publiquemos como página principal.
 

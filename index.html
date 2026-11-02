@@ -881,6 +881,13 @@ function supabaseApi() {
     photosByCode: code => q(c.rpc('slot_photos_by_code', { p_code: code })),
     myPhotos: () => q(c.rpc('my_photos')),
     calToken: reset => q(c.rpc('my_cal_token', { p_reset: !!reset })),
+    // Mails (Resend, desde el servidor). Si no están configurados, no pasa nada.
+    mailBooking: codes => fetch('/api/mail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'booking', codes }) }).catch(() => {}),
+    async mailSuspended(slot, codes) {
+      const { data: { session } } = await c.auth.getSession();
+      return fetch('/api/mail', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` }, body: JSON.stringify({ event: 'suspended', slot, codes }) }).catch(() => {});
+    },
+    async mailStats() { return (await q(c.rpc('mail_stats')))[0]; },
     // Aviso general en la página (uno por deporte, o "all" para todos)
     notices: () => q(c.from('site_notices').select('*')),
     saveNotice: n => q(c.from('site_notices').upsert(n)),
@@ -1192,6 +1199,7 @@ function demoApi() {
         return { id: p.id, url: p.url, slot_id: p.slot_id, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(x => x.id === s.profe_id)?.name }; })
         .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
+    mailBooking: () => wait(null), mailSuspended: () => wait(null), mailStats: () => fail('demo'),
     calToken(reset) { if (reset || !db.cal_token) { db.cal_token = Array.from({ length: 64 }, () => (Math.random() * 16 | 0).toString(16)).join(''); save(); } return wait(db.cal_token); },
     notices: () => wait(db.site_notices || []),
     saveNotice(n) { if (!meP()) return fail('Solo profes'); db.site_notices = (db.site_notices || []).filter(x => x.sport !== n.sport).concat({ ...n, updated_at: new Date().toISOString() }); save(); return wait(null); },
@@ -1788,6 +1796,7 @@ async function bookSeries(f, plan) {
   }
   const ok = res.filter(x => x.ok), cp = ok.find(x => !x.use);
   if (cp) await useCoupon(cp.code);
+  if (ok.length) api.mailBooking(ok.map(x => x.code));      // un solo mail con todas las semanas
   if (!ok.length) { $('bk-err').innerHTML = `<div class="err">${esc(res[0].err)}</div>`; btn.disabled = false; stepPeople(0); return; }
   if (plan.some(x => x.use)) st.myPasses = await api.myPasses().catch(() => st.myPasses);
   if (st.student && f.phone.value.trim() !== (st.student.phone || '')) {
@@ -1815,6 +1824,7 @@ async function submitBooking(ev, id) {
     const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value, usePass, pay: usePass ? null : f.pay?.value || null });
     if (usePass) st.myPasses = await api.myPasses().catch(() => st.myPasses);
     else await useCoupon(r.code);
+    api.mailBooking([r.code]);                                // mail de confirmación (si está configurado)
     rememberBooking(r.code, r.starts_at);
     if (st.student && f.phone.value.trim() !== (st.student.phone || '')) {      // guarda el WhatsApp en su perfil
       api.updateStudent(st.student.id, { phone: f.phone.value.trim() }).then(() => { st.student.phone = f.phone.value.trim(); }).catch(() => {});
@@ -3259,7 +3269,7 @@ async function cancelSlot(id) {
   if (!await askConfirm(`¿Suspender esta clase?${act.length ? `\n\nSe van a cancelar ${act.length} reserva(s). Avisales por WhatsApp desde la lista.` : ''}`, 'Suspender')) return;
   try { await api.updateSlot(id, { status: 'cancelled' }); await api.cancelSlotBookings(id); toast('Clase suspendida. Quedó oculta en "Ver suspendidas"'); paneAgenda(); }
   catch (e) { return toast(errMsg(e)); }
-  if (act.length) notifySuspended(s, act);
+  if (act.length) { api.mailSuspended(id, act.map(b => b.code)); notifySuspended(s, act); }
 }
 // Después de suspender: un botón de WhatsApp por alumno, con el mensaje armado.
 function notifySuspended(s, list) {
@@ -3590,6 +3600,7 @@ async function paneStats() {
       <tr><th>Clase</th><th class="r">Dadas</th><th class="r">Alumnos</th><th class="r">Ocup.</th><th class="r">Cobrado</th></tr>
       ${byType.map(p => `<tr><td>${esc(p.label)}</td><td class="r num">${p.clases}</td><td class="r num">${p.alumnos}</td><td class="r num">${pct(p.alumnos / p.cupo)}</td><td class="r num">${money(p.cobrado)}</td></tr>`).join('')}
     </table></div></div>` : ''}
+    ${isAdmin ? '<div id="mail-n"></div>' : ''}
     ${isAdmin ? `<div class="card"><h3>📥 Registro en Excel</h3>
       <p class="tiny muted" style="margin:2px 0 10px">SUP y kayak juntos, con hojas de resumen por profe, clases, reservas y abonos.</p>
       <div class="row between" style="margin-bottom:10px"><button class="icon-btn" onclick="shiftXWeek(-1)" aria-label="Semana anterior">‹</button>
@@ -3622,6 +3633,7 @@ async function paneStats() {
     <div id="rv-card"></div>
     ${isAdmin ? `<details class="card more" ontoggle="if(this.open)moreNumbers()"><summary>📊 Más números</summary><div id="more-n" style="margin-top:10px"><div class="loading">Calculando…</div></div></details>` : ''}`;
   reviewsCard(isAdmin, ssp);
+  if (isAdmin) fillMailStats();
 }
 
 // Reseñas: promedio por profe y las últimas (el admin puede ocultar alguna de la página).
@@ -3671,6 +3683,14 @@ async function moreNumbers() {
     ${lost.map(([k, d]) => { const b = info[k], ok = b.customer_phone && !b.customer_phone.startsWith('@');
       return `<div class="row between small" style="padding:6px 0;border-top:1px solid var(--line)"><span><b>${esc(b.customer_name)}</b> · hace ${Math.round((now - d) / 864e5)} días</span>
         ${ok ? `<a class="btn wa sm" href="${waLink(b.customer_phone, `Hola ${b.customer_name.split(' ')[0]}! ¿Cómo estás? Te extrañamos en Nativo 🌊 ¿Volvés a remar? Mirá los horarios: ${location.origin}/`)}" target="_blank" rel="noopener">Escribirle</a>` : ''}</div>`; }).join('') || '<p class="small" style="color:var(--ok)">Nadie: ¡todos siguen viniendo! 🙌</p>'}`;
+}
+// Cuántos mails se mandaron (tope para no salir del plan gratis de Resend). Si los mails no están armados, no se muestra.
+async function fillMailStats() {
+  const m = await api.mailStats().catch(() => null); if (!m || !$('mail-n')) return;
+  $('mail-n').innerHTML = `<div class="card" style="padding:12px 16px"><div class="row between wrapf" style="gap:6px"><b class="small">✉️ Mails enviados</b>
+    <span class="small num">hoy <b>${m.today}</b> de 90 · este mes <b>${m.month}</b> de 2.500</span></div>
+    <div class="bar" style="margin-top:8px"><i style="width:${Math.min(100, m.month / 2500 * 100)}%"></i></div>
+    <p class="tiny muted" style="margin-top:6px">Con este tope nunca se pasa del plan gratis de Resend. Si llega, los recordatorios esperan al día siguiente y la web sigue andando.</p></div>`;
 }
 function shiftMonth(n) { const [y, m] = st.month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); st.month = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; paneStats(); }
 /* ── Registro en Excel: un .xlsx de verdad (varias hojas, montos con formato), armado acá sin librerías ── */
@@ -3879,6 +3899,8 @@ function profileFields(p, admin) {
     <div class="field"><label for="pf-name">Nombre (como lo ven los alumnos)</label><input class="input" id="pf-name" name="name" required maxlength="60" value="${esc(p.name)}"></div>
     <div class="field"><label for="pf-phone">WhatsApp</label><input class="input" id="pf-phone" name="phone" type="tel" inputmode="tel" maxlength="30" value="${esc(p.phone || '')}" placeholder="341 555 1234"></div>
     <label class="check" style="margin:-6px 0 14px"><input type="checkbox" name="public_whatsapp" ${p.public_whatsapp !== false ? 'checked' : ''}> Mostrar mi WhatsApp a los alumnos (botón "Escribile")</label>
+    <div class="field"><label for="pf-mail">Mail para avisos <span class="muted">(opcional)</span></label><input class="input" id="pf-mail" name="notify_email" type="email" maxlength="120" autocomplete="email" value="${esc(p.notify_email || '')}" placeholder="tu@mail.com">
+      <div class="tiny muted" style="margin-top:4px">Te llega cada mañana el resumen de tus clases del día con los anotados, y los lunes el de la semana.</div></div>
     <div class="field"><label for="pf-bio">Presentación corta</label><textarea class="input" id="pf-bio" name="bio" maxlength="160" placeholder="Ej: Instructor certificado, 5 años dando clases en el Paraná.">${esc(p.bio || '')}</textarea></div>
     <div class="grid2"><div class="field"><label for="pf-alias">Alias o CBU para transferencias <span class="muted">(opcional)</span></label><input class="input" id="pf-alias" name="pay_alias" maxlength="40" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(p.pay_alias || '')}" placeholder="ej: tomi.sup.mp"></div>
       <div class="field"><label for="pf-holder">Titular de la cuenta</label><input class="input" id="pf-holder" name="pay_holder" maxlength="60" value="${esc(p.pay_holder || '')}" placeholder="Nombre y apellido"></div></div>
@@ -3925,6 +3947,7 @@ async function saveProfileForm(ev, id, admin) {
   const f = ev.target, p = admin ? st.allProfiles.find(x => x.id === id) : st.me, btn = $('pf-btn');
   const patch = { name: f.name.value.trim(), phone: f.phone.value.trim() || null, bio: f.bio.value.trim() || null, public_whatsapp: f.public_whatsapp.checked,
     pay_alias: f.pay_alias.value.trim().replace(/\s+/g, '') || null, pay_holder: f.pay_holder.value.trim() || null };
+  if (f.notify_email && f.notify_email.value.trim() !== (p.notify_email || '')) patch.notify_email = f.notify_email.value.trim().toLowerCase() || null;   // solo si cambió
   if (patch.pay_alias && !/^(\d{22}|[a-zA-Z0-9.\-]{6,20})$/.test(patch.pay_alias)) { $('pf-err').innerHTML = '<div class="err">El alias tiene que tener entre 6 y 20 letras, números, puntos o guiones (o un CBU/CVU de 22 números).</div>'; return; }
   if (admin) {
     const r = f.role.value;
