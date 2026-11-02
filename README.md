@@ -82,6 +82,9 @@ La agenda, el resumen, Equipo y Abonos se actualizan solos cuando otro profe car
 - **🔁 Reserva fija**: al reservar con cuenta, si el horario se repite (mismo profe, tipo, día y hora) aparece "Reservar todos los martes 18:00" y se eligen cuántas semanas. Usa el abono mientras alcance y la fecha entre; lo que no, queda para pagar. Las semanas sin lugar se informan al final.
 - **📈 Nivel y notas**: el profe, en el perfil del alumno (*Ver perfil, nivel y notas*), marca el nivel por deporte (🌱 iniciación, 🌊 intermedio, 🔥 avanzado) y deja notas; las "🔒 solo profes" no las ve el alumno. El alumno ve *Mi progreso* en su perfil. SQL: `update-2026-11-parte1/2`.
 - **📸 Fotos de la clase**: Agenda → "⋯" → *Fotos de la clase* (hasta 10, se achican a 1600 px). Las ven los alumnos de esa clase en el comprobante y en *Fotos de mis clases*. Bucket público `class-photos`. SQL: `update-2026-11-parte1/3`.
+- **📢 Aviso en la página**: Crear → *Aviso en la página* ("Hoy no hay clases por viento"). Para toda la página o un deporte, solo hoy / 3 días / 1 semana / hasta sacarlo. El admin publica en cualquiera; Mati, en kayak. SQL: `update-2026-11-parte4`.
+- **🏷️ Cupones**: *Más → Cupones* (Mati: desde Crear, solo kayak). % de descuento, deporte, vencimiento y máximo de usos; 1 uso por WhatsApp. El alumno lo pone al reservar; baja el monto (y la parte del profe). SQL: `update-2026-11-parte4/5`.
+- **Baja de un horario fijo**: en el perfil, cada horario con 2+ reservas tiene "Darme de baja" (cancela todas las que se puedan: más de 12 h antes y sin pagar).
 - **📊 Más números** (Resumen, admin): nuevos vs. los que vuelven, horarios más pedidos, repetición por profe y alumnos que no vienen hace más de 30 días.
 
 ## Pago online con Mercado Pago (opcional)

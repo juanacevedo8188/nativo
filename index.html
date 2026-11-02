@@ -259,6 +259,9 @@ img.avatar.xl{border:4px solid var(--ink)}
 .sports button.on{background:var(--ink);color:var(--sun)}
 .slot .ttl{font:700 15px var(--f-display);margin-bottom:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .slot.trav{border:2px solid var(--sea2);background:linear-gradient(135deg,#fffbe0 0%,#e3f7f4 100%);box-shadow:0 6px 18px rgba(24,179,182,.18)}
+.notice{display:flex;gap:10px;align-items:flex-start;border-radius:var(--r);padding:12px 14px;margin:14px 0 4px;font-weight:600;font-size:15px;border:2px solid #e8a33a;background:#fff4e0;color:#6b4300}
+.notice.info{border-color:var(--sea2);background:#e3f7f4;color:#0d4f50}
+.notice i{font-style:normal;font-size:20px;line-height:1.2}
 .slot.train{border:2px solid #8b5cf6;background:linear-gradient(135deg,#f3edff 0%,#ece4ff 100%);box-shadow:0 6px 18px rgba(139,92,246,.18)}
 .slot.train .go{background:#1fa855;color:#fff;box-shadow:inset 0 0 0 2px var(--ink)}
 .slot.train .meta{color:#5b3fa0}
@@ -838,6 +841,16 @@ function supabaseApi() {
     async deleteSlotPhoto(ph) { await q(c.from('slot_photos').delete().eq('id', ph.id)); c.storage.from('class-photos').remove([ph.path]).catch(() => {}); },
     photosByCode: code => q(c.rpc('slot_photos_by_code', { p_code: code })),
     myPhotos: () => q(c.rpc('my_photos')),
+    // Aviso general en la página (uno por deporte, o "all" para todos)
+    notices: () => q(c.from('site_notices').select('*')),
+    saveNotice: n => q(c.from('site_notices').upsert(n)),
+    deleteNotice: sport => q(c.from('site_notices').delete().eq('sport', sport)),
+    // Cupones de descuento
+    async checkCoupon(code, sport) { return (await q(c.rpc('check_coupon', { p_coupon: code, p_sport: sport })))[0]; },
+    applyCoupon: (booking, coupon) => q(c.rpc('apply_coupon', { p_booking: booking, p_coupon: coupon })),
+    coupons: () => q(c.from('coupons').select('*').order('created_at', { ascending: false })),
+    saveCoupon: cp => q(c.from('coupons').upsert(cp)),
+    couponUses: () => q(c.from('bookings').select('coupon_code, amount, status, paid').not('coupon_code', 'is', null)),
     teamMembers: () => q(c.rpc('team_members')),
     teamPosts: () => q(c.from('team_posts').select('*').order('pinned', { ascending: false }).order('created_at', { ascending: false }).limit(30)),
     addPost: (body, pinned) => q(c.from('team_posts').insert({ body, pinned })),
@@ -1139,6 +1152,27 @@ function demoApi() {
         return { id: p.id, url: p.url, slot_id: p.slot_id, starts_at: s.starts_at, title: s.title, profe_name: db.profiles.find(x => x.id === s.profe_id)?.name }; })
         .sort((a, b) => b.starts_at.localeCompare(a.starts_at)));
     },
+    notices: () => wait(db.site_notices || []),
+    saveNotice(n) { if (!meP()) return fail('Solo profes'); db.site_notices = (db.site_notices || []).filter(x => x.sport !== n.sport).concat({ ...n, updated_at: new Date().toISOString() }); save(); return wait(null); },
+    deleteNotice(sport) { db.site_notices = (db.site_notices || []).filter(x => x.sport !== sport); save(); return wait(null); },
+    checkCoupon(code, sport) {
+      const c0 = (db.coupons || []).find(x => x.code === String(code || '').trim().toUpperCase());
+      if (!c0 || !c0.active) return fail('Ese cupón no existe');
+      if (c0.valid_until && c0.valid_until < dayKey(new Date())) return fail('Ese cupón ya venció');
+      if (c0.sport && c0.sport !== (sport || 'sup')) return fail(`Ese cupón es para clases de ${c0.sport === 'kayak' ? 'kayak' : 'SUP'}`);
+      if (c0.max_uses && db.bookings.filter(b => b.coupon_code === c0.code && b.status !== 'cancelled').length >= c0.max_uses) return fail('Ese cupón ya se usó todas las veces');
+      return wait({ coupon: c0.code, pct: c0.percent });
+    },
+    async applyCoupon(code, coupon) {
+      const b = db.bookings.find(x => x.code === String(code).toUpperCase()); if (!b || b.status !== 'confirmed') throw new Error('No encontramos esa reserva');
+      if (b.paid) throw new Error('La reserva ya está paga'); if (b.coupon_code) throw new Error('Esta reserva ya tiene un cupón');
+      const s = db.slots.find(x => x.id === b.slot_id), r = await this.checkCoupon(coupon, db.class_types.find(t => t.id === s.class_type_id)?.sport || 'sup');
+      if (db.bookings.some(x => x.coupon_code === r.coupon && x.status !== 'cancelled' && phoneKey(x.customer_phone) === phoneKey(b.customer_phone))) throw new Error('Ya usaste este cupón');
+      b.amount = Math.round(b.amount * (100 - r.pct) / 100); b.coupon_code = r.coupon; b.notes = [b.notes, `Cupón ${r.coupon} -${r.pct}%`].filter(Boolean).join(' - '); save(); return b.amount;
+    },
+    coupons: () => wait([...(db.coupons || [])].reverse()),
+    saveCoupon(cp) { if (!meP()) return fail('Solo profes'); db.coupons = (db.coupons || []).filter(x => x.code !== cp.code).concat({ created_at: new Date().toISOString(), ...cp }); save(); return wait(null); },
+    couponUses: () => wait(db.bookings.filter(b => b.coupon_code).map(({ coupon_code, amount, status, paid }) => ({ coupon_code, amount, status, paid }))),
     teamMembers() { return wait(db.students.filter(x => x.training === 'approved').map(x => ({ id: x.id, name: x.name, avatar_url: x.avatar_url, instagram: x.instagram, level: x.level, train_days: demoDays(x.id) }))); },
     teamPosts() {
       const me = store.get(SKEY, null), ok = meP() || db.students.find(x => x.id === me && x.training === 'approved');
@@ -1305,15 +1339,15 @@ async function renderPublic() {
   const cached = DEMO ? null : store.get(PUB_CACHE, null);
   let shown = false;
   if (cached && Date.now() - cached.at < 12 * 3600e3) {
-    Object.assign(st, { types: cached.types, profes: cached.profes, plans: cached.plans, reviews: cached.reviews || [], pub: cached.pub.filter(x => new Date(x.starts_at) > new Date()) });
+    Object.assign(st, { types: cached.types, profes: cached.profes, plans: cached.plans, reviews: cached.reviews || [], notices: cached.notices || [], pub: cached.pub.filter(x => new Date(x.starts_at) > new Date()) });
     if ($('pub') && st.pub.length) { drawPublic(); shown = true; }
   }
   try {
     const from = startOfDay(new Date()), to = addDays(from, CONFIG.DAYS_AHEAD);
-    const [types, profes, pub, plans, reviews] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => []),
-      api.publicReviews().catch(() => []), syncMine()]);
-    Object.assign(st, { types, profes, pub, plans, reviews });
-    if (!DEMO) store.set(PUB_CACHE, { at: Date.now(), types, profes, pub, plans, reviews });
+    const [types, profes, pub, plans, reviews, , notices] = await Promise.all([api.classTypes(), api.publicProfes(), api.publicSlots(from, to), api.plans().catch(() => []),
+      api.publicReviews().catch(() => []), syncMine(), api.notices().catch(() => [])]);
+    Object.assign(st, { types, profes, pub, plans, reviews, notices });
+    if (!DEMO) store.set(PUB_CACHE, { at: Date.now(), types, profes, pub, plans, reviews, notices });
     if (!WX) loadWeather().then(ok => { if (ok && $('pub') && $('modal').classList.contains('hidden')) { const y = window.scrollY; drawPublic(); window.scrollTo(0, y); } });
     if ($('pub') && (!shown || $('modal').classList.contains('hidden'))) { const y = window.scrollY; drawPublic(); if (shown) window.scrollTo(0, y); }
   } catch (e) {
@@ -1390,6 +1424,7 @@ function drawPublic() {
   const mine = myUpcoming(), myPass = (st.myPasses || []).find(p => p.status === 'active' && p.expires_on >= dayKey(new Date()) && p.classes_total - p.used > 0) || (st.myPasses || []).find(p => p.status === 'pending');
   const plans = (st.plans || []).filter(p => p.active && (p.sport || 'sup') === sp);
   $('pub').innerHTML = `
+    ${liveNotices(sp).map(n => `<div class="notice ${n.tone === 'info' ? 'info' : ''}" role="status"><i>${n.tone === 'info' ? '📣' : '⚠️'}</i><span>${esc(n.body)}</span></div>`).join('')}
     ${sports.length > 1 ? `<div class="sports" role="tablist">${sports.map(k => `<button role="tab" aria-selected="${k === sp}" class="${k === sp ? 'on' : ''}" onclick="setPub('fSport','${k}')"><i>${SPORTS[k].em}</i>${SPORTS[k].label}</button>`).join('')}</div>` : ''}
     ${myPass && (passSport(myPass) === sp) ? myPassCard(myPass, true) : plans.map(planCard).join('')}
     ${st.student?.training === 'approved' ? (() => { const t = trainStats(st.myDays || []);
@@ -1636,6 +1671,10 @@ function openBooking(id) {
       ${me ? `<input type="hidden" name="email" value="${esc(me.email || '')}">` : `<details class="field"><summary class="small muted" style="cursor:pointer">Agregar email (opcional)</summary>
         <input class="input" style="margin-top:8px" name="email" type="email" autocomplete="email" maxlength="120" aria-label="Email"></details>`}
       ${me ? '<div id="bk-rep"></div>' : ''}
+      <details class="field" id="bk-cp"><summary class="small" style="cursor:pointer">🏷️ ¿Tenés un cupón de descuento?</summary>
+        <div class="row" style="gap:8px;margin-top:8px"><input class="input" name="coupon" maxlength="20" placeholder="VERANO10" style="flex:1;text-transform:uppercase" autocapitalize="characters" aria-label="Cupón">
+          <button type="button" class="btn ghost sm" onclick="tryCoupon()">Aplicar</button></div>
+        <div id="bk-cp-msg" class="tiny" style="margin-top:4px"></div></details>
       ${(() => { const al = st.profes.find(x => x.id === s.profe_id)?.pay_alias;
         return al ? `<div class="field pay-pick" id="bk-pay"><span class="flabel">¿Cómo vas a pagar?</span><div class="seg">
           <label><input type="radio" name="pay" value="transferencia" checked>💸 Transferencia</label><label><input type="radio" name="pay" value="efectivo">💵 Efectivo en la clase</label></div>
@@ -1673,12 +1712,28 @@ function stepPeople(d) {
   const f = $('bk-form'), b = st.bk, usePass = !!f.usePass?.checked;
   const max = usePass ? Math.min(b.left, b.passLeft) : b.left, n = Math.min(max, Math.max(1, +f.people.value + d));
   f.people.value = n; $('bk-people').textContent = n;
-  const plan = bookPlan(f), k = plan.length, withPass = plan.filter(x => x.use).length, pay = plan.filter(x => !x.use).reduce((a, x) => a + x.s.price * n, 0);
-  $('bk-total-l').textContent = k > 1 ? `${k} clases${withPass ? ` · ${withPass} con abono` : ''}` : usePass ? `Con tu abono (${n} ${n === 1 ? 'clase' : 'clases'})` : 'Total';
+  const plan = bookPlan(f), k = plan.length, withPass = plan.filter(x => x.use).length, firstPay = plan.find(x => !x.use);
+  // el cupón se aplica en 1 reserva (la primera que se paga): mismo redondeo que la base
+  const disc = b.coupon && firstPay ? firstPay.s.price * n - Math.round(firstPay.s.price * n * (100 - b.coupon.pct) / 100) : 0;
+  const pay = plan.filter(x => !x.use).reduce((a, x) => a + x.s.price * n, 0) - disc;
+  $('bk-total-l').textContent = (k > 1 ? `${k} clases${withPass ? ` · ${withPass} con abono` : ''}` : usePass ? `Con tu abono (${n} ${n === 1 ? 'clase' : 'clases'})` : 'Total') + (disc ? ` · -${b.coupon.pct}%` : '');
+  $('bk-cp')?.classList.toggle('hidden', !firstPay);
   $('bk-total').textContent = money(pay);
   $('bk-pay')?.classList.toggle('hidden', pay === 0);        // con abono no se paga nada
   if ($('bk-rep-n')) $('bk-rep-n').hidden = !f.rep?.checked;
   $('bk-btn').textContent = k > 1 ? `Reservar ${k} clases` : 'Confirmar reserva';
+}
+async function tryCoupon() {
+  const f = $('bk-form'), code = f.coupon.value.trim().toUpperCase(), msg = $('bk-cp-msg');
+  if (!code) return;
+  try { st.bk.coupon = await api.checkCoupon(code, sportOf(st.bk.slot)); msg.innerHTML = `<span style="color:var(--ok)">✓ ${esc(st.bk.coupon.coupon)}: ${st.bk.coupon.pct}% de descuento${f.rep?.checked ? ' (en la primera clase)' : ''}</span>`; }
+  catch (e) { st.bk.coupon = null; msg.innerHTML = `<span style="color:var(--bad)">${esc(errMsg(e))}</span>`; }
+  stepPeople(0);
+}
+// Aplica el cupón validado a una reserva ya hecha. Si falla, la reserva queda igual (sin descuento).
+async function useCoupon(code) {
+  if (!st.bk?.coupon) return;
+  try { await api.applyCoupon(code, st.bk.coupon.coupon); } catch (e) { toast(`La reserva quedó, pero sin el cupón: ${errMsg(e)}`); }
 }
 async function bookSeries(f, plan) {
   const btn = $('bk-btn'), n = +f.people.value, res = [];
@@ -1689,7 +1744,8 @@ async function bookSeries(f, plan) {
       rememberBooking(r.code, r.starts_at); res.push({ s, ok: true, use, code: r.code });
     } catch (e) { res.push({ s, ok: false, err: errMsg(e) }); }
   }
-  const ok = res.filter(x => x.ok);
+  const ok = res.filter(x => x.ok), cp = ok.find(x => !x.use);
+  if (cp) await useCoupon(cp.code);
   if (!ok.length) { $('bk-err').innerHTML = `<div class="err">${esc(res[0].err)}</div>`; btn.disabled = false; stepPeople(0); return; }
   if (plan.some(x => x.use)) st.myPasses = await api.myPasses().catch(() => st.myPasses);
   if (st.student && f.phone.value.trim() !== (st.student.phone || '')) {
@@ -1716,6 +1772,7 @@ async function submitBooking(ev, id) {
     const usePass = !!f.usePass?.checked;
     const r = await api.book({ slot_id: id, name: f.name.value, phone: f.phone.value, email: f.email.value.trim(), people: +f.people.value, usePass, pay: usePass ? null : f.pay?.value || null });
     if (usePass) st.myPasses = await api.myPasses().catch(() => st.myPasses);
+    else await useCoupon(r.code);
     rememberBooking(r.code, r.starts_at);
     if (st.student && f.phone.value.trim() !== (st.student.phone || '')) {      // guarda el WhatsApp en su perfil
       api.updateStudent(st.student.id, { phone: f.phone.value.trim() }).then(() => { st.student.phone = f.phone.value.trim(); }).catch(() => {});
@@ -2391,7 +2448,10 @@ async function renderStudent() {
     ${P.stats}
     ${wv ? '' : `<div class="card waiver-warn rise"><b>📝 Completá tu ficha de salud y deslinde</b><div class="small">Es una sola vez y la necesitamos antes de tu clase (1 minuto).</div>
       <button class="btn coral sm" style="margin-top:8px" onclick="openWaiver({ mine: true })">Completar ahora</button></div>`}
-    ${sec('next', `📅 Próximas clases <span class="pill">${next.length}</span>`, next.length ? `<div class="card" style="padding:4px 14px">${next.map(row).join('')}</div>`
+    ${sec('next', `📅 Próximas clases <span class="pill">${next.length}</span>`, next.length ? `${(st.mySeries = seriesGroups(next)).map((g, i) => { const d = new Date(g[0].starts_at);
+        return `<div class="card" style="padding:10px 14px"><div class="row between" style="gap:10px"><span class="small"><b>🔁 Los ${DOW_LONG[d.getDay()]} ${hhmm(d)} con ${esc(g[0].profe_name)}</b><br>
+          <span class="muted">${g.length} clases reservadas, hasta el ${esc(fmtDayShort(g[g.length - 1].starts_at))}</span></span>
+          <button class="btn danger sm" style="flex:none" onclick="cancelSeries(${i})">Darme de baja</button></div></div>`; }).join('')}<div class="card" style="padding:4px 14px">${next.map(row).join('')}</div>`
       : `<div class="card empty" style="padding:18px">No tenés clases reservadas.<div style="margin-top:10px"><a class="btn coral sm" href="#">Reservar una clase</a></div></div>`, true)}
     ${P.team ? sec('team', '🏅 Team Nativo', teamSection(P.team, me.training === 'approved'), true) : ''}
     ${sec('pass', passes.length ? `💳 Mi abono <span class="pill ok">${passes.length === 1 ? 'activo' : passes.length}</span>` : '💳 Abonos', passes.length ? passes.map(p => myPassCard(p)).join('') : (st.plans || []).filter(p => p.active).map(planCard).join('') || '<p class="muted small">No hay abonos disponibles.</p>', passes.length > 0)}
@@ -2449,6 +2509,25 @@ async function redeemGiftHere(ev) {
   try { await api.redeemGiftPass(code); toast('¡Regalo canjeado! Tu abono ya está activo 🎉'); st.myPasses = await api.myPasses().catch(() => st.myPasses); renderStudent(); }
   catch (e) { toast(errMsg(e)); }
 }
+// Horario fijo del alumno: 2 o más próximas clases del mismo horario (misma clase, profe, día y hora).
+const seriesKey = b => [b.title, b.profe_name, new Date(b.starts_at).getDay(), hhmm(b.starts_at)].join('|');
+function seriesGroups(next) {
+  const g = {}; next.filter(b => b.status === 'confirmed').forEach(b => (g[seriesKey(b)] ||= []).push(b));
+  return Object.values(g).filter(x => x.length >= 2);
+}
+async function cancelSeries(i) {
+  const g = st.mySeries?.[i]; if (!g) return; const d = new Date(g[0].starts_at);
+  if (!await askConfirm(`¿Darte de baja de las ${g.length} clases de los ${DOW_LONG[d.getDay()]} ${hhmm(d)} con ${g[0].profe_name}? Se liberan los lugares para otros.`, 'Sí, darme de baja')) return;
+  const res = [];
+  for (const b of g) { try { await api.cancelMyBooking(b.code); res.push({ b, ok: true }); } catch (e) { res.push({ b, ok: false, err: errMsg(e) }); } }
+  const ok = res.filter(x => x.ok).length, bad = res.filter(x => !x.ok);
+  store.set(MINE, store.get(MINE, []).filter(x => !res.some(r => r.ok && r.b.code === x.code)));
+  await renderStudent();
+  if (bad.length) openModal(`<h2>Te diste de baja de ${ok} ${ok === 1 ? 'clase' : 'clases'}</h2><p class="small muted">Estas no se pueden cancelar desde la web:</p>
+    <div class="card" style="padding:4px 14px">${bad.map(x => `<div style="padding:8px 0;border-top:1px solid var(--line)"><b class="small">${esc(fmtDayShort(x.b.starts_at))} ${hhmm(x.b.starts_at)}</b><div class="tiny muted">${esc(x.err)}</div></div>`).join('')}</div>
+    <p class="small" style="margin-top:10px">Para esas, escribile a ${esc(g[0].profe_name.split(' ')[0])}.</p><div class="sheet-foot"><button class="btn block" onclick="closeModal()">Entendido</button></div>`);
+  else toast(`Listo: te diste de baja de ${ok} ${ok === 1 ? 'clase' : 'clases'}`);
+}
 function psecToggle(key, open) { const m = store.get('nativo_psec', {}); m[key] = open; store.set('nativo_psec', m); }
 function editStudent() {
   const me = st.student; st.pendingPhoto = null;
@@ -2491,9 +2570,9 @@ async function renderStaff() {
   const tabs = admin
     ? [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['resumen', 'Resumen', ICON.chart], ['profes', 'Equipo', ICON.team], ['mas', 'Más', ICON.more]]
     : [['agenda', 'Agenda', ICON.cal], ['cargar', 'Crear', ICON.plus], ['numeros', 'Mis números', ICON.chart], ['perfil', 'Perfil', ICON.user]];
-  const all = [...tabs.map(t => t[0]), 'clases', 'perfil', ...(admin ? ['abonos', 'grupos'] : st.me.manages?.length ? ['regalos', 'grupos'] : [])];
+  const all = [...tabs.map(t => t[0]), 'clases', 'perfil', ...(admin ? ['abonos', 'grupos', 'cupones'] : st.me.manages?.length ? ['regalos', 'grupos', 'cupones'] : [])];
   if (!all.includes(st.tab)) st.tab = 'agenda';
-  const onTab = ['clases', 'perfil', 'abonos', 'grupos'].includes(st.tab) && admin ? 'mas' : ['clases', 'regalos', 'grupos'].includes(st.tab) ? 'cargar' : st.tab;
+  const onTab = ['clases', 'perfil', 'abonos', 'grupos', 'cupones'].includes(st.tab) && admin ? 'mas' : ['clases', 'regalos', 'grupos', 'cupones'].includes(st.tab) ? 'cargar' : st.tab;
   $('staff').innerHTML = `
     <div class="hello"><div><div class="tiny muted">${ROLES[roleKey(st.me)]} · Nativo</div><b>Hola, ${esc(st.me.name.split(' ')[0])} 👋</b></div>
       <button class="btn ghost sm" onclick="logout()">Salir</button></div>
@@ -2503,7 +2582,7 @@ async function renderStaff() {
   PANES[st.tab]();
   startLive();
 }
-const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos(), grupos: () => paneGroups(), regalos: () => paneGifts() };
+const PANES = { resumen: () => paneStats(), numeros: () => paneStats(), agenda: () => paneAgenda(), cargar: () => paneCreate(), profes: () => paneProfes(), clases: () => paneTypes(), perfil: () => paneProfile(), mas: () => paneMore(), abonos: () => paneAbonos(), grupos: () => paneGroups(), regalos: () => paneGifts(), cupones: () => paneCoupons() };
 function setTab(t) { st.tab = t; renderStaff(); window.scrollTo({ top: 0 }); }
 
 /* ── Tiempo real: lo que hace otro profe aparece sin recargar ──
@@ -2556,6 +2635,7 @@ async function paneMore() {
   paneEl().innerHTML = `<div class="menu">
     <button class="btn ghost block" onclick="setTab('abonos')"><span>💳 Abonos y 🎁 gift cards</span><span>›</span></button>
     <button class="btn ghost block" onclick="setTab('grupos')"><span>👥 Clases privadas y grupales <b id="grp-n"></b></span><span>›</span></button>
+    <button class="btn ghost block" onclick="setTab('cupones')"><span>🏷️ Cupones de descuento</span><span>›</span></button>
     <button class="btn ghost block" onclick="setTab('clases')"><span>Precio y cupo de la clase</span><span>›</span></button>
     <button class="btn ghost block" onclick="setTab('perfil')"><span>Mi perfil</span><span>›</span></button>
     <a class="btn ghost block" href="#"><span>Ver la página de reservas</span><span>›</span></a>
@@ -2773,6 +2853,83 @@ function bookingMenu(id) {
       ${last ? `<div class="small" style="margin-top:4px">📝 “${esc(last.body)}” <span class="tiny muted">· ${esc(last.author_name || 'Profe')}</span></div>` : ''}</div>`;
   }).catch(() => {});
 }
+/* ── Aviso general en la página: "Hoy no hay clases por viento", "Sábado travesía especial"… ──
+   Uno por deporte (o para todos). El admin publica en cualquiera; Mati, en kayak. */
+const liveNotices = sp => (st.notices || []).filter(n => (n.sport === 'all' || n.sport === sp) && (!n.until || new Date(n.until) > new Date()))
+  .sort((a, b) => (a.sport === 'all') - (b.sport === 'all'));
+const noticeSports = () => st.me.role === 'admin' ? ['all', ...Object.keys(SPORTS)] : (st.me.manages || []);
+const noticeLabel = k => k === 'all' ? 'Toda la página' : `${SPORTS[k].em} ${SPORTS[k].label}`;
+async function noticeEditor() {
+  if (!$('notice-ed') || !noticeSports().length) return;
+  st.notices = await api.notices().catch(() => st.notices || []);
+  if (!$('notice-ed')) return;
+  const mine = noticeSports(), cur = (st.notices || []).filter(n => mine.includes(n.sport) && (!n.until || new Date(n.until) > new Date()));
+  $('notice-ed').innerHTML = `<div class="card" style="max-width:560px"><h2>📢 Aviso en la página</h2>
+    <p class="small muted" style="margin-bottom:10px">Aparece arriba de todo para los alumnos. Ej: "Hoy no hay clases por viento" o "Este sábado travesía especial a la isla".</p>
+    ${cur.map(n => `<div class="notice ${n.tone === 'info' ? 'info' : ''}" style="margin:0 0 8px"><i>${n.tone === 'info' ? '📣' : '⚠️'}</i><span style="flex:1">${esc(n.body)}
+      <span class="tiny" style="display:block;font-weight:500;opacity:.8">${esc(noticeLabel(n.sport))} · ${n.until ? 'hasta ' + esc(fmtDayShort(n.until)) + ' ' + hhmm(n.until) : 'hasta que lo saques'}</span></span>
+      <button class="btn ghost sm" onclick="dropNotice('${n.sport}')">Quitar</button></div>`).join('')}
+    <form onsubmit="saveNoticeForm(event)">
+      ${mine.length > 1 ? `<div class="field"><label for="nt-sp">¿Dónde?</label><select class="input" id="nt-sp" name="sport">${mine.map(k => `<option value="${k}">${esc(noticeLabel(k))}</option>`).join('')}</select></div>` : `<input type="hidden" name="sport" value="${mine[0]}">`}
+      <div class="field"><textarea class="input" name="body" required maxlength="280" rows="2" placeholder="Hoy no hay clases por viento. Les escribimos para reprogramar 🙏"></textarea></div>
+      <div class="seg" style="margin-bottom:10px"><label><input type="radio" name="tone" value="warn" checked>⚠️ Aviso</label><label><input type="radio" name="tone" value="info">📣 Novedad</label></div>
+      <div class="row between wrapf" style="gap:8px"><select class="input sm" name="dur" style="width:auto" aria-label="Duración">
+        <option value="today">Solo hoy</option><option value="3">3 días</option><option value="7">1 semana</option><option value="">Hasta que lo saque</option></select>
+        <button class="btn coral sm">Publicar aviso</button></div>
+      <p class="tiny muted" style="margin-top:6px">Si ya hay un aviso en ese lugar, el nuevo lo reemplaza.</p></form></div>`;
+}
+async function saveNoticeForm(ev) {
+  ev.preventDefault(); const f = ev.target, btn = f.querySelector('button.coral'); btn.disabled = true;
+  const d = f.dur.value, end = d === 'today' ? (x => { x.setHours(23, 59, 0, 0); return x; })(new Date()) : d ? addDays(new Date(), +d) : null;
+  try { await api.saveNotice({ sport: f.sport.value, body: f.body.value.trim(), tone: f.tone.value, until: end ? end.toISOString() : null, updated_by: st.me.id, updated_at: new Date().toISOString() });
+    toast('Aviso publicado ✓'); noticeEditor(); }
+  catch (e) { toast(errMsg(e)); btn.disabled = false; }
+}
+async function dropNotice(sport) {
+  try { await api.deleteNotice(sport); toast('Aviso quitado'); noticeEditor(); } catch (e) { toast(errMsg(e)); }
+}
+
+/* ── Cupones de descuento (ej. VERANO10): % de descuento, por deporte, con vencimiento y cupo de usos ──
+   El alumno lo pone al reservar; 1 uso por WhatsApp. El descuento baja el monto de la reserva
+   (y por lo tanto también la parte del profe, que es un % de lo cobrado). */
+async function paneCoupons() {
+  const admin = st.me.role === 'admin', mySp = admin ? Object.keys(SPORTS) : (st.me.manages || []);
+  let list = [], uses = [];
+  try { [list, uses] = await Promise.all([api.coupons(), api.couponUses().catch(() => [])]); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
+  const by = {}; uses.filter(b => b.status !== 'cancelled').forEach(b => { const x = (by[b.coupon_code] ||= { n: 0, total: 0 }); x.n++; x.total += +b.amount; });
+  const back = admin ? ['mas', 'Más'] : ['cargar', 'Crear'], today = dayKey(new Date());
+  const state = c => !c.active ? ['gray', 'pausado'] : c.valid_until && c.valid_until < today ? ['gray', 'vencido'] : c.max_uses && (by[c.code]?.n || 0) >= c.max_uses ? ['gray', 'agotado'] : ['ok', 'activo'];
+  paneEl().innerHTML = `<div style="margin-bottom:10px"><a href="#" class="small" onclick="setTab('${back[0]}');return false">‹ ${back[1]}</a></div>
+    <div class="card" style="max-width:560px"><h2>🏷️ Nuevo cupón</h2>
+      <p class="small muted" style="margin-bottom:10px">El alumno lo pone al reservar. Sirve 1 vez por WhatsApp. Ideal para campañas de Instagram.</p>
+      <form onsubmit="saveCouponForm(event)">
+        <div class="grid2"><div class="field"><label for="cp-code">Código</label><input class="input" id="cp-code" name="code" required maxlength="20" pattern="[A-Za-z0-9]{3,20}" placeholder="VERANO10" style="text-transform:uppercase" autocapitalize="characters"></div>
+          <div class="field"><label for="cp-pct">% de descuento</label><input class="input" id="cp-pct" name="pct" type="number" min="1" max="100" required value="10"></div></div>
+        <div class="grid2"><div class="field"><label for="cp-sp">Para</label><select class="input" id="cp-sp" name="sport">${admin ? '<option value="">Todas las clases</option>' : ''}${mySp.map(k => `<option value="${k}">${SPORTS[k].em} ${SPORTS[k].label}</option>`).join('')}</select></div>
+          <div class="field"><label for="cp-until">Vence <span class="muted">(opcional)</span></label><input class="input" id="cp-until" name="until" type="date" min="${today}"></div></div>
+        <div class="grid2"><div class="field"><label for="cp-max">Máximo de usos <span class="muted">(opcional)</span></label><input class="input" id="cp-max" name="max" type="number" min="1" placeholder="Sin límite"></div>
+          <div class="field"><label for="cp-note">Nota <span class="muted">(opcional)</span></label><input class="input" id="cp-note" name="note" maxlength="80" placeholder="Campaña IG noviembre"></div></div>
+        <button class="btn coral block">Crear cupón</button></form></div>
+    <div class="card" style="max-width:560px"><h2>Cupones (${list.length})</h2>
+      ${list.length ? list.map(c => { const [cls, lbl] = state(c), u = by[c.code] || { n: 0, total: 0 };
+        return `<div class="prow" style="cursor:default;align-items:flex-start"><span class="who" style="min-width:0"><b style="overflow-wrap:anywhere">${esc(c.code)} · -${c.percent}% <span class="pill ${cls}" style="margin:0 0 0 4px">${lbl}</span></b>
+          <span>${c.sport ? SPORTS[c.sport].em + ' ' + SPORTS[c.sport].label : 'Todas las clases'}${c.valid_until ? ' · vence ' + esc(fmtDate(c.valid_until)) : ''} · ${u.n}${c.max_uses ? '/' + c.max_uses : ''} ${u.n === 1 ? 'uso' : 'usos'}${u.n ? ' · ' + money(u.total) + ' en reservas' : ''}${c.note ? '<br>' + esc(c.note) : ''}</span></span>
+          <button class="btn ghost sm" style="flex:none" onclick="toggleCoupon('${esc(c.code)}', ${!c.active})">${c.active ? 'Pausar' : 'Activar'}</button></div>`; }).join('')
+        : '<p class="small muted">Todavía no hay cupones.</p>'}</div>`;
+  st.couponList = list;
+}
+async function saveCouponForm(ev) {
+  ev.preventDefault(); const f = ev.target, code = f.code.value.trim().toUpperCase();
+  if ((st.couponList || []).some(c => c.code === code) && !await askConfirm(`Ya existe el cupón ${code}. ¿Reemplazarlo?`, 'Reemplazar')) return;
+  try { await api.saveCoupon({ code, percent: +f.pct.value, sport: f.sport.value || null, valid_until: f.until.value || null, max_uses: +f.max.value || null, note: f.note.value.trim() || null, active: true, created_by: st.me.id });
+    toast(`Cupón ${code} creado ✓`); paneCoupons(); }
+  catch (e) { toast(errMsg(e)); }
+}
+async function toggleCoupon(code, active) {
+  const c = (st.couponList || []).find(x => x.code === code); if (!c) return;
+  try { await api.saveCoupon({ ...c, active }); paneCoupons(); } catch (e) { toast(errMsg(e)); }
+}
+
 /* ── Fotos de la clase: las sube el profe, las ven los alumnos de esa clase ── */
 const PHOTO_MAX = 10;
 async function shrinkWide(file, max = 1600) {
@@ -3123,10 +3280,12 @@ async function paneCreate() {
     <div class="card" style="max-width:560px"><h2>📥 Pedidos de ${st.me.manages.map(k => SPORTS[k]?.label || k).join(' y ')}</h2>
       <p class="small muted" style="margin-bottom:10px">Los regalos y las clases privadas o grupales de tu deporte te llegan a vos.</p>
       <div class="choice"><button class="btn ghost block" onclick="setTab('regalos')"><span>🎁 Gift cards <b id="gift-n"></b></span><span>›</span></button>
-      <button class="btn ghost block" onclick="setTab('grupos')"><span>👥 Clases privadas y grupales <b id="grp-n"></b></span><span>›</span></button></div></div>` : ''}
+      <button class="btn ghost block" onclick="setTab('grupos')"><span>👥 Clases privadas y grupales <b id="grp-n"></b></span><span>›</span></button>
+      <button class="btn ghost block" onclick="setTab('cupones')"><span>🏷️ Cupones de descuento</span><span>›</span></button></div></div>` : ''}
+    <div id="notice-ed"></div>
     <div id="board-ed"></div>`;
   if ($('cf')) { profeOptions(t0.sport || 'sup'); previewCreate(); }   // si cambió de pestaña mientras cargaba, no hay formulario
-  boardEditor();
+  boardEditor(); noticeEditor();
   if (!isAdmin && st.me.manages?.length) pendingBadges();
 }
 
