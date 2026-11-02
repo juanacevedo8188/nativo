@@ -570,6 +570,7 @@ details.more[open]>summary::after{content:"－"}
 const CONFIG = {
   SUPABASE_URL: 'https://teoqnlebaglaewbbuyai.supabase.co',
   SUPABASE_KEY: 'sb_publishable_BvtrAZgX3iBzmlldYITJLQ_Q3PqTKXz',
+  INSTAGRAM: 'nativo.escuela',      // sin @ (vacío = no se muestra)
   WHATSAPP: '5493364386564',        // WhatsApp de la escuela: 549 + característica + número, sin 15 (vacío = no se muestra)
   LOCATION: 'Bar Barlovento, Rosario',  // lugar por defecto de las clases
   MAPS: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Bar Barlovento Rosario'),  // botón "Cómo llegar"
@@ -1372,7 +1373,7 @@ async function renderPublic() {
     <div class="wrap" id="pub">${pubSkeleton()}</div>
     <div class="foot wrap">
       <a class="btn wa ${CONFIG.WHATSAPP ? '' : 'hidden'}" id="foot-wa" href="${CONFIG.WHATSAPP ? waLink(CONFIG.WHATSAPP, 'Hola Nativo! Tengo una consulta') : '#'}" target="_blank" rel="noopener">${ICON.wa.replace('<svg', '<svg width="20" height="20"')} ¿Dudas? Escribinos</a>
-      <div class="links"><a href="#" onclick="showTutorial();return false">¿Cómo funciona?</a>${MP_ON ? `<a href="#" onclick="openPayByCode();return false">Pagar mi reserva</a>` : ''}<a href="#staff">Acceso profes</a></div>
+      <div class="links"><a href="#" onclick="showTutorial();return false">¿Cómo funciona?</a>${MP_ON ? `<a href="#" onclick="openPayByCode();return false">Pagar mi reserva</a>` : ''}${CONFIG.INSTAGRAM ? `<a href="https://instagram.com/${encodeURIComponent(CONFIG.INSTAGRAM)}" target="_blank" rel="noopener">Instagram @${esc(CONFIG.INSTAGRAM)}</a>` : ''}<a href="#staff">Acceso profes</a></div>
     </div>`;
   // Abre al instante con lo último que vio (guardado en el celu) y se actualiza solo en un segundo.
   const cached = DEMO ? null : store.get(PUB_CACHE, null);

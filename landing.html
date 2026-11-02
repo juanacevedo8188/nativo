@@ -227,7 +227,7 @@ section{position:relative}
    Fotos: poné la ruta (ej. 'img/sup.jpg') y reemplaza la ilustración. Vacío = ilustración. */
 const PHOTOS = { hero: '', sup: '', kayak: '', train: '' };
 const T = {
-  instagram: '',                        // ej. 'nativo.sup' (sin @). Vacío = no se muestra
+  instagram: 'nativo.escuela',          // sin @. Vacío = no se muestra
   heroKicker: 'Escuela de SUP & Kayak',
   heroTitle: 'Remá el <span class="hl">Paraná</span>',
   heroText: 'Clases de stand up paddle y kayak en Rosario, para todos los niveles. Te damos todo el equipo: vos traé ganas.',
@@ -400,7 +400,8 @@ function draw({ types = [], profes = [], reviews = [], plans = [] } = {}) {
 
   <section class="final pad"><div class="sunball"></div><div class="wrap pre">
     <div class="eyebrow">¿Arrancamos?</div><h2>Tu primera remada te está esperando</h2>
-    <a class="btn sun" href="/" style="box-shadow:0 0 0 2px var(--ink),6px 6px 0 var(--ink)">Reservar clase ${ICO.arrow}</a></div></section>
+    <a class="btn sun" href="/" style="box-shadow:0 0 0 2px var(--ink),6px 6px 0 var(--ink)">Reservar clase ${ICO.arrow}</a>
+    ${T.instagram ? `<p style="margin-top:22px;font-weight:700">Seguinos en Instagram: <a href="https://instagram.com/${encodeURIComponent(T.instagram)}" target="_blank" rel="noopener">@${esc(T.instagram)}</a></p>` : ''}</div></section>
 
   <footer class="foot"><div class="wrap cols">
     <div><div class="brand"><img src="img/logo.webp" alt="" width="54" height="65"><b>Nativo</b></div>Escuela de SUP & Kayak en el Paraná.<br>${PLACE.name}, ${PLACE.city}.</div>
