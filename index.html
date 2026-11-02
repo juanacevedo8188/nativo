@@ -2855,6 +2855,9 @@ function drawAgenda(isAdmin) {
     ${susp.length ? `<div class="row wrapf" style="margin-top:12px">
       <button class="btn ghost sm" onclick="st.showSusp=!st.showSusp;paneAgenda()">${st.showSusp ? 'Ocultar' : 'Ver'} ${susp.length} ${susp.length === 1 ? 'suspendida' : 'suspendidas'}</button>
       ${st.showSusp ? `<button class="btn danger sm" onclick="deleteAllSuspended()">Borrar todas las suspendidas</button>` : ''}</div>` : ''}
+    ${!st.agendaPast && !store.get('nativo_cal_tip', false) ? `<div class="card" style="display:flex;gap:10px;align-items:center;padding:12px 14px;margin:12px 0 0">
+      <span style="font-size:24px">📅</span><span class="small" style="flex:1"><b>Tus clases en el calendario del celu</b><br>Se agrega una vez y las clases nuevas aparecen solas, con los anotados.</span>
+      <span style="display:flex;flex-direction:column;gap:4px"><button class="btn sm" onclick="setTab('calendario')">Agregar</button><button class="btn ghost sm" style="min-height:30px;padding:2px 10px" onclick="store.set('nativo_cal_tip', true);paneAgenda()">Ya lo tengo</button></span></div>` : ''}
     ${wk ? `<div class="weekbar"><div class="row between"><button class="icon-btn" onclick="shiftAgendaWeek(-1)" ${wi > 0 ? '' : 'disabled'} aria-label="Semana anterior">‹</button>
         <b class="small">${esc(weekLabel(new Date(wk + 'T00:00')))}</b><button class="icon-btn" onclick="shiftAgendaWeek(1)" ${wi < weeks.length - 1 ? '' : 'disabled'} aria-label="Semana siguiente">›</button></div>
       <div class="wdays">${Array.from({ length: 7 }, (_, i) => { const d = addDays(new Date(wk + 'T12:00'), i), k = dayKey(d), n = (groups[k] || []).length;
@@ -3031,6 +3034,7 @@ async function toggleCoupon(code, active) {
 /* ── Calendario del profe: sus clases (con cuántos anotados y quiénes) en Google Calendar o el iPhone ──
    Es un link personal y secreto (/api/cal?t=…). Si se comparte por error, se genera uno nuevo y el viejo deja de andar. */
 async function paneCalendar(reset) {
+  store.set('nativo_cal_tip', true);       // ya lo vio: no se lo mostramos más en la agenda
   let t; try { t = await api.calToken(reset); } catch (e) { paneEl().innerHTML = `<div class="err">${esc(errMsg(e))}</div>`; return; }
   const admin = st.me.role === 'admin', all = admin && !!st.calAll;
   const https = `${location.origin}/api/cal?t=${t}${all ? '&all=1' : ''}`, webcal = https.replace(/^https?:/, 'webcal:');
@@ -3150,7 +3154,8 @@ function slotMenu(id) {
     <div class="choice">
       ${s.status !== 'cancelled' ? `<button class="btn block" onclick="editSlot('${s.id}')">✏️ Editar clase</button>
       <button class="btn ghost block" onclick="closeModal();shareSlot('${s.id}')">🔗 Compartir link de esta clase</button>
-      <button class="btn ghost block" onclick="openSlotPhotos('${s.id}')">📸 Fotos de la clase</button>` : ''}
+      <button class="btn ghost block" onclick="openSlotPhotos('${s.id}')">📸 Fotos de la clase</button>
+      <button class="btn ghost block" onclick="closeModal();setTab('calendario')">📅 Tener mis clases en el calendario del celu</button>` : ''}
       ${s.bookings.length ? `<button class="btn ghost block" onclick="closeModal();cancelSlot('${s.id}')">Suspender clase${n ? ` (avisar a ${n})` : ''}</button>` : ''}
       <button class="btn danger block" onclick="closeModal();forceDeleteSlot('${s.id}')">Borrar clase${s.bookings.length ? ' y sus reservas' : ''}</button>
       <button class="btn ghost block" onclick="closeModal()">Volver</button></div>
