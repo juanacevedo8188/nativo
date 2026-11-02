@@ -11,10 +11,10 @@
 <meta property="og:site_name" content="Nativo">
 <meta property="og:locale" content="es_AR">
 <meta property="og:title" content="Nativo · Escuela de SUP en Rosario">
-<meta property="og:description" content="Elegí profe y horario y reservá tu clase de stand up paddle online. 📍 Guardería Barlovento.">
+<meta property="og:description" content="Elegí profe y horario y reservá tu clase de stand up paddle online. 📍 Bar Barlovento.">
 <meta property="og:url" content="https://www.nativoescuela.com.ar/">
-<meta property="og:image" content="https://www.nativoescuela.com.ar/img/og.jpg">
-<meta property="og:image:secure_url" content="https://www.nativoescuela.com.ar/img/og.jpg">
+<meta property="og:image" content="https://www.nativoescuela.com.ar/img/og.jpg?v=2">
+<meta property="og:image:secure_url" content="https://www.nativoescuela.com.ar/img/og.jpg?v=2">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -571,8 +571,8 @@ const CONFIG = {
   SUPABASE_URL: 'https://teoqnlebaglaewbbuyai.supabase.co',
   SUPABASE_KEY: 'sb_publishable_BvtrAZgX3iBzmlldYITJLQ_Q3PqTKXz',
   WHATSAPP: '5493364386564',        // WhatsApp de la escuela: 549 + característica + número, sin 15 (vacío = no se muestra)
-  LOCATION: 'Guardería Barlovento, Rosario',  // lugar por defecto de las clases
-  MAPS: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Guardería Barlovento Rosario'),  // botón "Cómo llegar"
+  LOCATION: 'Bar Barlovento, Rosario',  // lugar por defecto de las clases
+  MAPS: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Bar Barlovento Rosario'),  // botón "Cómo llegar"
   DAYS_AHEAD: 21,
   // Pronóstico en cada clase (Open-Meteo, gratis y sin clave). Aviso si el viento o las ráfagas pasan estos km/h.
   WEATHER: { lat: -32.905, lon: -60.672, windWarn: 35, gustWarn: 50 },
@@ -1324,7 +1324,7 @@ function demoSeed() {
   const plans = [{ id: 'pl-1', name: 'Abono mensual', description: '1 clase por semana durante un mes', price: 90000, classes: 4, days_valid: 30, active: true, sort: 1 }];
   const passes = [{ id: 'ps-demo', student_id: 'st-3', plan_id: 'pl-1', name: 'Abono mensual', price: 90000, classes_total: 4, days_valid: 30, status: 'pending', created_at: new Date().toISOString() }];
   const team_posts = [
-    { id: uid(), author_id: 'u-lucas', author_name: 'Lucas', pinned: true, body: 'Entrenamientos: martes y jueves 19 hs en la guardería. Traigan agua y ropa para cambiarse 💪', created_at: addDays(today, -6).toISOString() },
+    { id: uid(), author_id: 'u-lucas', author_name: 'Lucas', pinned: true, body: 'Entrenamientos: martes y jueves 19 hs en Barlovento. Traigan agua y ropa para cambiarse 💪', created_at: addDays(today, -6).toISOString() },
     { id: uid(), author_id: 'u-lucas', author_name: 'Lucas', pinned: false, body: 'Sábado travesía a la isla, salimos 9:30. ¡Avisen quién se suma!', created_at: addDays(today, -1).toISOString() }];
   return { profiles, class_types, slots, bookings, students, plans, passes, team_posts };
 }

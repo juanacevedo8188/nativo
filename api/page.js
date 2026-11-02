@@ -61,13 +61,13 @@ module.exports = async (req, res) => {
         title: `${trav ? '🧭 ' : sp === 'kayak' ? '🛶 ' : '🏄 '}${s.title} · ${day.charAt(0).toUpperCase() + day.slice(1)} ${hour}`,
         desc: `Con ${s.profe?.name || 'Nativo'} · ${dur} · ${money(s.price)} por persona. Reservá tu lugar en Nativo 👉`,
         url: `${site}/c/${slotId}`,
-        image: `${site}/img/${sp === 'kayak' ? 'og-kayak.jpg' : 'og.jpg'}`,
+        image: `${site}/img/${sp === 'kayak' ? 'og-kayak.jpg' : 'og.jpg?v=2'}`,
       };
     }
   } else if (sport === 'kayak') {
     m = {
       title: 'Nativo · Kayak en Rosario',
-      desc: 'Clases de kayak y travesías por el río. Elegí día y horario y reservá online. 📍 Guardería Barlovento.',
+      desc: 'Clases de kayak y travesías por el río. Elegí día y horario y reservá online. 📍 Bar Barlovento.',
       url: `${site}/kayak`,
       image: `${site}/img/og-kayak.jpg`,
     };

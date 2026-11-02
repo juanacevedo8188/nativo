@@ -248,7 +248,7 @@ const T = {
 };
 const SB = { url: 'https://teoqnlebaglaewbbuyai.supabase.co', key: 'sb_publishable_BvtrAZgX3iBzmlldYITJLQ_Q3PqTKXz' };
 const CONTACT = { sup: { name: 'Torita', whatsapp: '5493364386564' } };   // kayak: el WhatsApp de Mati sale de su perfil
-const PLACE = { name: 'Guardería Barlovento', city: 'Rosario', q: 'Guardería Barlovento Rosario' };
+const PLACE = { name: 'Bar Barlovento', city: 'Rosario', q: 'Bar Barlovento Rosario' };
 
 /* ═══════════ Íconos e ilustraciones ═══════════ */
 const ICO = {
@@ -359,7 +359,7 @@ function draw({ types = [], profes = [], reviews = [], plans = [] } = {}) {
     <div class="pre"><div class="eyebrow">Sin experiencia, sin problema</div><h2>Tu primera clase</h2><p class="lead">Así de simple es arrancar.</p></div>
     <div class="steps">
       <div class="step pre"><div class="n">1</div><b>Reservás</b><p>Elegís día, horario y profe desde la web. El comprobante te llega al toque.</p></div>
-      <div class="step pre"><div class="n">2</div><b>Llegás</b><p>Venís a la ${PLACE.name} 15 minutos antes y completás tu ficha de salud (1 minuto).</p></div>
+      <div class="step pre"><div class="n">2</div><b>Llegás</b><p>Venís a ${PLACE.name} 15 minutos antes y completás tu ficha de salud (1 minuto).</p></div>
       <div class="step pre"><div class="n">3</div><b>Te equipamos</b><p>Te damos tabla o kayak, remo y chaleco, y te explicamos lo básico en tierra.</p></div>
       <div class="step pre"><div class="n">4</div><b>¡Al agua!</b><p>${supT ? dur(supT) : 'Una hora'} remando en el Paraná, con el profe al lado todo el tiempo.</p></div>
     </div>
@@ -392,7 +392,7 @@ function draw({ types = [], profes = [], reviews = [], plans = [] } = {}) {
   </div></section>
 
   <section class="pad" id="donde"><div class="wrap where">
-    <div class="pre"><div class="eyebrow">Te esperamos</div><h2>Dónde estamos</h2><p class="lead">Salimos al Paraná desde la ${PLACE.name}, en ${PLACE.city}. Llegá unos minutos antes para cambiarte y equiparte.</p>
+    <div class="pre"><div class="eyebrow">Te esperamos</div><h2>Dónde estamos</h2><p class="lead">Salimos al Paraná desde ${PLACE.name}, en ${PLACE.city}. Llegá unos minutos antes para cambiarte y equiparte.</p>
       <a class="btn dark" style="margin-top:24px" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(PLACE.q)}" target="_blank" rel="noopener">${ICO.pin} Cómo llegar</a></div>
     <div class="mapbox pre"><iframe title="Mapa: ${PLACE.name}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(PLACE.q)}&output=embed"></iframe>
       <div class="pin">${ICO.pin}${PLACE.name}</div></div>
